@@ -1,0 +1,216 @@
+version: '3.8'
+
+# Lucide Self-Hosted Complete Stack
+# Includes: Backend API, Enterprise Gateway, PostgreSQL Database
+#
+# Prerequisites:
+# - Docker & Docker Compose installed
+# - Valid SELF_HOSTED license
+# - Domain name (optional, for HTTPS)
+#
+# Quick Start:
+#   1. cp .env.example .env
+#   2. Edit .env with your configuration
+#   3. docker-compose up -d
+#   4. Access Lucide at http://localhost or your domain
+
+services:
+  # PostgreSQL Database
+  # Stores user data, sessions, conversations
+  postgres:
+    image: postgres:16-alpine
+    container_name: lucide-postgres
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-lucide}
+      POSTGRES_USER: ${POSTGRES_USER:-lucide}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=C --lc-ctype=C"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d:ro
+
+    ports:
+      - "127.0.0.1:5432:5432"
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-lucide} -d ${POSTGRES_DB:-lucide}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+    networks:
+      - lucide-network
+
+  # Lucide Backend API
+  # Handles authentication, sync, user management
+  backend:
+    build:
+      context: ../lucide-backend
+      dockerfile: Dockerfile
+    image: lucide-backend:latest
+    container_name: lucide-backend
+    restart: unless-stopped
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+
+      # Database
+      DATABASE_URL: postgresql://${POSTGRES_USER:-lucide}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-lucide}
+
+      # Supabase (for cloud sync)
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+      SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY}
+
+      # JWT
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRY: 7d
+
+      # CORS
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000,http://localhost}
+
+    volumes:
+      - backend_logs:/app/logs
+
+    ports:
+      - "${BACKEND_PORT:-3001}:3001"
+
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+    networks:
+      - lucide-network
+
+  # Enterprise Gateway
+  # Secure proxy for database access
+  gateway:
+    build:
+      context: ../lucide-enterprise-gateway
+      dockerfile: Dockerfile
+    image: lucide-gateway:latest
+    container_name: lucide-gateway
+    restart: unless-stopped
+
+    depends_on:
+      backend:
+        condition: service_healthy
+
+    environment:
+      NODE_ENV: production
+      PORT: 3002
+
+      # JWT
+      JWT_SECRET: ${GATEWAY_JWT_SECRET:-${JWT_SECRET}}
+      JWT_EXPIRY: 24h
+
+      # Rate Limiting
+      RATE_LIMIT_WINDOW_MS: 60000
+      RATE_LIMIT_MAX_REQUESTS: 100
+
+      # Audit Logging
+      AUDIT_LOG_ENABLED: true
+      AUDIT_LOG_TO_FILE: true
+      AUDIT_LOG_FILE_PATH: /app/logs/audit.log
+
+      # LLM (for natural language queries)
+      LLM_PROVIDER: openai
+      LLM_API_KEY: ${LLM_API_KEY}
+      LLM_MODEL: gpt-4o-mini
+
+      # Security
+      ALLOW_WRITE_QUERIES: ${ALLOW_WRITE_QUERIES:-false}
+
+    volumes:
+      - gateway_logs:/app/logs
+      - ./gateway-config.js:/app/config.js:ro
+
+    ports:
+      - "${GATEWAY_PORT:-3002}:3002"
+
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3002/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+    networks:
+      - lucide-network
+
+  # Nginx Reverse Proxy (optional)
+  # Handles HTTPS, load balancing, and static files
+  nginx:
+    image: nginx:alpine
+    container_name: lucide-nginx
+    restart: unless-stopped
+
+    depends_on:
+      - backend
+      - gateway
+
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - nginx_cache:/var/cache/nginx
+
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+
+    networks:
+      - lucide-network
+
+  # Redis (optional)
+  # Caching and session storage
+  redis:
+    image: redis:7-alpine
+    container_name: lucide-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+
+    volumes:
+      - redis_data:/data
+
+    ports:
+      - "127.0.0.1:6379:6379"
+
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+    networks:
+      - lucide-network
+
+    profiles:
+      - with-redis
+
+volumes:
+  postgres_data:
+    driver: local
+  backend_logs:
+    driver: local
+  gateway_logs:
+    driver: local
+  redis_data:
+    driver: local
+  nginx_cache:
+    driver: local
+
+networks:
+  lucide-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
