@@ -342,6 +342,8 @@ contextBridge.exposeInMainWorld('api', {
   // Phase 4: Knowledge Base - Documents
   documents: {
     getAllDocuments: () => ipcRenderer.invoke('documents:get-all'),
+    getDocument: (documentId, includeContent = true) => ipcRenderer.invoke('documents:get', documentId, includeContent),
+    updateDocument: (documentId, updates) => ipcRenderer.invoke('documents:update', documentId, updates),
     searchDocuments: (query, filters) => ipcRenderer.invoke('documents:search', query, filters),
     getStats: () => ipcRenderer.invoke('documents:get-stats'),
     deleteDocument: (documentId) => ipcRenderer.invoke('documents:delete', documentId),

@@ -873,6 +873,8 @@ class WhisperSession {
         this.process = null;
         this.inUse = true;
         this.audioBuffer = Buffer.alloc(0);
+        this.tempFiles = [];
+        this.processingInterval = null;
     }
 
     async initialize() {
@@ -886,21 +888,65 @@ class WhisperSession {
     }
 
     startProcessingLoop() {
-        // TODO: Implement actual processing loop
+        // Processing interval for buffered audio (every 500ms)
+        this.processingInterval = setInterval(async () => {
+            if (!this.inUse || this.audioBuffer.length === 0) return;
+
+            try {
+                // Get current buffer and reset
+                const audioData = this.audioBuffer;
+                this.audioBuffer = Buffer.alloc(0);
+
+                // Save to temp file and track it
+                const tempFile = await this.service.saveAudioToTemp(audioData, this.id);
+                if (tempFile) {
+                    this.tempFiles.push(tempFile);
+                }
+            } catch (error) {
+                console.error(`[WhisperSession-${this.id}] Processing error:`, error);
+            }
+        }, 500);
+    }
+
+    stopProcessingLoop() {
+        if (this.processingInterval) {
+            clearInterval(this.processingInterval);
+            this.processingInterval = null;
+        }
+    }
+
+    addAudioData(audioBuffer) {
+        if (!this.inUse) return;
+        this.audioBuffer = Buffer.concat([this.audioBuffer, audioBuffer]);
     }
 
     async cleanup() {
+        // Stop processing loop
+        this.stopProcessingLoop();
         // Clean up temporary files
         await this.cleanupTempFiles();
     }
 
     async cleanupTempFiles() {
-        // TODO: Implement temporary file cleanup
+        // Clean up all tracked temp files for this session
+        if (!this.tempFiles || this.tempFiles.length === 0) return;
+
+        console.log(`[WhisperSession-${this.id}] Cleaning up ${this.tempFiles.length} temp files`);
+
+        for (const filePath of this.tempFiles) {
+            await this.service.cleanupTempFile(filePath);
+        }
+
+        this.tempFiles = [];
     }
 
     async destroy() {
+        // Stop processing loop
+        this.stopProcessingLoop();
+        // Kill any running process
         if (this.process) {
             this.process.kill();
+            this.process = null;
         }
         // Clean up temporary files
         await this.cleanupTempFiles();

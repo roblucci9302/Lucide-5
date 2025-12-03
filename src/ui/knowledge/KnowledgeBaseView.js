@@ -357,6 +357,192 @@ export class KnowledgeBaseView extends LitElement {
             border-color: rgba(0, 122, 255, 0.4);
             color: rgba(0, 122, 255, 0.9);
         }
+
+        /* Modal Overlay */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            padding: 24px;
+            box-sizing: border-box;
+        }
+
+        .modal-container {
+            background: var(--color-gray-900);
+            border: 1px solid var(--color-white-20);
+            border-radius: 12px;
+            max-width: 900px;
+            width: 100%;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--color-white-10);
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: white;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .modal-close-btn {
+            background: var(--color-white-10);
+            border: 1px solid var(--color-white-20);
+            border-radius: 6px;
+            color: white;
+            padding: 6px 12px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .modal-close-btn:hover {
+            background: var(--color-white-15);
+        }
+
+        .modal-body {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            padding: 16px 20px;
+            border-top: 1px solid var(--color-white-10);
+        }
+
+        /* Document Viewer */
+        .document-content {
+            background: var(--color-black-20);
+            border: 1px solid var(--color-white-10);
+            border-radius: 8px;
+            padding: 20px;
+            font-family: monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            color: var(--color-white-80);
+            white-space: pre-wrap;
+            word-break: break-word;
+            max-height: 60vh;
+            overflow-y: auto;
+            user-select: text;
+        }
+
+        .document-meta-section {
+            margin-bottom: 16px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--color-white-10);
+        }
+
+        .document-meta-row {
+            display: flex;
+            gap: 24px;
+            flex-wrap: wrap;
+            margin-bottom: 8px;
+        }
+
+        .document-meta-item {
+            font-size: 13px;
+            color: var(--color-white-60);
+        }
+
+        .document-meta-item strong {
+            color: var(--color-white-80);
+        }
+
+        /* Editor Form */
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--color-white-80);
+            margin-bottom: 6px;
+        }
+
+        .form-input {
+            width: 100%;
+            background: var(--color-black-20);
+            border: 1px solid var(--color-white-20);
+            border-radius: 6px;
+            color: white;
+            padding: 10px 12px;
+            font-size: 14px;
+            box-sizing: border-box;
+            transition: border-color 0.15s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: rgba(0, 122, 255, 0.6);
+        }
+
+        .form-textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .form-hint {
+            font-size: 11px;
+            color: var(--color-white-50);
+            margin-top: 4px;
+        }
+
+        .btn-primary {
+            background: rgba(0, 122, 255, 0.8);
+            border: 1px solid rgba(0, 122, 255, 0.9);
+            border-radius: 6px;
+            color: white;
+            padding: 8px 16px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .btn-primary:hover {
+            background: rgba(0, 122, 255, 0.9);
+        }
+
+        .btn-secondary {
+            background: var(--color-white-10);
+            border: 1px solid var(--color-white-20);
+            border-radius: 6px;
+            color: white;
+            padding: 8px 16px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .btn-secondary:hover {
+            background: var(--color-white-15);
+        }
     `;
 
     static properties = {
@@ -366,7 +552,13 @@ export class KnowledgeBaseView extends LitElement {
         isLoading: { type: Boolean, state: true },
         searchQuery: { type: String, state: true },
         selectedFilter: { type: String, state: true },
-        uploading: { type: Boolean, state: true }
+        uploading: { type: Boolean, state: true },
+        // Modal states
+        viewerOpen: { type: Boolean, state: true },
+        editorOpen: { type: Boolean, state: true },
+        selectedDocument: { type: Object, state: true },
+        documentLoading: { type: Boolean, state: true },
+        editForm: { type: Object, state: true }
     };
 
     constructor() {
@@ -382,6 +574,12 @@ export class KnowledgeBaseView extends LitElement {
         this.searchQuery = '';
         this.selectedFilter = 'all';
         this.uploading = false;
+        // Modal states
+        this.viewerOpen = false;
+        this.editorOpen = false;
+        this.selectedDocument = null;
+        this.documentLoading = false;
+        this.editForm = { title: '', description: '', tags: '' };
     }
 
     connectedCallback() {
@@ -493,16 +691,93 @@ export class KnowledgeBaseView extends LitElement {
         }
     }
 
-    handleViewDocument(documentId) {
+    async handleViewDocument(documentId) {
         console.log('[KnowledgeBaseView] View document:', documentId);
-        // TODO: Implement document viewer
-        alert('Visualisation de document : fonctionnalité à venir');
+        this.documentLoading = true;
+        this.viewerOpen = true;
+
+        try {
+            const result = await window.api.documents.getDocument(documentId, true);
+            if (result?.success) {
+                this.selectedDocument = result.document;
+            } else {
+                alert(`Erreur: ${result?.error || 'Document non trouvé'}`);
+                this.viewerOpen = false;
+            }
+        } catch (error) {
+            console.error('[KnowledgeBaseView] Error loading document:', error);
+            alert(`Erreur lors du chargement: ${error.message}`);
+            this.viewerOpen = false;
+        } finally {
+            this.documentLoading = false;
+        }
     }
 
-    handleEditDocument(documentId) {
+    async handleEditDocument(documentId) {
         console.log('[KnowledgeBaseView] Edit document:', documentId);
-        // TODO: Implement document editor
-        alert('Édition de document : fonctionnalité à venir');
+        this.documentLoading = true;
+        this.editorOpen = true;
+
+        try {
+            const result = await window.api.documents.getDocument(documentId, false);
+            if (result?.success) {
+                this.selectedDocument = result.document;
+                this.editForm = {
+                    title: result.document.title || '',
+                    description: result.document.description || '',
+                    tags: Array.isArray(result.document.tags) ? result.document.tags.join(', ') : ''
+                };
+            } else {
+                alert(`Erreur: ${result?.error || 'Document non trouvé'}`);
+                this.editorOpen = false;
+            }
+        } catch (error) {
+            console.error('[KnowledgeBaseView] Error loading document:', error);
+            alert(`Erreur lors du chargement: ${error.message}`);
+            this.editorOpen = false;
+        } finally {
+            this.documentLoading = false;
+        }
+    }
+
+    closeViewer() {
+        this.viewerOpen = false;
+        this.selectedDocument = null;
+    }
+
+    closeEditor() {
+        this.editorOpen = false;
+        this.selectedDocument = null;
+        this.editForm = { title: '', description: '', tags: '' };
+    }
+
+    handleEditFormChange(field, value) {
+        this.editForm = { ...this.editForm, [field]: value };
+    }
+
+    async saveDocumentEdits() {
+        if (!this.selectedDocument) return;
+
+        try {
+            const updates = {
+                title: this.editForm.title.trim(),
+                description: this.editForm.description.trim(),
+                tags: this.editForm.tags.split(',').map(t => t.trim()).filter(t => t)
+            };
+
+            const result = await window.api.documents.updateDocument(this.selectedDocument.id, updates);
+            if (result?.success) {
+                console.log('[KnowledgeBaseView] Document updated');
+                this.closeEditor();
+                await this.loadDocuments();
+                alert('Document mis à jour avec succès');
+            } else {
+                alert(`Erreur: ${result?.error || 'Échec de la mise à jour'}`);
+            }
+        } catch (error) {
+            console.error('[KnowledgeBaseView] Error updating document:', error);
+            alert(`Erreur: ${error.message}`);
+        }
     }
 
     handleClose() {
@@ -697,6 +972,120 @@ export class KnowledgeBaseView extends LitElement {
                     `}
                 </div>
             </div>
+
+            <!-- Document Viewer Modal -->
+            ${this.viewerOpen ? html`
+                <div class="modal-overlay" @click=${(e) => e.target === e.currentTarget && this.closeViewer()}>
+                    <div class="modal-container">
+                        <div class="modal-header">
+                            <h2 class="modal-title">
+                                ${this.getFileIcon(this.selectedDocument?.file_type)}
+                                ${this.selectedDocument?.title || this.selectedDocument?.filename || 'Document'}
+                            </h2>
+                            <button class="modal-close-btn" @click=${this.closeViewer}>Fermer</button>
+                        </div>
+                        <div class="modal-body">
+                            ${this.documentLoading ? html`
+                                <div class="loading-state">
+                                    <div class="loading-spinner"></div>
+                                    <span>Chargement du contenu...</span>
+                                </div>
+                            ` : this.selectedDocument ? html`
+                                <div class="document-meta-section">
+                                    <div class="document-meta-row">
+                                        <span class="document-meta-item">
+                                            <strong>Fichier:</strong> ${this.selectedDocument.filename}
+                                        </span>
+                                        <span class="document-meta-item">
+                                            <strong>Type:</strong> ${this.selectedDocument.file_type?.toUpperCase()}
+                                        </span>
+                                        <span class="document-meta-item">
+                                            <strong>Taille:</strong> ${this.formatSize(this.selectedDocument.file_size)}
+                                        </span>
+                                    </div>
+                                    <div class="document-meta-row">
+                                        <span class="document-meta-item">
+                                            <strong>Créé:</strong> ${this.formatDate(this.selectedDocument.created_at)}
+                                        </span>
+                                        ${this.selectedDocument.chunk_count ? html`
+                                            <span class="document-meta-item">
+                                                <strong>Chunks:</strong> ${this.selectedDocument.chunk_count}
+                                            </span>
+                                        ` : ''}
+                                    </div>
+                                    ${this.selectedDocument.description ? html`
+                                        <div class="document-meta-row">
+                                            <span class="document-meta-item">
+                                                <strong>Description:</strong> ${this.selectedDocument.description}
+                                            </span>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                                <div class="document-content">
+                                    ${this.selectedDocument.content || 'Aucun contenu disponible'}
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+            ` : ''}
+
+            <!-- Document Editor Modal -->
+            ${this.editorOpen ? html`
+                <div class="modal-overlay" @click=${(e) => e.target === e.currentTarget && this.closeEditor()}>
+                    <div class="modal-container">
+                        <div class="modal-header">
+                            <h2 class="modal-title">
+                                ✏️ Modifier le document
+                            </h2>
+                            <button class="modal-close-btn" @click=${this.closeEditor}>Annuler</button>
+                        </div>
+                        <div class="modal-body">
+                            ${this.documentLoading ? html`
+                                <div class="loading-state">
+                                    <div class="loading-spinner"></div>
+                                    <span>Chargement...</span>
+                                </div>
+                            ` : html`
+                                <div class="form-group">
+                                    <label class="form-label">Titre</label>
+                                    <input
+                                        type="text"
+                                        class="form-input"
+                                        .value=${this.editForm.title}
+                                        @input=${(e) => this.handleEditFormChange('title', e.target.value)}
+                                        placeholder="Titre du document"
+                                    />
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Description</label>
+                                    <textarea
+                                        class="form-input form-textarea"
+                                        .value=${this.editForm.description}
+                                        @input=${(e) => this.handleEditFormChange('description', e.target.value)}
+                                        placeholder="Description du document..."
+                                    ></textarea>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Tags</label>
+                                    <input
+                                        type="text"
+                                        class="form-input"
+                                        .value=${this.editForm.tags}
+                                        @input=${(e) => this.handleEditFormChange('tags', e.target.value)}
+                                        placeholder="tag1, tag2, tag3"
+                                    />
+                                    <div class="form-hint">Séparez les tags par des virgules</div>
+                                </div>
+                            `}
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn-secondary" @click=${this.closeEditor}>Annuler</button>
+                            <button class="btn-primary" @click=${this.saveDocumentEdits}>Enregistrer</button>
+                        </div>
+                    </div>
+                </div>
+            ` : ''}
         `;
     }
 }

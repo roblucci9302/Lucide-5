@@ -1596,18 +1596,18 @@ export class ApiKeyHeader extends TranslationMixin(LitElement) {
     //////// after_modelStateService ////////
 
 
-    ////TODO: Il y a un problème avec la logique d'animation de transition
     startSlideOutAnimation() {
         console.log('[ApiKeyHeader] startSlideOutAnimation: Starting slide out animation.');
         this.classList.add('sliding-out');
-        
+
         // Fallback: if animation doesn't trigger animationend event, force transition
+        // Animation duration is 300ms (--animation-base), so wait 350ms to be safe
         setTimeout(() => {
             if (this.classList.contains('sliding-out')) {
                 console.log('[ApiKeyHeader] Animation fallback triggered - forcing transition');
                 this.handleAnimationEnd({ target: this, animationName: 'slideOut' });
             }
-        }, 1); // Wait a bit longer than animation duration
+        }, 350);
     }
 
     handleClose() {

@@ -240,12 +240,38 @@ export class CitationView extends LitElement {
         this.collapsed = !this.collapsed;
     }
 
-    handleCitationClick(citation) {
+    async handleCitationClick(citation) {
         console.log('[CitationView] Citation clicked:', citation);
 
-        // TODO: Open document in knowledge base manager
-        // For now, just log the click
-        alert(`Document: ${citation.document_title}\nFilename: ${citation.document_filename}\nRelevance: ${Math.round(citation.relevance_score * 100)}%`);
+        try {
+            // Try to get the full document content
+            if (citation.document_id && window.api?.documents?.getDocument) {
+                const result = await window.api.documents.getDocument(citation.document_id, true);
+                if (result?.success && result.document) {
+                    // Dispatch custom event to show document viewer
+                    this.dispatchEvent(new CustomEvent('show-document', {
+                        bubbles: true,
+                        composed: true,
+                        detail: {
+                            document: result.document,
+                            citation: citation
+                        }
+                    }));
+                    return;
+                }
+            }
+
+            // Fallback: Open knowledge base manager if document retrieval fails
+            if (window.api?.settingsView?.openKnowledgeBaseManager) {
+                await window.api.settingsView.openKnowledgeBaseManager();
+            } else {
+                // Last fallback: show basic info
+                alert(`Document: ${citation.document_title || 'Untitled'}\nFichier: ${citation.document_filename || 'unknown'}\nPertinence: ${Math.round((citation.relevance_score || 0) * 100)}%`);
+            }
+        } catch (error) {
+            console.error('[CitationView] Error opening document:', error);
+            alert(`Erreur: ${error.message}`);
+        }
     }
 
     formatScore(score) {
