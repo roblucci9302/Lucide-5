@@ -174,10 +174,16 @@ function createLLM({ apiKey, model = "gemini-2.5-flash", temperature = 0.7, maxT
           } else if (part.type === "text") {
             geminiContent.push(part.text)
           } else if (part.type === "image_url" && part.image_url) {
-            const base64Data = part.image_url.url.split(",")[1]
+            const imageUrl = part.image_url.url
+            const [mimeInfo, base64Data] = imageUrl.split(",")
+            // Extract the actual MIME type from the data URL (e.g., "data:image/jpeg;base64" -> "image/jpeg")
+            const mimeType = mimeInfo.match(/data:([^;]+)/)?.[1] || "image/jpeg"
+
+            console.log(`[Gemini] Processing image with MIME type: ${mimeType}`)
+
             geminiContent.push({
               inlineData: {
-                mimeType: "image/png",
+                mimeType: mimeType,
                 data: base64Data,
               },
             })
@@ -253,10 +259,16 @@ function createStreamingLLM({ apiKey, model = "gemini-2.5-flash", temperature = 
                 } else if (part.type === "text") {
                   geminiContent.push(part.text)
                 } else if (part.type === "image_url" && part.image_url) {
-                  const base64Data = part.image_url.url.split(",")[1]
+                  const imageUrl = part.image_url.url
+                  const [mimeInfo, base64Data] = imageUrl.split(",")
+                  // Extract the actual MIME type from the data URL (e.g., "data:image/jpeg;base64" -> "image/jpeg")
+                  const mimeType = mimeInfo.match(/data:([^;]+)/)?.[1] || "image/jpeg"
+
+                  console.log(`[Gemini] Processing image with MIME type: ${mimeType}`)
+
                   geminiContent.push({
                     inlineData: {
-                      mimeType: "image/png",
+                      mimeType: mimeType,
                       data: base64Data,
                     },
                   })
