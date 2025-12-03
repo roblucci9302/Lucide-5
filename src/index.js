@@ -29,6 +29,9 @@ const ragService = require('./features/common/services/ragService');
 const { EmbeddingProviderFactory } = require('./features/common/services/embeddingProvider');
 const autoIndexingService = require('./features/common/services/autoIndexingService');
 
+// Phase 4: License and Feature Gating
+const featureGates = require('./features/common/services/featureGates');
+
 // Phase 2: External Data Sync Scheduler
 const syncSchedulerService = require('./features/common/services/syncSchedulerService');
 
@@ -156,6 +159,7 @@ app.whenReady().then(async () => {
         modelState: false,
         userProfile: false,
         knowledgeBase: false,
+        featureGates: false,
         syncScheduler: false,
         featureBridge: false,
         windowBridge: false,
@@ -277,6 +281,20 @@ app.whenReady().then(async () => {
     }
 
     // ============================================
+    // NON-CRITICAL: Feature Gates & License (Phase 4)
+    // ============================================
+    console.log('[index.js] Initializing Phase 4: Feature Gates & License...');
+    try {
+        await featureGates.initialize();
+        initStatus.featureGates = true;
+        console.log('[index.js] ✓ Feature gates initialized');
+        console.log(`[index.js] Current license tier: ${featureGates.getCurrentTier()}`);
+    } catch (featureGatesError) {
+        console.error('[index.js] ✗ Feature gates error:', featureGatesError.message);
+        // Non-critical - app can continue with default (STARTER) tier
+    }
+
+    // ============================================
     // NON-CRITICAL: Sync Scheduler (Phase 2)
     // ============================================
     console.log('[index.js] Starting Phase 2: External Data Sync Scheduler...');
@@ -357,6 +375,7 @@ app.whenReady().then(async () => {
     console.log('>>> [index.js] Model State:    ', initStatus.modelState ? '✓ OK' : '○ Defaults');
     console.log('>>> [index.js] User Profile:   ', initStatus.userProfile ? '✓ OK' : '○ Skipped');
     console.log('>>> [index.js] Knowledge Base: ', initStatus.knowledgeBase ? '✓ OK' : '○ Disabled');
+    console.log('>>> [index.js] Feature Gates:  ', initStatus.featureGates ? '✓ OK' : '○ Defaults');
     console.log('>>> [index.js] Sync Scheduler: ', initStatus.syncScheduler ? '✓ OK' : '○ Disabled');
     console.log('>>> [index.js] Feature Bridge: ', initStatus.featureBridge ? '✓ OK' : '✗ FAILED');
     console.log('>>> [index.js] Window Bridge:  ', initStatus.windowBridge ? '✓ OK' : '✗ FAILED');

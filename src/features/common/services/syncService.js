@@ -69,6 +69,7 @@ class SyncService {
         this.userId = userId;
         this.authToken = authToken;
         this.syncEnabled = true;
+        this.notifyStatusChange();
 
         console.log('[Sync] Starting automatic sync for user:', userId);
 
@@ -95,6 +96,7 @@ class SyncService {
         }
 
         this.syncEnabled = false;
+        this.notifyStatusChange();
         console.log('[Sync] Automatic sync stopped');
     }
 
@@ -119,6 +121,7 @@ class SyncService {
         }
 
         this.isSyncing = true;
+        this.notifyStatusChange();
         const startTime = Date.now();
         this.stats.totalSyncs++;
 
@@ -159,6 +162,7 @@ class SyncService {
             };
         } finally {
             this.isSyncing = false;
+            this.notifyStatusChange();
         }
     }
 
@@ -393,6 +397,67 @@ class SyncService {
             lastSyncTime: this.lastSyncTime,
             lastSyncAgo: this.lastSyncTime ? Date.now() - this.lastSyncTime : null
         };
+    }
+
+    /**
+     * Get current sync status
+     */
+    getStatus() {
+        return {
+            isEnabled: this.syncEnabled,
+            isOnline: this.isOnline,
+            isSyncing: this.isSyncing,
+            lastSyncTime: this.lastSyncTime,
+            lastSyncAgo: this.lastSyncTime ? Date.now() - this.lastSyncTime : null,
+            lastError: this.stats.lastError
+        };
+    }
+
+    /**
+     * Register callback for status changes
+     * @param {function} callback - Function to call on status change
+     */
+    onStatusChange(callback) {
+        if (!this.statusCallbacks) {
+            this.statusCallbacks = [];
+        }
+        this.statusCallbacks.push(callback);
+    }
+
+    /**
+     * Notify all registered callbacks of status change
+     */
+    notifyStatusChange() {
+        if (this.statusCallbacks) {
+            const status = this.getStatus();
+            for (const callback of this.statusCallbacks) {
+                try {
+                    callback(status);
+                } catch (error) {
+                    console.error('[Sync] Error in status callback:', error);
+                }
+            }
+        }
+    }
+
+    /**
+     * Get pending conflicts (for conflict resolution UI)
+     */
+    async getPendingConflicts() {
+        // In current implementation, we use last-write-wins
+        // This method is a placeholder for future conflict resolution
+        return [];
+    }
+
+    /**
+     * Resolve a sync conflict
+     * @param {string} conflictId - Conflict identifier
+     * @param {string} resolution - 'local' or 'remote'
+     */
+    async resolveConflict(conflictId, resolution) {
+        console.log(`[Sync] Resolving conflict ${conflictId} with ${resolution}`);
+        // Placeholder for future conflict resolution
+        return { success: true };
     }
 
     /**

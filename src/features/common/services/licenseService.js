@@ -408,6 +408,83 @@ YZxMRp4vJQX6KLxV8rEWZNh3qY7Tk2V9xFGP0L4mH6wN8QvRj5YpXkL3nF7hJ8Qv
         const currentTier = this.getCurrentTier();
         return `https://lucide.ai/upgrade?from=${currentTier}`;
     }
+
+    /**
+     * Get all features for current tier
+     */
+    getFeatures() {
+        const tier = this.getCurrentTier();
+        return this.features[tier] || this.features.STARTER;
+    }
+
+    /**
+     * Check if current license is valid
+     */
+    isLicenseValid() {
+        return this.isValidated;
+    }
+
+    /**
+     * Get expiration date
+     */
+    getExpirationDate() {
+        if (!this.currentLicense || !this.currentLicense.expiresAt) {
+            return null;
+        }
+        return this.currentLicense.expiresAt;
+    }
+
+    /**
+     * Activate a license key
+     * @param {string} licenseKey - License key to activate
+     */
+    async activateLicense(licenseKey) {
+        return this.importLicense(licenseKey);
+    }
+
+    /**
+     * Deactivate current license (revert to trial)
+     */
+    async deactivateLicense() {
+        try {
+            // Delete license file if exists
+            if (fs.existsSync(this.licensePath)) {
+                fs.unlinkSync(this.licensePath);
+            }
+
+            // Reset to trial
+            this.currentLicense = this.createTrialLicense();
+            this.isValidated = false;
+
+            console.log('[License] License deactivated, reverted to trial');
+            return { success: true };
+        } catch (error) {
+            console.error('[License] Failed to deactivate license:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Refresh license from server (for online validation)
+     */
+    async refreshLicense() {
+        try {
+            // For now, just re-validate the current license
+            // In production, this would call a license server
+            if (this.currentLicense) {
+                const validation = await this.validateLicense();
+                return {
+                    success: validation.valid,
+                    tier: this.getCurrentTier(),
+                    expiresAt: this.getExpirationDate()
+                };
+            }
+            return { success: false, reason: 'no_license' };
+        } catch (error) {
+            console.error('[License] Failed to refresh license:', error);
+            throw error;
+        }
+    }
 }
 
 // Singleton instance

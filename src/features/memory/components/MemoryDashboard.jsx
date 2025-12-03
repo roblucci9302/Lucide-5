@@ -178,8 +178,8 @@ function MemoryDashboard({
   const [activeTab, setActiveTab] = useState('overview');
   const [showError, setShowError] = useState(true);
 
-  // Use memory stats hook
-  const { stats, loading, error, refresh } = useMemoryStats(uid, {
+  // Use memory stats hook (uid is handled internally by memoryBridge)
+  const { stats, loading, error, refresh } = useMemoryStats({
     refreshInterval,
     includeTimeline: true,
     includeKnowledgeGraph: true,

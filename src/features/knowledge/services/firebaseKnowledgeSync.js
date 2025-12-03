@@ -6,7 +6,8 @@
  */
 
 const { getFirestoreInstance } = require('../../common/services/firebaseClient');
-const { collection, doc, getDoc, getDocs, setDoc, deleteDoc, query, where, orderBy, limit, onSnapshot } = require('firebase/firestore');
+const { initializeApp, getApps, deleteApp } = require('firebase/app');
+const { getFirestore, collection, doc, getDoc, getDocs, setDoc, deleteDoc, query, where, orderBy, limit, onSnapshot } = require('firebase/firestore');
 const { loaders } = require('../../common/utils/dependencyLoader');
 const uuid = loaders.loadUuid();
 const uuidv4 = uuid.v4;
@@ -23,6 +24,8 @@ class FirebaseKnowledgeSync {
     constructor() {
         this.db = null;
         this.firestore = null;
+        this.externalApp = null; // Secondary Firebase app for external databases
+        this.externalFirestore = null; // Firestore instance for external database
         this.syncListeners = new Map(); // uid -> unsubscribe function
         this.syncInProgress = false;
         this.externalConfig = null;
@@ -360,20 +363,50 @@ class FirebaseKnowledgeSync {
             // Store external config
             this.externalConfig = config;
 
-            // TODO: Initialize secondary Firebase app for external database
-            // For now, we'll use the main Firestore instance
-            // In a full implementation, you'd use initializeApp(config, 'external')
+            // Disconnect existing external app if any
+            await this.disconnectExternalDatabase();
+
+            // Initialize secondary Firebase app for external database
+            const appName = `external_${config.projectId}`;
+
+            // Check if app already exists
+            const existingApps = getApps();
+            const existingApp = existingApps.find(app => app.name === appName);
+
+            if (existingApp) {
+                this.externalApp = existingApp;
+            } else {
+                this.externalApp = initializeApp(config, appName);
+            }
+
+            // Get Firestore instance for external app
+            this.externalFirestore = getFirestore(this.externalApp);
+
+            console.log(`[FirebaseKnowledgeSync] External Firebase app initialized: ${appName}`);
+
+            // Test connection by checking metadata
+            const metadataRef = doc(this.externalFirestore, 'metadata/info');
+            try {
+                await getDoc(metadataRef);
+                console.log('[FirebaseKnowledgeSync] External database connection verified');
+            } catch (e) {
+                console.warn('[FirebaseKnowledgeSync] Metadata not found, creating...');
+            }
 
             // Enable sync
             this._setSyncEnabled(true);
-            this._setKnowledgeBaseName('Base Externe');
+            this._setKnowledgeBaseName(`Base Externe (${config.projectId})`);
+
+            // Store config for reconnection
+            this.configStore.set('externalConfig', config);
 
             console.log('[FirebaseKnowledgeSync] Connected to external database');
 
             return {
                 success: true,
-                name: 'Base Externe',
-                documentCount: 0
+                name: `Base Externe (${config.projectId})`,
+                documentCount: 0,
+                projectId: config.projectId
             };
         } catch (error) {
             console.error('[FirebaseKnowledgeSync] Error connecting to external database:', error);
@@ -382,6 +415,43 @@ class FirebaseKnowledgeSync {
                 error: error.message
             };
         }
+    }
+
+    /**
+     * Disconnect from external database
+     * @returns {Promise<Object>} Result
+     */
+    async disconnectExternalDatabase() {
+        try {
+            if (this.externalApp) {
+                await deleteApp(this.externalApp);
+                this.externalApp = null;
+                this.externalFirestore = null;
+                this.externalConfig = null;
+                this.configStore.delete('externalConfig');
+                console.log('[FirebaseKnowledgeSync] Disconnected from external database');
+            }
+            return { success: true };
+        } catch (error) {
+            console.error('[FirebaseKnowledgeSync] Error disconnecting external database:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Get active Firestore instance (external if connected, otherwise main)
+     * @returns {Object} Firestore instance
+     */
+    getActiveFirestore() {
+        return this.externalFirestore || this.firestore;
+    }
+
+    /**
+     * Check if connected to external database
+     * @returns {boolean}
+     */
+    isExternalConnected() {
+        return this.externalApp !== null && this.externalFirestore !== null;
     }
 
     /**

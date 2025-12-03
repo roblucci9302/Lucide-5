@@ -51,6 +51,48 @@ module.exports = {
         ipcMain.handle('documents:delete', async (event, documentId) => {
             return await documentService.deleteDocument(documentId);
         });
+
+        // Get single document with optional content
+        ipcMain.handle('documents:get', async (event, documentId, includeContent = true) => {
+            try {
+                const userId = authService.getCurrentUserId();
+                if (!userId) {
+                    throw new Error('User not authenticated');
+                }
+                const document = await documentService.getDocument(documentId, includeContent);
+                if (!document) {
+                    return { success: false, error: 'Document not found' };
+                }
+                // Verify document belongs to user
+                if (document.uid !== userId) {
+                    return { success: false, error: 'Access denied' };
+                }
+                return { success: true, document };
+            } catch (error) {
+                console.error('[KnowledgeBridge] Error getting document:', error);
+                return { success: false, error: error.message };
+            }
+        });
+
+        // Update document metadata
+        ipcMain.handle('documents:update', async (event, documentId, updates) => {
+            try {
+                const userId = authService.getCurrentUserId();
+                if (!userId) {
+                    throw new Error('User not authenticated');
+                }
+                const document = await documentService.getDocument(documentId, false);
+                if (!document || document.uid !== userId) {
+                    return { success: false, error: 'Document not found or access denied' };
+                }
+                const result = await documentService.updateDocument(documentId, updates);
+                return { success: true, document: result };
+            } catch (error) {
+                console.error('[KnowledgeBridge] Error updating document:', error);
+                return { success: false, error: error.message };
+            }
+        });
+
         ipcMain.handle('documents:upload', async () => {
             try {
                 const userId = authService.getCurrentUserId();

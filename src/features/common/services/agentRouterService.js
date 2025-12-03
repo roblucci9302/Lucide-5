@@ -419,9 +419,89 @@ Reply with ONLY the category ID (one of: hr_specialist, it_expert, marketing_exp
 
         console.log('[AgentRouter] ⚠️  User override:', logEntry);
 
-        // TODO: In Phase 2, store this in database for ML improvement
-        // This data will help identify patterns where the router makes mistakes
-        // and allow for continuous improvement of routing rules
+        // Store in database for ML improvement
+        this._storeOverrideForML(logEntry);
+    }
+
+    /**
+     * Store user override in database for ML training data
+     * @param {Object} logEntry - Override data
+     * @private
+     */
+    async _storeOverrideForML(logEntry) {
+        try {
+            const sqliteClient = require('./sqliteClient');
+            const db = sqliteClient.getDatabase();
+
+            if (!db) {
+                console.warn('[AgentRouter] Database not available for ML storage');
+                return;
+            }
+
+            // Create table if not exists
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS agent_routing_feedback (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp TEXT NOT NULL,
+                    question TEXT NOT NULL,
+                    predicted_agent TEXT NOT NULL,
+                    confidence REAL NOT NULL,
+                    reason TEXT,
+                    user_choice TEXT NOT NULL,
+                    matched_keywords TEXT,
+                    created_at INTEGER DEFAULT (strftime('%s', 'now') * 1000)
+                )
+            `);
+
+            // Insert override data
+            db.prepare(`
+                INSERT INTO agent_routing_feedback (
+                    timestamp, question, predicted_agent, confidence,
+                    reason, user_choice, matched_keywords
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            `).run(
+                logEntry.timestamp,
+                logEntry.question,
+                logEntry.predicted_agent,
+                logEntry.confidence,
+                logEntry.reason,
+                logEntry.user_choice,
+                JSON.stringify(logEntry.matched_keywords)
+            );
+
+            console.log('[AgentRouter] ✅ Override stored for ML improvement');
+        } catch (error) {
+            console.error('[AgentRouter] Failed to store override for ML:', error.message);
+            // Non-blocking - don't throw
+        }
+    }
+
+    /**
+     * Get ML feedback data for analysis
+     * @param {number} limit - Max number of records
+     * @returns {Promise<Array>} Feedback records
+     */
+    async getMLFeedbackData(limit = 100) {
+        try {
+            const sqliteClient = require('./sqliteClient');
+            const db = sqliteClient.getDatabase();
+
+            if (!db) return [];
+
+            const records = db.prepare(`
+                SELECT * FROM agent_routing_feedback
+                ORDER BY created_at DESC
+                LIMIT ?
+            `).all(limit);
+
+            return records.map(r => ({
+                ...r,
+                matched_keywords: r.matched_keywords ? JSON.parse(r.matched_keywords) : []
+            }));
+        } catch (error) {
+            console.error('[AgentRouter] Failed to get ML feedback:', error.message);
+            return [];
+        }
     }
 
     /**

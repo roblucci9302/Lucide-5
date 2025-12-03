@@ -342,6 +342,8 @@ contextBridge.exposeInMainWorld('api', {
   // Phase 4: Knowledge Base - Documents
   documents: {
     getAllDocuments: () => ipcRenderer.invoke('documents:get-all'),
+    getDocument: (documentId, includeContent = true) => ipcRenderer.invoke('documents:get', documentId, includeContent),
+    updateDocument: (documentId, updates) => ipcRenderer.invoke('documents:update', documentId, updates),
     searchDocuments: (query, filters) => ipcRenderer.invoke('documents:search', query, filters),
     getStats: () => ipcRenderer.invoke('documents:get-stats'),
     deleteDocument: (documentId) => ipcRenderer.invoke('documents:delete', documentId),
@@ -829,5 +831,148 @@ contextBridge.exposeInMainWorld('api', {
     // Compare sessions
     compareSessions: (sessionId1, sessionId2) => ipcRenderer.invoke('analytics:compare-sessions', sessionId1, sessionId2)
       .then(result => result.success ? result.comparison : null)
+  },
+
+  // Phase 2: Memory Dashboard
+  memory: {
+    // Get memory statistics
+    getStats: () => ipcRenderer.invoke('memory:get-stats'),
+
+    // Get timeline data
+    getTimeline: (days = 30) => ipcRenderer.invoke('memory:get-timeline', { days }),
+
+    // Get knowledge graph statistics
+    getKnowledgeGraphStats: () => ipcRenderer.invoke('memory:get-knowledge-graph-stats'),
+
+    // Search indexed content
+    search: (query, filters = {}) => ipcRenderer.invoke('memory:search', { query, filters }),
+
+    // Get specific content by ID
+    getContent: (contentId) => ipcRenderer.invoke('memory:get-content', { contentId }),
+
+    // Delete indexed content
+    deleteContent: (contentId) => ipcRenderer.invoke('memory:delete-content', { contentId }),
+
+    // Manually index a conversation session
+    indexSession: (sessionId) => ipcRenderer.invoke('memory:index-session', { sessionId }),
+
+    // Manually index an audio session
+    indexAudio: (sessionId) => ipcRenderer.invoke('memory:index-audio', { sessionId }),
+
+    // Get knowledge graph data
+    getKnowledgeGraph: (limit = 100) => ipcRenderer.invoke('memory:get-knowledge-graph', { limit }),
+
+    // Get projects list
+    getProjects: () => ipcRenderer.invoke('memory:get-projects')
+  },
+
+  // Phase 3: License & Feature Gates
+  license: {
+    // Get current license info
+    getInfo: () => ipcRenderer.invoke('license:get-info'),
+
+    // Activate a license key
+    activate: (licenseKey) => ipcRenderer.invoke('license:activate', licenseKey),
+
+    // Deactivate current license
+    deactivate: () => ipcRenderer.invoke('license:deactivate'),
+
+    // Refresh license from server
+    refresh: () => ipcRenderer.invoke('license:refresh'),
+
+    // Check if a specific feature is available
+    checkFeature: (featureName) => ipcRenderer.invoke('license:check-feature', featureName),
+
+    // Check cloud sync availability
+    canUseCloudSync: () => ipcRenderer.invoke('license:can-use-cloud-sync'),
+
+    // Check enterprise gateway availability
+    canUseEnterpriseGateway: () => ipcRenderer.invoke('license:can-use-enterprise-gateway'),
+
+    // Check advanced agents availability
+    canUseAdvancedAgents: () => ipcRenderer.invoke('license:can-use-advanced-agents'),
+
+    // Get all feature availability at once
+    getAllFeatures: () => ipcRenderer.invoke('license:get-all-features'),
+
+    // Listen for upgrade needed events
+    onUpgradeNeeded: (callback) => {
+      ipcRenderer.on('license:upgrade-needed', (event, data) => callback(data));
+      ipcRenderer.invoke('license:on-upgrade-needed');
+    },
+
+    // Remove upgrade listener
+    removeUpgradeListener: () => {
+      ipcRenderer.removeAllListeners('license:upgrade-needed');
+    }
+  },
+
+  // Phase 3: Cloud Sync
+  sync: {
+    // Start automatic cloud sync
+    start: () => ipcRenderer.invoke('sync:start'),
+
+    // Stop automatic cloud sync
+    stop: () => ipcRenderer.invoke('sync:stop'),
+
+    // Force immediate sync
+    force: () => ipcRenderer.invoke('sync:force'),
+
+    // Get current sync status
+    getStatus: () => ipcRenderer.invoke('sync:get-status'),
+
+    // Get sync statistics
+    getStats: () => ipcRenderer.invoke('sync:get-stats'),
+
+    // Check if sync is available
+    isAvailable: () => ipcRenderer.invoke('sync:is-available'),
+
+    // Get pending conflicts
+    getConflicts: () => ipcRenderer.invoke('sync:get-conflicts'),
+
+    // Resolve a sync conflict
+    resolveConflict: (conflictId, resolution) => ipcRenderer.invoke('sync:resolve-conflict', { conflictId, resolution }),
+
+    // Listen for sync status changes
+    onStatusChanged: (callback) => ipcRenderer.on('sync:status-changed', (event, status) => callback(status)),
+
+    // Remove status change listener
+    removeStatusListener: () => ipcRenderer.removeAllListeners('sync:status-changed')
+  },
+
+  // Phase 3: Enterprise Gateway
+  enterprise: {
+    // Connect to enterprise gateway
+    connect: (gatewayToken) => ipcRenderer.invoke('enterprise:connect', { gatewayToken }),
+
+    // Disconnect from gateway
+    disconnect: () => ipcRenderer.invoke('enterprise:disconnect'),
+
+    // Get connection status
+    getStatus: () => ipcRenderer.invoke('enterprise:get-status'),
+
+    // Get available databases
+    getDatabases: () => ipcRenderer.invoke('enterprise:get-databases'),
+
+    // Get database schema
+    getSchema: (database) => ipcRenderer.invoke('enterprise:get-schema', { database }),
+
+    // Get table details
+    getTableDetails: (database, table) => ipcRenderer.invoke('enterprise:get-table-details', { database, table }),
+
+    // Ask a question in natural language
+    ask: (question, database) => ipcRenderer.invoke('enterprise:ask', { question, database }),
+
+    // Execute raw SQL query
+    executeSql: (sql, database) => ipcRenderer.invoke('enterprise:execute-sql', { sql, database }),
+
+    // Get query history
+    getHistory: (limit = 50) => ipcRenderer.invoke('enterprise:get-history', { limit }),
+
+    // Clear query history
+    clearHistory: () => ipcRenderer.invoke('enterprise:clear-history'),
+
+    // Get query statistics
+    getStats: () => ipcRenderer.invoke('enterprise:get-stats')
   }
 });

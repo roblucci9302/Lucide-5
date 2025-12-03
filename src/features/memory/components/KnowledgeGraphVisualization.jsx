@@ -351,37 +351,26 @@ function KnowledgeGraphVisualization({
   const [sortBy, setSortBy] = useState('mentions');
 
   /**
-   * Fetch knowledge graph entities
+   * Fetch knowledge graph entities via secure IPC
    */
   useEffect(() => {
     const fetchEntities = async () => {
-      if (!uid) {
-        setError(new Error('User ID is required'));
-        setLoading(false);
-        return;
-      }
-
       try {
         setLoading(true);
         setError(null);
 
-        const sqliteClient = require('../../common/services/sqliteClient');
-        const db = sqliteClient.getDb();
-
-        if (!db) {
-          throw new Error('Database not initialized');
+        // Use secure IPC API instead of direct database access
+        if (!window.lucide?.memory?.getKnowledgeGraph) {
+          throw new Error('Knowledge graph API not available');
         }
 
-        // Fetch all entities for user
-        const allEntities = db.prepare(`
-          SELECT *
-          FROM knowledge_graph
-          WHERE uid = ?
-          ORDER BY mention_count DESC
-          LIMIT ?
-        `).all(uid, maxEntities);
+        const response = await window.lucide.memory.getKnowledgeGraph(maxEntities);
 
-        setEntities(allEntities);
+        if (!response?.success) {
+          throw new Error(response?.error || 'Failed to fetch knowledge graph');
+        }
+
+        setEntities(response.entities || []);
         setLoading(false);
 
       } catch (err) {
@@ -392,7 +381,7 @@ function KnowledgeGraphVisualization({
     };
 
     fetchEntities();
-  }, [uid, maxEntities]);
+  }, [maxEntities]);
 
   /**
    * Filter and sort entities
