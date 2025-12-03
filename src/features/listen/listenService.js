@@ -9,6 +9,7 @@ const authService = require('../common/services/authService');
 const sessionRepository = require('../common/repositories/session');
 const sttRepository = require('./stt/repositories');
 const internalBridge = require('../../bridge/internalBridge');
+const autoIndexingService = require('../common/services/autoIndexingService'); // Phase 2: Auto-indexing
 
 // Fix NORMAL MEDIUM BUG-M18: Extract suggestion generation debounce timeout
 // Wait 800ms after user stops speaking before generating AI response suggestions
@@ -582,10 +583,34 @@ class ListenService {
 
             await this.stopMacOSAudioCapture();
 
-            // End database session
+            // End database session and trigger auto-indexing
             if (this.currentSessionId) {
+                // Save session info before reset for auto-indexing
+                const sessionIdToIndex = this.currentSessionId;
+                const userId = authService.getCurrentUserId();
+
                 await sessionRepository.end(this.currentSessionId);
                 console.log(`[DB] Session ${this.currentSessionId} ended.`);
+
+                // Phase 2: Auto-index the audio session (non-blocking)
+                // This extracts entities, speakers, actions from the transcription
+                if (userId) {
+                    autoIndexingService.indexAudioSession(sessionIdToIndex, userId)
+                        .then(result => {
+                            if (result.indexed) {
+                                console.log(`[ListenService] ✅ Audio session auto-indexed: ${result.content_id}`);
+                                console.log(`[ListenService]    Summary: ${result.summary?.substring(0, 80)}...`);
+                                console.log(`[ListenService]    Speakers: ${result.speakerAnalysis?.speakerCount || 0}`);
+                                console.log(`[ListenService]    Actions: ${result.actionsDecisions?.actions?.length || 0}`);
+                                console.log(`[ListenService]    Decisions: ${result.actionsDecisions?.decisions?.length || 0}`);
+                            } else {
+                                console.log(`[ListenService] Audio session not indexed: ${result.reason}`);
+                            }
+                        })
+                        .catch(err => {
+                            console.error('[ListenService] Audio auto-indexing failed:', err.message);
+                        });
+                }
             }
 
             // Reset state

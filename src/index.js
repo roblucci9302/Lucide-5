@@ -27,6 +27,7 @@ const documentService = require('./features/common/services/documentService');
 const indexingService = require('./features/common/services/indexingService');
 const ragService = require('./features/common/services/ragService');
 const { EmbeddingProviderFactory } = require('./features/common/services/embeddingProvider');
+const autoIndexingService = require('./features/common/services/autoIndexingService');
 
 // Phase 2: External Data Sync Scheduler
 const syncSchedulerService = require('./features/common/services/syncSchedulerService');
@@ -255,6 +256,18 @@ app.whenReady().then(async () => {
         // Set up embedding provider (auto-detects OpenAI key or uses mock)
         const embeddingProvider = EmbeddingProviderFactory.createAuto();
         indexingService.setEmbeddingProvider(embeddingProvider);
+
+        // Initialize auto-indexing service for automatic content indexing
+        await autoIndexingService.initialize();
+        console.log('[index.js] ✓ Auto-indexing service initialized');
+
+        // Log embedding provider type for user awareness
+        const providerName = embeddingProvider?.getName ? embeddingProvider.getName() : 'unknown';
+        if (providerName === 'mock') {
+            console.log('[index.js] ⚠️ Using mock embeddings - set OPENAI_API_KEY for better semantic search');
+        } else {
+            console.log(`[index.js] ✓ Using ${providerName} embedding provider for semantic search`);
+        }
 
         initStatus.knowledgeBase = true;
         console.log('[index.js] ✓ Phase 4 services initialized successfully');

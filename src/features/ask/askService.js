@@ -33,6 +33,8 @@ const tokenTrackingService = require('../common/services/tokenTrackingService');
 const actionParser = require('../common/services/actionParser'); // Phase 2: AI-triggered actions
 const actionExecutor = require('../common/services/actionExecutor'); // Phase 2: Action execution
 const dataSourceInjector = require('../common/services/dataSourceInjector'); // Phase 3: External data sources
+const autoIndexingService = require('../common/services/autoIndexingService'); // Phase 2: Auto-indexing
+const authService = require('../common/services/authService'); // For user ID in auto-indexing
 
 // Try to load sharp, but don't fail if it's not available
 let sharp;
@@ -45,6 +47,46 @@ try {
     sharp = null;
 }
 let lastScreenshot = null;
+
+/**
+ * Phase 2: Auto-index screenshot for knowledge base (OCR extraction)
+ * Called after successful screenshot capture - runs in background
+ * @param {Buffer} imageBuffer - The screenshot image buffer
+ * @private
+ */
+async function _autoIndexScreenshot(imageBuffer) {
+    try {
+        const userId = authService.getCurrentUserId();
+        if (!userId) {
+            return; // Skip if no user
+        }
+
+        // Save temp file for OCR processing
+        const tempScreenshotPath = path.join(os.tmpdir(), `lucide-ocr-${Date.now()}.jpg`);
+
+        await fs.promises.writeFile(tempScreenshotPath, imageBuffer);
+
+        // Index in background (non-blocking)
+        autoIndexingService.indexScreenshot(tempScreenshotPath, userId, null)
+            .then(result => {
+                // Clean up temp file
+                fs.promises.unlink(tempScreenshotPath).catch(() => {});
+
+                if (result.indexed) {
+                    console.log(`[AskService] ✅ Screenshot auto-indexed: ${result.content_id}`);
+                    console.log(`[AskService]    Text extracted: ${result.text_extracted?.substring(0, 50)}...`);
+                } else {
+                    console.log(`[AskService] Screenshot not indexed: ${result.reason}`);
+                }
+            })
+            .catch(err => {
+                fs.promises.unlink(tempScreenshotPath).catch(() => {});
+                console.error('[AskService] Screenshot indexing failed:', err.message);
+            });
+    } catch (error) {
+        console.warn('[AskService] Could not auto-index screenshot:', error.message);
+    }
+}
 
 async function captureScreenshot(options = {}) {
     if (process.platform === 'darwin') {
@@ -74,6 +116,9 @@ async function captureScreenshot(options = {}) {
                         timestamp: Date.now(),
                     };
 
+                    // Phase 2: Auto-index screenshot for knowledge base (use original for better OCR)
+                    _autoIndexScreenshot(imageBuffer);
+
                     return { success: true, base64, width: metadata.width, height: metadata.height };
                 } catch (sharpError) {
                     console.warn('Sharp module failed, falling back to basic image processing:', sharpError.message);
@@ -90,6 +135,9 @@ async function captureScreenshot(options = {}) {
                 height: null,
                 timestamp: Date.now(),
             };
+
+            // Phase 2: Auto-index screenshot for knowledge base
+            _autoIndexScreenshot(imageBuffer);
 
             return { success: true, base64, width: null, height: null };
         } catch (error) {
@@ -114,6 +162,9 @@ async function captureScreenshot(options = {}) {
         const buffer = source.thumbnail.toJPEG(70);
         const base64 = buffer.toString('base64');
         const size = source.thumbnail.getSize();
+
+        // Phase 2: Auto-index screenshot for knowledge base
+        _autoIndexScreenshot(buffer);
 
         return {
             success: true,
@@ -148,6 +199,9 @@ class AskService {
             showTextInput: true,
             sessionId: null, // Phase 4: RAG - Session ID for citations
         };
+        // Phase 2: Auto-indexing tracking
+        this.lastIndexedSessionId = null; // Prevent double-indexing same session
+        this.indexingInProgress = new Set(); // Track sessions being indexed
         console.log('[AskService] Service instance created.');
     }
 
@@ -848,6 +902,14 @@ class AskService {
                             // Non-critical error, don't fail the whole operation
                         }
                     }
+
+                    // Phase 2: Auto-index conversation after AI response
+                    // This indexes the conversation in the background for future RAG retrieval
+                    const userState = await modelStateService.getModelState();
+                    const indexUserId = userState?.user?.uid || authService.getCurrentUserId();
+                    if (sessionId && indexUserId) {
+                        this._tryAutoIndexSession(sessionId, indexUserId);
+                    }
                 } catch(dbError) {
                     console.error("[AskService] DB: Failed to save assistant response after stream ended:", dbError);
                 }
@@ -915,6 +977,58 @@ class AskService {
             errorMessage.includes('invalid') ||
             errorMessage.includes('not supported')
         );
+    }
+
+    /**
+     * Phase 2: Try to auto-index a completed conversation session
+     * Called after AI responses to index meaningful conversations
+     * @param {string} sessionId - Session to potentially index
+     * @param {string} userId - User ID
+     * @private
+     */
+    async _tryAutoIndexSession(sessionId, userId) {
+        // Skip if no session or user
+        if (!sessionId || !userId) {
+            return;
+        }
+
+        // Skip if already indexed or currently being indexed
+        if (this.lastIndexedSessionId === sessionId || this.indexingInProgress.has(sessionId)) {
+            return;
+        }
+
+        try {
+            // Check if session should be indexed (minimum messages, content length, etc.)
+            const shouldIndex = await autoIndexingService.shouldIndexConversation(sessionId);
+
+            if (shouldIndex) {
+                // Mark as in progress to prevent duplicate indexing
+                this.indexingInProgress.add(sessionId);
+
+                console.log(`[AskService] Auto-indexing conversation: ${sessionId}`);
+
+                // Index in background (non-blocking)
+                autoIndexingService.indexConversation(sessionId, userId)
+                    .then(result => {
+                        this.indexingInProgress.delete(sessionId);
+
+                        if (result.indexed) {
+                            console.log(`[AskService] ✅ Conversation auto-indexed: ${result.content_id}`);
+                            console.log(`[AskService]    Summary: ${result.summary?.substring(0, 80)}...`);
+                            console.log(`[AskService]    Entities: ${Object.keys(result.entities || {}).length} types`);
+                            this.lastIndexedSessionId = sessionId;
+                        } else {
+                            console.log(`[AskService] Conversation not indexed: ${result.reason}`);
+                        }
+                    })
+                    .catch(err => {
+                        this.indexingInProgress.delete(sessionId);
+                        console.error('[AskService] Auto-indexing failed:', err.message);
+                    });
+            }
+        } catch (error) {
+            console.error('[AskService] Error checking auto-index:', error.message);
+        }
     }
 
 }
