@@ -286,15 +286,64 @@ class OCRService {
      * @returns {Promise<string>} Path to preprocessed image
      */
     async preprocessImage(imagePath) {
-        // TODO: Implement image preprocessing
-        // - Resize if too large
-        // - Convert to grayscale
-        // - Increase contrast
-        // - Denoise
-        // - Deskew
+        try {
+            // Check if sharp is available for image processing
+            let sharp;
+            try {
+                sharp = require('sharp');
+            } catch (e) {
+                console.log('[OCRService] Sharp not available, skipping preprocessing');
+                return imagePath;
+            }
 
-        // For now, return original path
-        return imagePath;
+            const stats = await fs.stat(imagePath);
+            const fileSizeMB = stats.size / (1024 * 1024);
+
+            // Get image metadata
+            const metadata = await sharp(imagePath).metadata();
+            console.log(`[OCRService] Image: ${metadata.width}x${metadata.height}, ${fileSizeMB.toFixed(2)}MB`);
+
+            let image = sharp(imagePath);
+
+            // 1. Resize if too large (max 4000px on longest side)
+            const maxDimension = 4000;
+            if (metadata.width > maxDimension || metadata.height > maxDimension) {
+                console.log('[OCRService] Resizing large image...');
+                image = image.resize(maxDimension, maxDimension, {
+                    fit: 'inside',
+                    withoutEnlargement: true
+                });
+            }
+
+            // 2. Convert to grayscale for better OCR
+            image = image.grayscale();
+
+            // 3. Increase contrast and normalize
+            image = image.normalize();
+
+            // 4. Sharpen slightly to improve text clarity
+            image = image.sharpen({
+                sigma: 1,
+                m1: 0.5,
+                m2: 0.5
+            });
+
+            // Generate preprocessed path
+            const ext = path.extname(imagePath);
+            const baseName = path.basename(imagePath, ext);
+            const dir = path.dirname(imagePath);
+            const preprocessedPath = path.join(dir, `${baseName}_preprocessed${ext}`);
+
+            // Save preprocessed image
+            await image.toFile(preprocessedPath);
+
+            console.log('[OCRService] ✅ Image preprocessed successfully');
+            return preprocessedPath;
+
+        } catch (error) {
+            console.warn('[OCRService] Preprocessing failed, using original:', error.message);
+            return imagePath;
+        }
     }
 
     /**

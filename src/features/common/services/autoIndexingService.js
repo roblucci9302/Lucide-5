@@ -581,17 +581,75 @@ class AutoIndexingService {
     }
 
     /**
-     * Extract key points from conversation
+     * Extract key points from conversation using LLM
      * @private
      */
     async _extractKeyPoints(conversationText, messages) {
-        // TODO: Implement LLM-based key points extraction
-        // For now, extract AI responses > 200 chars as key points
+        try {
+            // Try LLM-based extraction first
+            const keyPoints = await this._extractKeyPointsWithLLM(conversationText);
+            if (keyPoints && keyPoints.length > 0) {
+                return keyPoints;
+            }
+        } catch (error) {
+            console.warn('[AutoIndexingService] LLM key points extraction failed:', error.message);
+        }
+
+        // Fallback: extract AI responses > 200 chars as key points
         const keyPoints = messages
             .filter(msg => msg.role === 'assistant' && msg.content.length > 200)
             .map(msg => msg.content);
 
         return keyPoints;
+    }
+
+    /**
+     * Extract key points using LLM
+     * @private
+     */
+    async _extractKeyPointsWithLLM(text) {
+        try {
+            const aiFactory = require('../ai/factory');
+            const provider = aiFactory.createProvider();
+
+            // Limit text to avoid token limits
+            const truncatedText = text.length > 4000 ? text.substring(0, 4000) + '...' : text;
+
+            const prompt = `Extract the 3-5 most important key points from this conversation.
+Focus on:
+- Decisions made
+- Action items
+- Important information shared
+- Key insights or conclusions
+
+Conversation:
+${truncatedText}
+
+Return ONLY a JSON array of strings, each being one key point. Example:
+["Key point 1", "Key point 2", "Key point 3"]`;
+
+            const response = await provider.ask(prompt, {
+                max_tokens: 500,
+                temperature: 0.3
+            });
+
+            // Parse JSON response
+            const cleaned = response.trim();
+            const jsonMatch = cleaned.match(/\[[\s\S]*\]/);
+
+            if (jsonMatch) {
+                const keyPoints = JSON.parse(jsonMatch[0]);
+                if (Array.isArray(keyPoints) && keyPoints.length > 0) {
+                    console.log(`[AutoIndexingService] Extracted ${keyPoints.length} key points via LLM`);
+                    return keyPoints;
+                }
+            }
+
+            return [];
+        } catch (error) {
+            console.warn('[AutoIndexingService] LLM key points extraction error:', error.message);
+            return [];
+        }
     }
 
     /**
@@ -756,9 +814,12 @@ class AutoIndexingService {
                 return null;
             }
 
+            // Detect language from user settings or auto-detect
+            const language = await this._detectOCRLanguage(screenshotPath);
+
             // Extract text from image
             const result = await ocrService.extractTextFromImage(screenshotPath, {
-                language: 'eng', // TODO: Auto-detect language or get from user settings
+                language: language,
                 oem: 1, // Neural nets LSTM engine
                 psm: 3  // Fully automatic page segmentation
             });
@@ -783,6 +844,41 @@ class AutoIndexingService {
             console.error('[AutoIndexingService] Error performing OCR:', error);
             return null;
         }
+    }
+
+    /**
+     * Detect language for OCR from user settings or auto-detect
+     * @private
+     */
+    async _detectOCRLanguage(screenshotPath) {
+        try {
+            // 1. Try to get language from user settings
+            const sqliteClient = require('./sqliteClient');
+            const db = sqliteClient.getDatabase();
+
+            if (db) {
+                const setting = db.prepare(`
+                    SELECT value FROM settings WHERE key = 'ocr_language'
+                `).get();
+
+                if (setting && setting.value) {
+                    console.log(`[AutoIndexingService] Using OCR language from settings: ${setting.value}`);
+                    return setting.value;
+                }
+            }
+
+            // 2. Try to auto-detect using OCR service
+            const detectedLang = await ocrService.detectLanguage(screenshotPath);
+            if (detectedLang) {
+                console.log(`[AutoIndexingService] Auto-detected language: ${detectedLang}`);
+                return detectedLang;
+            }
+        } catch (error) {
+            console.warn('[AutoIndexingService] Language detection failed:', error.message);
+        }
+
+        // 3. Default to English
+        return 'eng';
     }
 
     /**
