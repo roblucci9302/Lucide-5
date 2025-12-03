@@ -517,6 +517,17 @@ export class SettingsView extends LitElement {
         // Phase 1 - Meeting Assistant: Listen session state
         currentSessionId: { type: String, state: true },
         hasEndedSession: { type: Boolean, state: true },
+        // Phase 4 - License Management
+        licenseInfo: { type: Object, state: true },
+        licenseLoading: { type: Boolean, state: true },
+        licenseKeyInput: { type: String, state: true },
+        // Phase 4 - Cloud Sync
+        syncStatus: { type: Object, state: true },
+        syncLoading: { type: Boolean, state: true },
+        // Phase 4 - Enterprise Gateway
+        enterpriseStatus: { type: Object, state: true },
+        enterpriseLoading: { type: Boolean, state: true },
+        enterpriseDatabases: { type: Array, state: true },
     };
     //////// after_modelStateService ////////
 
@@ -561,6 +572,17 @@ export class SettingsView extends LitElement {
         // Phase 1 - Meeting Assistant: Session state
         this.currentSessionId = null;
         this.hasEndedSession = false;
+        // Phase 4 - License Management
+        this.licenseInfo = { tier: 'STARTER', isValid: false, features: {} };
+        this.licenseLoading = false;
+        this.licenseKeyInput = '';
+        // Phase 4 - Cloud Sync
+        this.syncStatus = { isEnabled: false, isSyncing: false, isOnline: false };
+        this.syncLoading = false;
+        // Phase 4 - Enterprise Gateway
+        this.enterpriseStatus = { connected: false };
+        this.enterpriseLoading = false;
+        this.enterpriseDatabases = [];
         this.loadInitialData();
         //////// after_modelStateService ////////
     }
@@ -674,6 +696,9 @@ export class SettingsView extends LitElement {
                 this.knowledgeBaseName = knowledgeBaseStatus.name || '';
                 this.documentCount = knowledgeBaseStatus.documentCount || 0;
             }
+
+            // Phase 4: Load License, Sync, and Enterprise status (non-blocking)
+            this.loadPhase4Data();
 
             if (this.presets.length > 0) {
                 const firstUserPreset = this.presets.find(p => p.is_default === 0);
@@ -1337,6 +1362,211 @@ export class SettingsView extends LitElement {
         }
     }
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // PHASE 4: License, Sync & Enterprise Methods
+    // ═══════════════════════════════════════════════════════════════════════
+
+    async loadPhase4Data() {
+        try {
+            // Load in parallel without blocking UI
+            const [licenseResult, syncResult, enterpriseResult] = await Promise.all([
+                window.api.license?.getInfo().catch(() => null),
+                window.api.sync?.getStatus().catch(() => null),
+                window.api.enterprise?.getStatus().catch(() => null)
+            ]);
+
+            if (licenseResult?.success) {
+                this.licenseInfo = licenseResult.license;
+            }
+
+            if (syncResult?.success) {
+                this.syncStatus = syncResult.status;
+            }
+
+            if (enterpriseResult?.success) {
+                this.enterpriseStatus = enterpriseResult.status;
+                this.enterpriseDatabases = enterpriseResult.databases || [];
+            }
+
+            this.requestUpdate();
+        } catch (error) {
+            console.error('[SettingsView] Error loading Phase 4 data:', error);
+        }
+    }
+
+    // License Handlers
+    async handleActivateLicense() {
+        if (!this.licenseKeyInput.trim()) {
+            alert('Veuillez entrer une clé de licence.');
+            return;
+        }
+
+        this.licenseLoading = true;
+        this.requestUpdate();
+
+        try {
+            const result = await window.api.license.activate(this.licenseKeyInput.trim());
+
+            if (result.success) {
+                this.licenseInfo = result.license;
+                this.licenseKeyInput = '';
+                alert(`Licence activée avec succès ! Tier: ${result.license?.tier || 'Unknown'}`);
+            } else {
+                alert(`Échec de l'activation: ${result.error}`);
+            }
+        } catch (error) {
+            console.error('[SettingsView] License activation error:', error);
+            alert(`Erreur: ${error.message}`);
+        } finally {
+            this.licenseLoading = false;
+            this.requestUpdate();
+        }
+    }
+
+    async handleDeactivateLicense() {
+        if (!confirm('Voulez-vous vraiment désactiver votre licence ?')) return;
+
+        this.licenseLoading = true;
+        this.requestUpdate();
+
+        try {
+            const result = await window.api.license.deactivate();
+
+            if (result.success) {
+                this.licenseInfo = { tier: 'STARTER', isValid: false, features: {} };
+                alert('Licence désactivée. Mode STARTER activé.');
+            } else {
+                alert(`Échec: ${result.error}`);
+            }
+        } catch (error) {
+            console.error('[SettingsView] License deactivation error:', error);
+        } finally {
+            this.licenseLoading = false;
+            this.requestUpdate();
+        }
+    }
+
+    async handleRefreshLicense() {
+        this.licenseLoading = true;
+        this.requestUpdate();
+
+        try {
+            const result = await window.api.license.refresh();
+            if (result.success) {
+                this.licenseInfo = result.license;
+            }
+        } catch (error) {
+            console.error('[SettingsView] License refresh error:', error);
+        } finally {
+            this.licenseLoading = false;
+            this.requestUpdate();
+        }
+    }
+
+    // Sync Handlers
+    async handleStartSync() {
+        this.syncLoading = true;
+        this.requestUpdate();
+
+        try {
+            const result = await window.api.sync.start();
+
+            if (result.success) {
+                this.syncStatus = { ...this.syncStatus, isEnabled: true };
+            } else if (result.requiresUpgrade) {
+                alert('La synchronisation cloud nécessite une licence Professional ou supérieure.');
+            } else {
+                alert(`Échec: ${result.error}`);
+            }
+        } catch (error) {
+            console.error('[SettingsView] Sync start error:', error);
+        } finally {
+            this.syncLoading = false;
+            this.requestUpdate();
+        }
+    }
+
+    async handleStopSync() {
+        this.syncLoading = true;
+        this.requestUpdate();
+
+        try {
+            await window.api.sync.stop();
+            this.syncStatus = { ...this.syncStatus, isEnabled: false };
+        } catch (error) {
+            console.error('[SettingsView] Sync stop error:', error);
+        } finally {
+            this.syncLoading = false;
+            this.requestUpdate();
+        }
+    }
+
+    async handleForceSync() {
+        this.syncLoading = true;
+        this.requestUpdate();
+
+        try {
+            const result = await window.api.sync.force();
+
+            if (result.success) {
+                alert('Synchronisation terminée avec succès !');
+            } else {
+                alert(`Échec: ${result.error}`);
+            }
+        } catch (error) {
+            console.error('[SettingsView] Force sync error:', error);
+        } finally {
+            this.syncLoading = false;
+            this.requestUpdate();
+        }
+    }
+
+    // Enterprise Handlers
+    async handleConnectEnterprise() {
+        const connectionString = prompt('Entrez la chaîne de connexion Enterprise Gateway:');
+        if (!connectionString) return;
+
+        this.enterpriseLoading = true;
+        this.requestUpdate();
+
+        try {
+            const result = await window.api.enterprise.connect(connectionString);
+
+            if (result.success) {
+                this.enterpriseStatus = { connected: true, ...result.gateway };
+                this.enterpriseDatabases = result.databases || [];
+                alert('Connecté à Enterprise Gateway !');
+            } else if (result.requiresUpgrade) {
+                alert('Enterprise Gateway nécessite une licence Enterprise ou supérieure.');
+            } else {
+                alert(`Échec: ${result.error}`);
+            }
+        } catch (error) {
+            console.error('[SettingsView] Enterprise connect error:', error);
+        } finally {
+            this.enterpriseLoading = false;
+            this.requestUpdate();
+        }
+    }
+
+    async handleDisconnectEnterprise() {
+        if (!confirm('Voulez-vous vraiment vous déconnecter du gateway Enterprise ?')) return;
+
+        this.enterpriseLoading = true;
+        this.requestUpdate();
+
+        try {
+            await window.api.enterprise.disconnect();
+            this.enterpriseStatus = { connected: false };
+            this.enterpriseDatabases = [];
+        } catch (error) {
+            console.error('[SettingsView] Enterprise disconnect error:', error);
+        } finally {
+            this.enterpriseLoading = false;
+            this.requestUpdate();
+        }
+    }
+
     async handleSyncKnowledgeBase() {
         console.log('[SettingsView] Syncing knowledge base...');
 
@@ -1659,6 +1889,148 @@ export class SettingsView extends LitElement {
                                 ⚙️ Gérer les Documents
                             </button>
                         ` : ''}
+                    </div>
+                </div>
+
+                <!-- Phase 4: License Section -->
+                <div class="license-section" style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--color-white-10);">
+                    <div class="section-header" style="font-size: 11px; font-weight: 500; color: rgba(255,255,255,0.7); margin-bottom: 8px;">
+                        🔑 Licence
+                    </div>
+
+                    <div class="license-status" style="margin-bottom: 8px; padding: 8px; background: ${this.licenseInfo?.tier !== 'STARTER' ? 'rgba(0,255,0,0.1)' : 'rgba(255,255,255,0.05)'}; border-radius: 6px; font-size: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="color: ${this.licenseInfo?.tier !== 'STARTER' ? 'rgba(0,255,0,0.8)' : 'rgba(255,255,255,0.6)'};">
+                                Tier: <strong>${this.licenseInfo?.tier || 'STARTER'}</strong>
+                            </span>
+                            ${this.licenseInfo?.expiresAt ? html`
+                                <span style="color: rgba(255,255,255,0.5);">
+                                    Expire: ${new Date(this.licenseInfo.expiresAt).toLocaleDateString()}
+                                </span>
+                            ` : ''}
+                        </div>
+                        ${this.licenseInfo?.features ? html`
+                            <div style="margin-top: 4px; color: rgba(255,255,255,0.5); font-size: 9px;">
+                                ${this.licenseInfo.features.cloudSync ? '☁️ Cloud Sync ' : ''}
+                                ${this.licenseInfo.features.enterpriseGateway ? '🏢 Enterprise ' : ''}
+                                ${this.licenseInfo.features.advancedAgents ? '🤖 Agents Avancés' : ''}
+                            </div>
+                        ` : ''}
+                    </div>
+
+                    ${this.licenseInfo?.tier === 'STARTER' ? html`
+                        <div style="display: flex; flex-direction: column; gap: 6px;">
+                            <input type="text"
+                                   placeholder="Entrez votre clé de licence"
+                                   style="width: 100%; background: var(--color-black-20); border: 1px solid var(--color-white-20); color: white; border-radius: 4px; padding: 6px 8px; font-size: 11px; box-sizing: border-box;"
+                                   .value=${this.licenseKeyInput}
+                                   @input=${(e) => this.licenseKeyInput = e.target.value}>
+                            <button class="settings-button full-width"
+                                    @click=${this.handleActivateLicense}
+                                    ?disabled=${this.licenseLoading}>
+                                ${this.licenseLoading ? '⟳ Activation...' : '🔓 Activer la Licence'}
+                            </button>
+                        </div>
+                    ` : html`
+                        <div style="display: flex; gap: 6px;">
+                            <button class="settings-button half-width"
+                                    @click=${this.handleRefreshLicense}
+                                    ?disabled=${this.licenseLoading}>
+                                ⟳ Rafraîchir
+                            </button>
+                            <button class="settings-button half-width danger"
+                                    @click=${this.handleDeactivateLicense}
+                                    ?disabled=${this.licenseLoading}>
+                                Désactiver
+                            </button>
+                        </div>
+                    `}
+                </div>
+
+                <!-- Phase 4: Cloud Sync Section -->
+                <div class="sync-section" style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--color-white-10);">
+                    <div class="section-header" style="font-size: 11px; font-weight: 500; color: rgba(255,255,255,0.7); margin-bottom: 8px;">
+                        ☁️ Synchronisation Cloud
+                    </div>
+
+                    <div class="sync-status" style="margin-bottom: 8px; padding: 8px; background: ${this.syncStatus?.isEnabled ? 'rgba(0,255,0,0.1)' : 'rgba(255,255,255,0.05)'}; border-radius: 6px; font-size: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="color: ${this.syncStatus?.isEnabled ? 'rgba(0,255,0,0.8)' : 'rgba(255,255,255,0.5)'};">
+                                ${this.syncStatus?.isEnabled ? '✓ Sync Activé' : '○ Sync Désactivé'}
+                            </span>
+                            <span style="color: ${this.syncStatus?.isOnline ? 'rgba(0,255,0,0.6)' : 'rgba(255,100,100,0.6)'};">
+                                ${this.syncStatus?.isOnline ? '🟢 En ligne' : '🔴 Hors ligne'}
+                            </span>
+                        </div>
+                        ${this.syncStatus?.isSyncing ? html`
+                            <div style="margin-top: 4px; color: rgba(255,200,0,0.8);">
+                                ⟳ Synchronisation en cours...
+                            </div>
+                        ` : ''}
+                        ${this.syncStatus?.lastSyncTime ? html`
+                            <div style="margin-top: 4px; color: rgba(255,255,255,0.4); font-size: 9px;">
+                                Dernière sync: ${new Date(this.syncStatus.lastSyncTime).toLocaleString()}
+                            </div>
+                        ` : ''}
+                    </div>
+
+                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                        ${this.syncStatus?.isEnabled ? html`
+                            <button class="settings-button full-width"
+                                    @click=${this.handleForceSync}
+                                    ?disabled=${this.syncLoading || this.syncStatus?.isSyncing}>
+                                ${this.syncLoading ? '⟳ En cours...' : '⟳ Forcer la Sync'}
+                            </button>
+                            <button class="settings-button full-width danger"
+                                    @click=${this.handleStopSync}
+                                    ?disabled=${this.syncLoading}>
+                                Arrêter la Sync
+                            </button>
+                        ` : html`
+                            <button class="settings-button full-width"
+                                    @click=${this.handleStartSync}
+                                    ?disabled=${this.syncLoading}>
+                                ${this.syncLoading ? '⟳ Démarrage...' : '▶ Démarrer la Sync'}
+                            </button>
+                        `}
+                    </div>
+                </div>
+
+                <!-- Phase 4: Enterprise Gateway Section -->
+                <div class="enterprise-section" style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--color-white-10);">
+                    <div class="section-header" style="font-size: 11px; font-weight: 500; color: rgba(255,255,255,0.7); margin-bottom: 8px;">
+                        🏢 Enterprise Gateway
+                    </div>
+
+                    <div class="enterprise-status" style="margin-bottom: 8px; padding: 8px; background: ${this.enterpriseStatus?.connected ? 'rgba(0,255,0,0.1)' : 'rgba(255,255,255,0.05)'}; border-radius: 6px; font-size: 10px;">
+                        <div style="color: ${this.enterpriseStatus?.connected ? 'rgba(0,255,0,0.8)' : 'rgba(255,255,255,0.5)'};">
+                            ${this.enterpriseStatus?.connected ? html`
+                                ✓ Connecté à <strong>${this.enterpriseStatus.name || 'Enterprise Gateway'}</strong>
+                            ` : html`
+                                ○ Non connecté
+                            `}
+                        </div>
+                        ${this.enterpriseStatus?.connected && this.enterpriseDatabases?.length > 0 ? html`
+                            <div style="margin-top: 4px; color: rgba(255,255,255,0.4); font-size: 9px;">
+                                ${this.enterpriseDatabases.length} base(s) de données disponible(s)
+                            </div>
+                        ` : ''}
+                    </div>
+
+                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                        ${this.enterpriseStatus?.connected ? html`
+                            <button class="settings-button full-width danger"
+                                    @click=${this.handleDisconnectEnterprise}
+                                    ?disabled=${this.enterpriseLoading}>
+                                ${this.enterpriseLoading ? '⟳ Déconnexion...' : '⏻ Déconnecter'}
+                            </button>
+                        ` : html`
+                            <button class="settings-button full-width"
+                                    @click=${this.handleConnectEnterprise}
+                                    ?disabled=${this.enterpriseLoading}>
+                                ${this.enterpriseLoading ? '⟳ Connexion...' : '🔌 Connecter Enterprise'}
+                            </button>
+                        `}
                     </div>
                 </div>
 
