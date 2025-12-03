@@ -203,8 +203,11 @@ class ListenService {
                 }
                 return; // Return early, we already sent the result
             } else if (isDoneButton(listenButtonText)) {
-                // Done: hide window and reset
+                // Done: close session properly and hide window
                 console.log('[ListenService] changeSession to "Done"');
+                // Fix: Call closeSession() to properly set ended_at in database
+                // This ensures the session can be found for post-meeting reports
+                await this.closeSession();
                 internalBridge.emit('window:requestVisibility', { name: 'listen', visible: false });
                 if (listenWindow && !listenWindow.isDestroyed()) {
                     listenWindow.webContents.send('session-state-changed', { isActive: false });
