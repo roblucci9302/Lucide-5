@@ -1,5 +1,4 @@
 import { html, css, LitElement } from '../assets/lit-core-2.7.4.min.js';
-// import { getOllamaProgressTracker } from '../../features/common/services/localProgressTracker.js'; // Supprimé
 
 export class SettingsView extends LitElement {
     static styles = css`
@@ -475,6 +474,96 @@ export class SettingsView extends LitElement {
 
         :host-context(body.has-glass) .settings-container::before {
             display: none !important;
+        }
+
+        /* ────────────────[ PHASE 4 SECTIONS ]─────────────── */
+        .agent-profile-section,
+        .knowledge-base-section,
+        .license-section,
+        .sync-section,
+        .enterprise-section {
+            margin-top: 12px;
+            padding: 12px;
+            background: var(--color-gray-700, rgba(50, 50, 50, 0.5));
+            border-radius: var(--radius-md, 8px);
+            border: 1px solid var(--color-white-10, rgba(255, 255, 255, 0.1));
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--color-white-80, rgba(255, 255, 255, 0.8));
+        }
+
+        .kb-status,
+        .license-status,
+        .sync-status,
+        .enterprise-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 8px;
+            border-radius: var(--radius-sm, 4px);
+            font-size: 10px;
+            font-weight: 500;
+        }
+
+        .kb-status.active,
+        .license-status.active,
+        .sync-status.active,
+        .enterprise-status.connected {
+            background: rgba(34, 197, 94, 0.2);
+            color: #22c55e;
+        }
+
+        .kb-status.inactive,
+        .license-status.inactive,
+        .sync-status.inactive,
+        .enterprise-status.disconnected {
+            background: rgba(156, 163, 175, 0.2);
+            color: #9ca3af;
+        }
+
+        .profile-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-top: 8px;
+        }
+
+        .profile-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 10px;
+            background: var(--color-gray-600, rgba(60, 60, 60, 0.5));
+            border-radius: var(--radius-sm, 4px);
+            cursor: pointer;
+            transition: background 0.15s ease;
+        }
+
+        .profile-item:hover {
+            background: var(--color-gray-500, rgba(70, 70, 70, 0.5));
+        }
+
+        .profile-item.active {
+            background: rgba(59, 130, 246, 0.2);
+            border: 1px solid rgba(59, 130, 246, 0.4);
+        }
+
+        .profile-item .profile-name {
+            font-size: 11px;
+            color: var(--color-white-90, rgba(255, 255, 255, 0.9));
+        }
+
+        .profile-item .profile-description {
+            font-size: 9px;
+            color: var(--color-white-50, rgba(255, 255, 255, 0.5));
+            margin-top: 2px;
         }
     `;
 
@@ -1396,8 +1485,17 @@ export class SettingsView extends LitElement {
 
     // License Handlers
     async handleActivateLicense() {
-        if (!this.licenseKeyInput.trim()) {
+        const licenseKey = this.licenseKeyInput.trim();
+
+        if (!licenseKey) {
             alert('Veuillez entrer une clé de licence.');
+            return;
+        }
+
+        // Validate license key format (alphanumeric with dashes, 16-64 chars)
+        const licenseRegex = /^[A-Za-z0-9-]{16,64}$/;
+        if (!licenseRegex.test(licenseKey)) {
+            alert('Format de clé de licence invalide. La clé doit contenir 16-64 caractères alphanumériques ou tirets.');
             return;
         }
 

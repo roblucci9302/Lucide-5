@@ -142,7 +142,12 @@ app.whenReady().then(async () => {
     // Setup native loopback audio capture for Windows
     session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
         desktopCapturer.getSources({ types: ['screen'] }).then((sources) => {
-            callback({ video: sources[0], audio: 'loopback' });
+            if (sources && sources.length > 0) {
+                callback({ video: sources[0], audio: 'loopback' });
+            } else {
+                console.warn('No screen sources available for display media');
+                callback({});
+            }
         }).catch((error) => {
             console.error('Failed to get desktop capturer sources:', error);
             callback({});

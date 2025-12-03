@@ -13,6 +13,7 @@ const sqliteClient = require('../../features/common/services/sqliteClient');
 const knowledgeOrganizerService = require('../../features/common/services/knowledgeOrganizerService');
 const autoIndexingService = require('../../features/common/services/autoIndexingService');
 const authService = require('../../features/common/services/authService');
+const { JsonUtils } = require('../../features/common/utils/validators');
 
 function initialize() {
     console.log('[MemoryBridge] Initializing memory IPC handlers...');
@@ -268,14 +269,17 @@ function initialize() {
                     relevance_score += (matches / queryWords.length) * 0.3;
                 }
 
+                const parsedTags = JsonUtils.safeParseArray(r.tags);
+                const parsedEntities = JsonUtils.safeParseObject(r.entities);
+
                 return {
                     ...r,
                     relevance_score: Math.min(relevance_score, 1.0),
-                    tags: r.tags ? JSON.parse(r.tags) : [],
-                    entities: r.entities ? JSON.parse(r.entities) : {},
+                    tags: parsedTags,
+                    entities: parsedEntities,
                     metadata: {
-                        tags: r.tags ? JSON.parse(r.tags) : [],
-                        entities: r.entities ? JSON.parse(r.entities) : {}
+                        tags: parsedTags,
+                        entities: parsedEntities
                     }
                 };
             });
@@ -315,9 +319,9 @@ function initialize() {
                 throw new Error('Content not found');
             }
 
-            // Parse JSON fields
-            if (content.tags) content.tags = JSON.parse(content.tags);
-            if (content.entities) content.entities = JSON.parse(content.entities);
+            // Parse JSON fields safely
+            content.tags = JsonUtils.safeParseArray(content.tags);
+            content.entities = JsonUtils.safeParseObject(content.entities);
 
             return { success: true, data: content };
         } catch (error) {

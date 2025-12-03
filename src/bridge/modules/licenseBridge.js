@@ -151,10 +151,10 @@ module.exports = {
                 await featureGates.initialize();
 
                 const [cloudSync, enterpriseGateway, advancedAgents, customProfiles] = await Promise.all([
-                    featureGates.canUseCloudSync().catch(() => false),
-                    featureGates.canUseEnterpriseGateway().catch(() => false),
-                    featureGates.canUseAdvancedAgents().catch(() => false),
-                    featureGates.canUseCustomProfiles().catch(() => false)
+                    featureGates.canUseCloudSync().catch(e => { console.warn('[LicenseBridge] cloudSync check failed:', e.message); return false; }),
+                    featureGates.canUseEnterpriseGateway().catch(e => { console.warn('[LicenseBridge] enterpriseGateway check failed:', e.message); return false; }),
+                    featureGates.canUseAdvancedAgents().catch(e => { console.warn('[LicenseBridge] advancedAgents check failed:', e.message); return false; }),
+                    featureGates.canUseCustomProfiles().catch(e => { console.warn('[LicenseBridge] customProfiles check failed:', e.message); return false; })
                 ]);
 
                 return {
