@@ -21,6 +21,9 @@ const notificationBridge = require('./modules/notificationBridge'); // Phase 3.3
 const analyticsBridge = require('./modules/analyticsBridge'); // Phase 4 - Analytics
 const externalDataBridge = require('./modules/externalDataBridge'); // Phase 2 - External Data Sources
 const memoryBridge = require('./modules/memoryBridge'); // Phase 2 - Memory Dashboard
+const licenseBridge = require('./modules/licenseBridge'); // Phase 3 - License & Feature Gates
+const syncBridge = require('./modules/syncBridge'); // Phase 3 - Cloud Sync
+const enterpriseBridge = require('./modules/enterpriseBridge'); // Phase 3 - Enterprise Gateway
 
 module.exports = {
     /**
@@ -49,6 +52,9 @@ module.exports = {
             { name: 'analyticsBridge', init: () => analyticsBridge.initialize() },
             { name: 'externalDataBridge', init: () => externalDataBridge.initialize() },
             { name: 'memoryBridge', init: () => memoryBridge.initialize() },
+            { name: 'licenseBridge', init: () => licenseBridge.initialize() },
+            { name: 'syncBridge', init: () => syncBridge.initialize() },
+            { name: 'enterpriseBridge', init: () => enterpriseBridge.initialize() },
         ];
 
         const failedBridges = [];
@@ -83,6 +89,12 @@ module.exports = {
 
         // Cleanup external data bridge
         externalDataBridge.cleanup();
+
+        // Cleanup sync bridge (stop automatic sync)
+        syncBridge.cleanup();
+
+        // Cleanup enterprise bridge (disconnect from gateway)
+        enterpriseBridge.cleanup();
 
         console.log('[FeatureBridge] All bridges cleaned up successfully');
     },
