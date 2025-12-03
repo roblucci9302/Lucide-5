@@ -75,8 +75,23 @@ module.exports = {
 
         ipcMain.handle('settings:connect-external-knowledge-base', async () => {
             try {
-                await databaseManager.initialize();
-                await knowledgeBaseService.showExternalDialog();
+                // Fix: databaseManager was removed - use firebaseKnowledgeSync instead
+                const userId = authService.getCurrentUserId();
+                if (!userId) {
+                    throw new Error('User not authenticated');
+                }
+
+                await firebaseKnowledgeSync.initialize();
+
+                // Show external database connection dialog via knowledgeBaseService
+                if (knowledgeBaseService.showExternalDialog) {
+                    await knowledgeBaseService.showExternalDialog();
+                } else {
+                    // Fallback: open the knowledge base manager
+                    await knowledgeBaseService.showKnowledgeBase();
+                    console.log('[SettingsBridge] External database dialog not available, opened KB manager');
+                }
+
                 return { success: true };
             } catch (error) {
                 console.error('[SettingsBridge] Error opening external database dialog:', error);

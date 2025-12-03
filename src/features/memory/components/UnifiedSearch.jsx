@@ -369,100 +369,40 @@ function UnifiedSearch({
     setHasSearched(true);
 
     try {
-      // Note: In real implementation, this would call ragService.retrieveContextMultiSource
-      // For now, we'll simulate with a database query
-
-      const sqliteClient = require('../../common/services/sqliteClient');
-      const db = sqliteClient.getDb();
-
-      if (!db) {
-        throw new Error('Database not initialized');
+      // Use secure IPC API instead of direct database access
+      if (!window.lucide?.memory?.search) {
+        throw new Error('Memory search API not available');
       }
 
-      // Build query
+      // Build filters for IPC call
+      const searchFilters = {
+        sources: filters.sources.length > 0 && filters.sources.length < Object.keys(SOURCE_CONFIG).length
+          ? filters.sources
+          : null,
+        dateFrom: filters.dateFrom || null,
+        dateTo: filters.dateTo || null,
+        importance: filters.importance || 'all',
+        limit: maxResults * (filters.sources.length || 4)
+      };
+
+      // Call the IPC search handler
+      const response = await window.lucide.memory.search(query, searchFilters);
+
+      if (!response?.success) {
+        throw new Error(response?.error || 'Search failed');
+      }
+
+      // Filter results by keyword presence for better relevance
       const queryLower = query.toLowerCase();
       const queryWords = queryLower.split(/\s+/).filter(w => w.length > 2);
 
-      let sql = `
-        SELECT *
-        FROM auto_indexed_content
-        WHERE uid = ?
-      `;
-
-      const params = [uid];
-
-      // Source type filter
-      if (filters.sources.length > 0 && filters.sources.length < Object.keys(SOURCE_CONFIG).length) {
-        sql += ` AND source_type IN (${filters.sources.map(() => '?').join(',')})`;
-        params.push(...filters.sources);
-      }
-
-      // Date range filter
-      if (filters.dateFrom) {
-        sql += ` AND indexed_at >= ?`;
-        params.push(filters.dateFrom);
-      }
-      if (filters.dateTo) {
-        sql += ` AND indexed_at <= ?`;
-        params.push(filters.dateTo + ' 23:59:59');
-      }
-
-      // Importance filter
-      const importanceFilter = IMPORTANCE_LEVELS.find(l => l.value === filters.importance);
-      if (importanceFilter && importanceFilter.value !== 'all') {
-        if (importanceFilter.min !== undefined && importanceFilter.max !== undefined) {
-          sql += ` AND importance_score >= ? AND importance_score < ?`;
-          params.push(importanceFilter.min, importanceFilter.max);
-        } else if (importanceFilter.min !== undefined) {
-          sql += ` AND importance_score >= ?`;
-          params.push(importanceFilter.min);
-        } else if (importanceFilter.max !== undefined) {
-          sql += ` AND importance_score < ?`;
-          params.push(importanceFilter.max);
-        }
-      }
-
-      sql += ` ORDER BY importance_score DESC, indexed_at DESC LIMIT ?`;
-      params.push(maxResults * filters.sources.length);
-
-      const allResults = db.prepare(sql).all(...params);
-
-      // Score results by keyword matching
-      const scoredResults = allResults.map(result => {
-        const contentLower = (result.content || '').toLowerCase();
-        const summaryLower = (result.content_summary || '').toLowerCase();
-        const tagsLower = (result.tags || '').toLowerCase();
-
-        let score = result.importance_score || 0.5;
-
-        // Keyword matching boost
-        const matches = queryWords.filter(word =>
-          contentLower.includes(word) || summaryLower.includes(word) || tagsLower.includes(word)
-        ).length;
-
-        if (queryWords.length > 0) {
-          score += (matches / queryWords.length) * 0.3;
-        }
-
-        return {
-          ...result,
-          relevance_score: Math.min(score, 1.0),
-          metadata: {
-            tags: result.tags ? JSON.parse(result.tags) : [],
-            entities: result.entities ? JSON.parse(result.entities) : {}
-          }
-        };
-      });
-
-      // Filter by keyword presence and sort by score
-      const filteredResults = scoredResults
+      const filteredResults = response.results
         .filter(r => {
           if (queryWords.length === 0) return true;
           const contentLower = (r.content || '').toLowerCase();
           return queryWords.some(word => contentLower.includes(word));
         })
-        .sort((a, b) => b.relevance_score - a.relevance_score)
-        .slice(0, maxResults * filters.sources.length);
+        .slice(0, maxResults * (filters.sources.length || 4));
 
       setResults(filteredResults);
 

@@ -829,5 +829,38 @@ contextBridge.exposeInMainWorld('api', {
     // Compare sessions
     compareSessions: (sessionId1, sessionId2) => ipcRenderer.invoke('analytics:compare-sessions', sessionId1, sessionId2)
       .then(result => result.success ? result.comparison : null)
+  },
+
+  // Phase 2: Memory Dashboard
+  memory: {
+    // Get memory statistics
+    getStats: () => ipcRenderer.invoke('memory:get-stats'),
+
+    // Get timeline data
+    getTimeline: (days = 30) => ipcRenderer.invoke('memory:get-timeline', { days }),
+
+    // Get knowledge graph statistics
+    getKnowledgeGraphStats: () => ipcRenderer.invoke('memory:get-knowledge-graph-stats'),
+
+    // Search indexed content
+    search: (query, filters = {}) => ipcRenderer.invoke('memory:search', { query, filters }),
+
+    // Get specific content by ID
+    getContent: (contentId) => ipcRenderer.invoke('memory:get-content', { contentId }),
+
+    // Delete indexed content
+    deleteContent: (contentId) => ipcRenderer.invoke('memory:delete-content', { contentId }),
+
+    // Manually index a conversation session
+    indexSession: (sessionId) => ipcRenderer.invoke('memory:index-session', { sessionId }),
+
+    // Manually index an audio session
+    indexAudio: (sessionId) => ipcRenderer.invoke('memory:index-audio', { sessionId }),
+
+    // Get knowledge graph data
+    getKnowledgeGraph: (limit = 100) => ipcRenderer.invoke('memory:get-knowledge-graph', { limit }),
+
+    // Get projects list
+    getProjects: () => ipcRenderer.invoke('memory:get-projects')
   }
 });

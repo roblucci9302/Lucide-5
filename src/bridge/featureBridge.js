@@ -20,6 +20,7 @@ const liveInsightsBridge = require('./modules/liveInsightsBridge'); // Phase 3 -
 const notificationBridge = require('./modules/notificationBridge'); // Phase 3.3 - Notifications
 const analyticsBridge = require('./modules/analyticsBridge'); // Phase 4 - Analytics
 const externalDataBridge = require('./modules/externalDataBridge'); // Phase 2 - External Data Sources
+const memoryBridge = require('./modules/memoryBridge'); // Phase 2 - Memory Dashboard
 
 module.exports = {
     /**
@@ -47,6 +48,7 @@ module.exports = {
             { name: 'notificationBridge', init: () => notificationBridge.initialize() },
             { name: 'analyticsBridge', init: () => analyticsBridge.initialize() },
             { name: 'externalDataBridge', init: () => externalDataBridge.initialize() },
+            { name: 'memoryBridge', init: () => memoryBridge.initialize() },
         ];
 
         const failedBridges = [];
