@@ -128,8 +128,8 @@ class OllamaInstaller {
             console.log(`[${this.serviceName}] Step 5: Cleanup...`);
             onProgress?.({ stage: 'cleanup', message: 'Cleaning up installation files...', progress: 0 });
             await spawnAsync('hdiutil', ['detach', mountPoint]);
-            await fs.unlink(dmgPath).catch(() => {});
-            await fs.rmdir(mountPoint).catch(() => {});
+            await fs.unlink(dmgPath).catch(e => console.warn(`[${this.serviceName}] Failed to cleanup DMG:`, e.message));
+            await fs.rmdir(mountPoint).catch(e => console.warn(`[${this.serviceName}] Failed to cleanup mount point:`, e.message));
             onProgress?.({ stage: 'cleanup', message: 'Cleanup complete.', progress: 100 });
 
             console.log(`[${this.serviceName}] Ollama installed successfully on macOS`);
@@ -140,7 +140,7 @@ class OllamaInstaller {
         } catch (error) {
             console.error(`[${this.serviceName}] macOS installation failed:`, error);
             // Cleanup on failure
-            await fs.unlink(dmgPath).catch(() => {});
+            await fs.unlink(dmgPath).catch(e => console.warn(`[${this.serviceName}] Failed to cleanup DMG after error:`, e.message));
             throw new Error(`Failed to install Ollama on macOS: ${error.message}`);
         }
     }
@@ -178,7 +178,7 @@ class OllamaInstaller {
             // Step 3: Cleanup
             console.log(`[${this.serviceName}] Step 3: Cleanup...`);
             onProgress?.({ stage: 'cleanup', message: 'Cleaning up installation files...', progress: 0 });
-            await fs.unlink(exePath).catch(() => {});
+            await fs.unlink(exePath).catch(e => console.warn(`[${this.serviceName}] Failed to cleanup EXE:`, e.message));
             onProgress?.({ stage: 'cleanup', message: 'Cleanup complete.', progress: 100 });
 
             console.log(`[${this.serviceName}] Ollama installed successfully on Windows`);

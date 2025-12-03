@@ -906,7 +906,6 @@ export class AskView extends LitElement {
     }
 
     handleCloseAskWindow() {
-        // this.clearResponseContent();
         window.api.askView.closeAskWindow();
     }
 
@@ -1251,14 +1250,20 @@ export class AskView extends LitElement {
             }
         } else {
             // Rendu basique si les librairies ne sont pas chargées
-            const basicHtml = textToRender
+            // Escape HTML first to prevent XSS, then apply safe formatting
+            const escapedText = textToRender
                 .replace(/&/g, '&amp;')
                 .replace(/</g, '&lt;')
                 .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+
+            // Apply safe markdown-like formatting (only on escaped content)
+            const basicHtml = escapedText
                 .replace(/\n\n/g, '</p><p>')
                 .replace(/\n/g, '<br>')
-                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*([^*]+)\*/g, '<em>$1</em>')
                 .replace(/`([^`]+)`/g, '<code>$1</code>');
 
             responseContainer.innerHTML = `<p>${basicHtml}</p>`;
@@ -1420,7 +1425,6 @@ export class AskView extends LitElement {
     async handleSendText(e, overridingText = '') {
         const textInput = this.shadowRoot?.getElementById('textInput');
         const text = (overridingText || textInput?.value || '').trim();
-        // if (!text) return;
 
         textInput.value = '';
 

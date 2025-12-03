@@ -768,9 +768,9 @@ class WhisperService extends EventEmitter {
             
             console.log('[WhisperService] Step 5: Cleanup...');
 
-            // Clean up temporary files
-            await fsPromises.unlink(tempFile).catch(() => {});
-            await this.removeDirectory(extractDir).catch(() => {});
+            // Clean up temporary files with logging
+            await fsPromises.unlink(tempFile).catch(e => console.warn('[WhisperService] Failed to cleanup temp file:', e.message));
+            await this.removeDirectory(extractDir).catch(e => console.warn('[WhisperService] Failed to cleanup extract dir:', e.message));
 
             console.log('[WhisperService] Whisper installed successfully on Windows');
             return true;
@@ -778,9 +778,9 @@ class WhisperService extends EventEmitter {
         } catch (error) {
             console.error('[WhisperService] Windows installation failed:', error);
 
-            // Clean up temporary files on failure
-            await fsPromises.unlink(tempFile).catch(() => {});
-            await this.removeDirectory(path.join(this.tempDir, 'extracted')).catch(() => {});
+            // Clean up temporary files on failure with logging
+            await fsPromises.unlink(tempFile).catch(e => console.warn('[WhisperService] Failed to cleanup temp file after error:', e.message));
+            await this.removeDirectory(path.join(this.tempDir, 'extracted')).catch(e => console.warn('[WhisperService] Failed to cleanup extract dir after error:', e.message));
             
             throw new Error(`Failed to install Whisper on Windows: ${error.message}`);
         }

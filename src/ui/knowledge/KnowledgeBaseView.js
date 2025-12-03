@@ -759,10 +759,19 @@ export class KnowledgeBaseView extends LitElement {
         if (!this.selectedDocument) return;
 
         try {
+            // Parse and validate tags with limits
+            const MAX_TAGS = 20;
+            const MAX_TAG_LENGTH = 50;
+            const parsedTags = this.editForm.tags
+                .split(',')
+                .map(t => t.trim().substring(0, MAX_TAG_LENGTH))
+                .filter(t => t)
+                .slice(0, MAX_TAGS);
+
             const updates = {
                 title: this.editForm.title.trim(),
                 description: this.editForm.description.trim(),
-                tags: this.editForm.tags.split(',').map(t => t.trim()).filter(t => t)
+                tags: parsedTags
             };
 
             const result = await window.api.documents.updateDocument(this.selectedDocument.id, updates);

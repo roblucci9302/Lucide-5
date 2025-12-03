@@ -103,7 +103,7 @@ class HeaderTransitionManager {
                     }
                 } catch (error) {
                     console.error('[HeaderController] Error in onForceShowApiKeyHeader:', error);
-                    await this._resizeForWelcome().catch(() => {});
+                    await this._resizeForWelcome().catch(e => console.warn('[HeaderController] Resize fallback failed:', e.message));
                     this.ensureHeader('welcome');
                 }
             });            
@@ -266,27 +266,29 @@ class HeaderTransitionManager {
     async _resizeForMain() {
         if (!window.api) return;
         console.log('[HeaderController] _resizeForMain: Resizing window to 405x47');
-        return window.api.headerController.resizeHeaderWindow({ width: 405, height: 47 }).catch(() => {});
+        return window.api.headerController.resizeHeaderWindow({ width: 405, height: 47 })
+            .catch(e => console.warn('[HeaderController] _resizeForMain failed:', e.message));
     }
 
     async _resizeForApiKey(height = 370) {
         if (!window.api) return;
         console.log(`[HeaderController] _resizeForApiKey: Resizing window to 456x${height}`);
-        return window.api.headerController.resizeHeaderWindow({ width: 456, height: height }).catch(() => {});
+        return window.api.headerController.resizeHeaderWindow({ width: 456, height: height })
+            .catch(e => console.warn('[HeaderController] _resizeForApiKey failed:', e.message));
     }
 
     async _resizeForPermissionHeader(height) {
         if (!window.api) return;
         const finalHeight = height || 220;
         return window.api.headerController.resizeHeaderWindow({ width: 285, height: finalHeight })
-            .catch(() => {});
+            .catch(e => console.warn('[HeaderController] _resizeForPermissionHeader failed:', e.message));
     }
 
     async _resizeForWelcome() {
         if (!window.api) return;
         console.log('[HeaderController] _resizeForWelcome: Resizing window to 456x370');
         return window.api.headerController.resizeHeaderWindow({ width: 456, height: 364 })
-            .catch(() => {});
+            .catch(e => console.warn('[HeaderController] _resizeForWelcome failed:', e.message));
     }
 
     async checkPermissions() {

@@ -266,10 +266,69 @@ class RAGValidator {
     }
 }
 
+/**
+ * Safe JSON parsing utilities
+ */
+const JsonUtils = {
+    /**
+     * Safely parse JSON with fallback
+     * @param {string} str - JSON string to parse
+     * @param {any} fallback - Fallback value on error (default: null)
+     * @returns {any} Parsed JSON or fallback
+     */
+    safeParse(str, fallback = null) {
+        if (!str || typeof str !== 'string') {
+            return fallback;
+        }
+        try {
+            return JSON.parse(str);
+        } catch (error) {
+            console.warn('[JsonUtils] Failed to parse JSON:', str.substring(0, 100));
+            return fallback;
+        }
+    },
+
+    /**
+     * Safely parse JSON array with fallback
+     * @param {string} str - JSON string to parse
+     * @returns {Array} Parsed array or empty array
+     */
+    safeParseArray(str) {
+        const result = this.safeParse(str, []);
+        return Array.isArray(result) ? result : [];
+    },
+
+    /**
+     * Safely parse JSON object with fallback
+     * @param {string} str - JSON string to parse
+     * @returns {Object} Parsed object or empty object
+     */
+    safeParseObject(str) {
+        const result = this.safeParse(str, {});
+        return result && typeof result === 'object' && !Array.isArray(result) ? result : {};
+    },
+
+    /**
+     * Safely stringify JSON
+     * @param {any} value - Value to stringify
+     * @param {string} fallback - Fallback string on error
+     * @returns {string} JSON string or fallback
+     */
+    safeStringify(value, fallback = '{}') {
+        try {
+            return JSON.stringify(value);
+        } catch (error) {
+            console.warn('[JsonUtils] Failed to stringify:', error.message);
+            return fallback;
+        }
+    }
+};
+
 module.exports = {
     ValidationError,
     DocumentValidator,
     SessionValidator,
     QueryValidator,
-    RAGValidator
+    RAGValidator,
+    JsonUtils
 };

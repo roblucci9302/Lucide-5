@@ -384,7 +384,6 @@ async function handleWindowVisibilityRequest(windowPool, layoutManager, movement
 
     if (name === 'shortcut-settings') {
         if (shouldBeVisible) {
-            // layoutManager.positionShortcutSettingsWindow();
             const newBounds = layoutManager.calculateShortcutSettingsWindowPosition();
             if (newBounds) win.setBounds(newBounds);
 
@@ -393,7 +392,6 @@ async function handleWindowVisibilityRequest(windowPool, layoutManager, movement
             } else {
                 win.setAlwaysOnTop(true);
             }
-            // globalShortcut.unregisterAll();
             disableClicks(win);
             win.show();
         } else {

@@ -69,8 +69,10 @@ async function _autoIndexScreenshot(imageBuffer) {
         // Index in background (non-blocking)
         autoIndexingService.indexScreenshot(tempScreenshotPath, userId, null)
             .then(result => {
-                // Clean up temp file
-                fs.promises.unlink(tempScreenshotPath).catch(() => {});
+                // Clean up temp file with logged error handling
+                fs.promises.unlink(tempScreenshotPath).catch(err => {
+                    console.warn('[AskService] Failed to clean up temp screenshot:', err.message);
+                });
 
                 if (result.indexed) {
                     console.log(`[AskService] ✅ Screenshot auto-indexed: ${result.content_id}`);
@@ -80,7 +82,9 @@ async function _autoIndexScreenshot(imageBuffer) {
                 }
             })
             .catch(err => {
-                fs.promises.unlink(tempScreenshotPath).catch(() => {});
+                fs.promises.unlink(tempScreenshotPath).catch(cleanupErr => {
+                    console.warn('[AskService] Failed to clean up temp screenshot after error:', cleanupErr.message);
+                });
                 console.error('[AskService] Screenshot indexing failed:', err.message);
             });
     } catch (error) {

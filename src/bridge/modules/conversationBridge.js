@@ -289,7 +289,7 @@ module.exports = {
                     .filter(s => s.session_type === 'listen' && s.ended_at !== null)
                     .sort((a, b) => b.ended_at - a.ended_at);
 
-                if (endedListenSessions.length > 0) {
+                if (endedListenSessions.length > 0 && endedListenSessions[0]?.id) {
                     return {
                         success: true,
                         sessionId: endedListenSessions[0].id,

@@ -109,7 +109,8 @@ class OllamaShutdown {
             return true;
         } catch (error) {
             if (force) {
-                await spawnAsync('pkill', ['-9', '-f', this.getOllamaCliPath()]).catch(() => {});
+                await spawnAsync('pkill', ['-9', '-f', this.getOllamaCliPath()])
+                    .catch(e => console.warn('[OllamaShutdown] Force kill also failed:', e.message));
             }
             console.error('[OllamaShutdown] Failed to shutdown Ollama on Linux:', error);
             return false;
