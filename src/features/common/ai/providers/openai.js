@@ -2,7 +2,7 @@ const OpenAI = require('openai');
 const WebSocket = require('ws');
 const { Portkey } = require('portkey-ai');
 const { Readable } = require('stream');
-const { getProviderForModel } = require('../factory.js');
+// FIX: Removed non-existent import 'getProviderForModel' that caused module load failure
 
 
 class OpenAIProvider {

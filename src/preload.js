@@ -502,29 +502,39 @@ contextBridge.exposeInMainWorld('api', {
   },
 
   // Phase 1: Meeting Assistant - Post-Meeting Features
+  // FIX: Added .catch() blocks to prevent unhandled promise rejections
   postMeeting: {
     // Generate meeting notes for a session
-    generateNotes: (sessionId) => ipcRenderer.invoke('post-meeting:generate-notes', sessionId),
+    generateNotes: (sessionId) => ipcRenderer.invoke('post-meeting:generate-notes', sessionId)
+      .catch(err => { console.error('[Preload] generateNotes error:', err); return { success: false, error: err.message }; }),
 
     // Get meeting notes for a session
-    getMeetingNotes: (sessionId) => ipcRenderer.invoke('post-meeting:get-notes', sessionId),
+    getMeetingNotes: (sessionId) => ipcRenderer.invoke('post-meeting:get-notes', sessionId)
+      .catch(err => { console.error('[Preload] getMeetingNotes error:', err); return { success: false, error: err.message }; }),
 
     // Export meeting notes to a format
-    exportNotes: (sessionId, format) => ipcRenderer.invoke('post-meeting:export', sessionId, format),
+    exportNotes: (sessionId, format) => ipcRenderer.invoke('post-meeting:export', sessionId, format)
+      .catch(err => { console.error('[Preload] exportNotes error:', err); return { success: false, error: err.message }; }),
 
     // Get all meeting notes for current user
-    getAllNotes: () => ipcRenderer.invoke('post-meeting:get-all-notes'),
+    getAllNotes: () => ipcRenderer.invoke('post-meeting:get-all-notes')
+      .catch(err => { console.error('[Preload] getAllNotes error:', err); return { success: false, notes: [] }; }),
 
     // Task management
-    updateTask: (taskId, updates) => ipcRenderer.invoke('post-meeting:update-task', taskId, updates),
-    completeTask: (taskId) => ipcRenderer.invoke('post-meeting:complete-task', taskId),
-    getTasks: (meetingNoteId) => ipcRenderer.invoke('post-meeting:get-tasks', meetingNoteId),
+    updateTask: (taskId, updates) => ipcRenderer.invoke('post-meeting:update-task', taskId, updates)
+      .catch(err => { console.error('[Preload] updateTask error:', err); return { success: false, error: err.message }; }),
+    completeTask: (taskId) => ipcRenderer.invoke('post-meeting:complete-task', taskId)
+      .catch(err => { console.error('[Preload] completeTask error:', err); return { success: false, error: err.message }; }),
+    getTasks: (meetingNoteId) => ipcRenderer.invoke('post-meeting:get-tasks', meetingNoteId)
+      .catch(err => { console.error('[Preload] getTasks error:', err); return { success: false, tasks: [] }; }),
 
     // Delete meeting notes
-    deleteNotes: (noteId) => ipcRenderer.invoke('post-meeting:delete-notes', noteId),
+    deleteNotes: (noteId) => ipcRenderer.invoke('post-meeting:delete-notes', noteId)
+      .catch(err => { console.error('[Preload] deleteNotes error:', err); return { success: false, error: err.message }; }),
 
     // Check if session has notes
-    hasNotes: (sessionId) => ipcRenderer.invoke('post-meeting:has-notes', sessionId),
+    hasNotes: (sessionId) => ipcRenderer.invoke('post-meeting:has-notes', sessionId)
+      .catch(err => { console.error('[Preload] hasNotes error:', err); return { success: false, hasNotes: false }; }),
 
     // Listeners
     onSetSession: (callback) => ipcRenderer.on('post-meeting:set-session', (event, sessionId) => callback(sessionId)),
@@ -538,6 +548,7 @@ contextBridge.exposeInMainWorld('api', {
 
     // FIX: Close the post-meeting window
     closeWindow: () => ipcRenderer.invoke('post-meeting:close-window')
+      .catch(err => { console.error('[Preload] closeWindow error:', err); return { success: false }; })
   },
 
   // Phase 2 - Participant Attribution

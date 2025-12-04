@@ -109,14 +109,15 @@ function createLLM({ apiKey, model = "claude-3-5-sonnet-20241022", temperature =
           messages: messages,
         })
 
+        // FIX: Safe access to response.content array
         return {
           response: {
-            text: () => response.content[0].text,
+            text: () => response.content?.[0]?.text || '',
           },
           raw: response,
         }
       } catch (error) {
-        console.error("Anthropic API error:", error)
+        console.error("[Anthropic] generateContent API error:", error.message)
         throw error
       }
     },
@@ -168,17 +169,29 @@ function createLLM({ apiKey, model = "claude-3-5-sonnet-20241022", temperature =
         }
       }
 
-      const response = await client.messages.create({
-        model: model,
-        max_tokens: maxTokens,
-        temperature: temperature,
-        system: systemPrompt || undefined,
-        messages: anthropicMessages,
-      })
+      // FIX: Added try-catch and safe array access
+      try {
+        const response = await client.messages.create({
+          model: model,
+          max_tokens: maxTokens,
+          temperature: temperature,
+          system: systemPrompt || undefined,
+          messages: anthropicMessages,
+        })
 
-      return {
-        content: response.content[0].text,
-        raw: response,
+        // FIX: Safe access to response.content array
+        const content = response.content?.[0]?.text || '';
+        if (!content) {
+          console.warn('[Anthropic] Empty response content received');
+        }
+
+        return {
+          content: content,
+          raw: response,
+        }
+      } catch (error) {
+        console.error('[Anthropic] chat() API error:', error.message);
+        throw error;
       }
     },
   }

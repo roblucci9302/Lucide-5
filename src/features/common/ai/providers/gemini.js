@@ -163,6 +163,11 @@ function createLLM({ apiKey, model = "gemini-2.5-flash", temperature = 0.7, maxT
         history: history,
       })
 
+      // FIX: Validate lastMessage exists before accessing
+      if (!lastMessage) {
+        throw new Error('[Gemini] No user message found in conversation');
+      }
+
       let content = lastMessage.content
 
       // Handle multimodal content
@@ -192,13 +197,25 @@ function createLLM({ apiKey, model = "gemini-2.5-flash", temperature = 0.7, maxT
         content = geminiContent
       }
 
-      const result = await chat.sendMessage(content)
-      const response = await result.response
+      // FIX: Added try-catch for API calls
+      try {
+        const result = await chat.sendMessage(content)
+        const response = await result.response
 
-      // Return plain text content
-      return {
-        content: response.text(),
-        raw: result,
+        // FIX: Safe access to response.text()
+        const responseText = response?.text?.() || '';
+        if (!responseText) {
+          console.warn('[Gemini] Empty response text received');
+        }
+
+        // Return plain text content
+        return {
+          content: responseText,
+          raw: result,
+        }
+      } catch (error) {
+        console.error('[Gemini] chat() API error:', error.message);
+        throw error;
       }
     },
   }
