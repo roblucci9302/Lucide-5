@@ -1,0 +1,37 @@
+[
+  {
+    "title": "Getting Started with Lucidi",
+    "content": "Lucidi is an AI assistant that helps you manage your knowledge base. This document explains the basic concepts and how to get started with the application.",
+    "file_type": "txt",
+    "tags": ["guide", "tutorial", "beginner"],
+    "indexed": true
+  },
+  {
+    "title": "API Documentation",
+    "content": "Complete API reference for Lucidi. Includes authentication, endpoints, request/response formats, and error handling. All endpoints use REST principles and return JSON responses.",
+    "file_type": "md",
+    "tags": ["api", "documentation", "reference"],
+    "indexed": true
+  },
+  {
+    "title": "Database Schema Guide",
+    "content": "This guide explains the database schema used by Lucidi. It covers all tables, relationships, indexes, and constraints. Understanding the schema is essential for advanced customization.",
+    "file_type": "md",
+    "tags": ["database", "schema", "technical"],
+    "indexed": false
+  },
+  {
+    "title": "Meeting Notes 2024-01-15",
+    "content": "Discussion about Phase 3 implementation. Decided to use Docker for integration testing. Action items: Set up PostgreSQL and MySQL containers, create test suites, update documentation.",
+    "file_type": "txt",
+    "tags": ["meeting", "notes", "phase3"],
+    "indexed": true
+  },
+  {
+    "title": "Troubleshooting Common Issues",
+    "content": "Solutions to common problems users encounter: connection issues, performance tuning, data migration, backup and restore procedures. Includes step-by-step debugging guides.",
+    "file_type": "md",
+    "tags": ["troubleshooting", "help", "debugging"],
+    "indexed": true
+  }
+]

@@ -1,0 +1,368 @@
+/**
+ * Profile Themes CSS Variables and Transitions
+ * Phase WOW 1 - Jour 3: UI Adaptation par profil
+ *
+ * Design: SUBTLE color variations that stay adapted to Lucide's general design
+ */
+
+/* ========================================
+   CSS CUSTOM PROPERTIES (Variables)
+   ======================================== */
+
+:root {
+    /* Default theme (lucide_assistant) - Indigo 500 base */
+    --profile-primary: #6366f1;
+    --profile-secondary: #4f46e5;
+    --profile-accent: #818cf8;
+    --profile-accent-light: #a5b4fc;
+
+    /* Functional colors for Memory components and data sources */
+    --color-conversation: #3b82f6;  /* Blue - Conversations */
+    --color-screenshot: #8b5cf6;    /* Violet - Screenshots */
+    --color-audio: #ec4899;         /* Pink - Audio */
+    --color-external: #10b981;      /* Green - External data */
+
+    /* Entity type colors for Knowledge Graph */
+    --color-project: #3b82f6;       /* Blue */
+    --color-person: #ec4899;        /* Pink */
+    --color-company: #10b981;       /* Green */
+    --color-topic: #8b5cf6;         /* Violet */
+    --color-technology: #f59e0b;    /* Orange */
+    --color-date: #06b6d4;          /* Cyan */
+    --color-location: #ef4444;      /* Red */
+
+    /* Transition configuration */
+    --theme-transition-duration: 300ms;
+    --theme-transition-timing: cubic-bezier(0.4, 0.0, 0.2, 1); /* Material Design easing */
+}
+
+/* ========================================
+   TRANSITION STYLES
+   ======================================== */
+
+/*
+ * Apply smooth transitions ONLY when theme is changing
+ * This prevents transitions on initial load
+ */
+:root.theme-transitioning {
+    transition:
+        --profile-primary var(--theme-transition-duration) var(--theme-transition-timing),
+        --profile-secondary var(--theme-transition-duration) var(--theme-transition-timing),
+        --profile-accent var(--theme-transition-duration) var(--theme-transition-timing),
+        --profile-accent-light var(--theme-transition-duration) var(--theme-transition-timing);
+}
+
+/* Apply transitions to elements using theme colors */
+:root.theme-transitioning * {
+    /* Only transition color-related properties */
+    transition:
+        background-color var(--theme-transition-duration) var(--theme-transition-timing),
+        border-color var(--theme-transition-duration) var(--theme-transition-timing),
+        color var(--theme-transition-duration) var(--theme-transition-timing),
+        fill var(--theme-transition-duration) var(--theme-transition-timing),
+        stroke var(--theme-transition-duration) var(--theme-transition-timing),
+        box-shadow var(--theme-transition-duration) var(--theme-transition-timing);
+}
+
+/* ========================================
+   UTILITY CLASSES
+   ======================================== */
+
+/* Background colors */
+.bg-profile-primary {
+    background-color: var(--profile-primary) !important;
+}
+
+.bg-profile-secondary {
+    background-color: var(--profile-secondary) !important;
+}
+
+.bg-profile-accent {
+    background-color: var(--profile-accent) !important;
+}
+
+.bg-profile-accent-light {
+    background-color: var(--profile-accent-light) !important;
+}
+
+/* Background with opacity */
+.bg-profile-primary-10 {
+    background-color: color-mix(in srgb, var(--profile-primary) 10%, transparent) !important;
+}
+
+.bg-profile-primary-20 {
+    background-color: color-mix(in srgb, var(--profile-primary) 20%, transparent) !important;
+}
+
+.bg-profile-accent-10 {
+    background-color: color-mix(in srgb, var(--profile-accent) 10%, transparent) !important;
+}
+
+/* Text colors */
+.text-profile-primary {
+    color: var(--profile-primary) !important;
+}
+
+.text-profile-secondary {
+    color: var(--profile-secondary) !important;
+}
+
+.text-profile-accent {
+    color: var(--profile-accent) !important;
+}
+
+.text-profile-accent-light {
+    color: var(--profile-accent-light) !important;
+}
+
+/* Border colors */
+.border-profile-primary {
+    border-color: var(--profile-primary) !important;
+}
+
+.border-profile-secondary {
+    border-color: var(--profile-secondary) !important;
+}
+
+.border-profile-accent {
+    border-color: var(--profile-accent) !important;
+}
+
+/* Outline colors */
+.outline-profile-primary {
+    outline-color: var(--profile-primary) !important;
+}
+
+.outline-profile-accent {
+    outline-color: var(--profile-accent) !important;
+}
+
+/* Shadow colors */
+.shadow-profile-primary {
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--profile-primary) 25%, transparent) !important;
+}
+
+.shadow-profile-accent {
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--profile-accent) 25%, transparent) !important;
+}
+
+/* Glow effect (for special UI elements) */
+.glow-profile-primary {
+    box-shadow:
+        0 0 8px color-mix(in srgb, var(--profile-primary) 30%, transparent),
+        0 0 16px color-mix(in srgb, var(--profile-primary) 15%, transparent) !important;
+}
+
+.glow-profile-accent {
+    box-shadow:
+        0 0 8px color-mix(in srgb, var(--profile-accent) 30%, transparent),
+        0 0 16px color-mix(in srgb, var(--profile-accent) 15%, transparent) !important;
+}
+
+/* ========================================
+   GRADIENT UTILITIES
+   ======================================== */
+
+/* Linear gradients */
+.gradient-profile-primary {
+    background: linear-gradient(135deg,
+        var(--profile-primary) 0%,
+        var(--profile-secondary) 100%) !important;
+}
+
+.gradient-profile-accent {
+    background: linear-gradient(135deg,
+        var(--profile-accent) 0%,
+        var(--profile-accent-light) 100%) !important;
+}
+
+/* Radial gradients (for backgrounds) */
+.gradient-radial-profile {
+    background: radial-gradient(
+        circle at top right,
+        color-mix(in srgb, var(--profile-accent) 10%, transparent) 0%,
+        transparent 70%
+    ) !important;
+}
+
+/* ========================================
+   BUTTON THEMES
+   ======================================== */
+
+/* Primary button */
+.btn-profile-primary {
+    background-color: var(--profile-primary);
+    color: white;
+    border: none;
+}
+
+.btn-profile-primary:hover {
+    background-color: var(--profile-secondary);
+}
+
+.btn-profile-primary:active {
+    background-color: var(--profile-secondary);
+    filter: brightness(0.9);
+}
+
+/* Outline button */
+.btn-profile-outline {
+    background-color: transparent;
+    color: var(--profile-primary);
+    border: 2px solid var(--profile-primary);
+}
+
+.btn-profile-outline:hover {
+    background-color: color-mix(in srgb, var(--profile-primary) 10%, transparent);
+}
+
+/* Ghost button */
+.btn-profile-ghost {
+    background-color: transparent;
+    color: var(--profile-accent);
+    border: none;
+}
+
+.btn-profile-ghost:hover {
+    background-color: color-mix(in srgb, var(--profile-accent) 10%, transparent);
+}
+
+/* ========================================
+   BADGE & TAG THEMES
+   ======================================== */
+
+.badge-profile {
+    background-color: var(--profile-accent-light);
+    color: var(--profile-secondary);
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.badge-profile-outline {
+    background-color: transparent;
+    color: var(--profile-accent);
+    border: 1px solid var(--profile-accent);
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+/* ========================================
+   LINK THEMES
+   ======================================== */
+
+.link-profile {
+    color: var(--profile-accent);
+    text-decoration: none;
+}
+
+.link-profile:hover {
+    color: var(--profile-primary);
+    text-decoration: underline;
+}
+
+/* ========================================
+   FOCUS STATES
+   ======================================== */
+
+.focus-profile:focus {
+    outline: 2px solid var(--profile-accent);
+    outline-offset: 2px;
+}
+
+.focus-profile:focus-visible {
+    outline: 2px solid var(--profile-accent);
+    outline-offset: 2px;
+}
+
+/* Global focus states for accessibility */
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+a:focus-visible {
+    outline: 2px solid var(--profile-accent);
+    outline-offset: 2px;
+}
+
+/* Remove default focus outline (but keep for :focus-visible) */
+button:focus:not(:focus-visible),
+input:focus:not(:focus-visible),
+textarea:focus:not(:focus-visible),
+select:focus:not(:focus-visible),
+a:focus:not(:focus-visible) {
+    outline: none;
+}
+
+/* ========================================
+   SELECTION THEMES
+   ======================================== */
+
+::selection {
+    background-color: color-mix(in srgb, var(--profile-accent) 30%, transparent);
+    color: white;
+}
+
+::-moz-selection {
+    background-color: color-mix(in srgb, var(--profile-accent) 30%, transparent);
+    color: white;
+}
+
+/* ========================================
+   SCROLLBAR THEMES (webkit)
+   ======================================== */
+
+.scrollbar-profile::-webkit-scrollbar-thumb {
+    background-color: color-mix(in srgb, var(--profile-accent) 40%, transparent);
+    border-radius: 4px;
+}
+
+.scrollbar-profile::-webkit-scrollbar-thumb:hover {
+    background-color: color-mix(in srgb, var(--profile-accent) 60%, transparent);
+}
+
+/* ========================================
+   ACCESSIBILITY
+   ======================================== */
+
+/* Ensure sufficient contrast for accessibility */
+@media (prefers-contrast: high) {
+    :root {
+        --profile-primary: #4338ca; /* Darker for better contrast */
+        --profile-secondary: #3730a3;
+        --profile-accent: #6366f1;
+        --profile-accent-light: #818cf8;
+    }
+}
+
+/* Respect reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+    :root.theme-transitioning,
+    :root.theme-transitioning * {
+        transition: none !important;
+        animation: none !important;
+    }
+}
+
+/* ========================================
+   DEBUG MODE
+   ======================================== */
+
+/* Show current theme info in dev mode */
+:root[data-debug-theme="true"]::before {
+    content: attr(data-profile-icon) " " attr(data-profile-name);
+    position: fixed;
+    top: 8px;
+    right: 8px;
+    background: rgba(0, 0, 0, 0.8);
+    color: var(--profile-accent);
+    padding: 4px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    z-index: 999999;
+    pointer-events: none;
+}

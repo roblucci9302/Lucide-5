@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta http-equiv="content-security-policy" content="script-src 'self' 'unsafe-inline' 'unsafe-eval'" />
+        <title>Lucide Header</title>
+        <!-- Phase 1: Design Tokens (must be loaded first) -->
+        <link rel="stylesheet" href="../styles/design-tokens.css">
+        <!-- Phase WOW 1 - Jour 3: Profile Themes -->
+        <link rel="stylesheet" href="../styles/profile-themes.css">
+        <style>
+            html,
+            body {
+                margin: 0;
+                padding: 0;
+                overflow: hidden;
+                background: transparent;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="header-container" tabindex="0" style="outline: none;">
+        </div>
+
+        <script type="module" src="../../../public/build/header.js"></script>
+
+        <!-- Phase WOW 1 - Jour 3: Profile Theme Manager -->
+        <script type="module">
+            import { ProfileThemeManager } from '../components/ProfileThemeManager.js';
+        </script>
+        <profile-theme-manager></profile-theme-manager>
+
+        <!-- Phase WOW 1 - Jour 4: Profile Suggestion Banner -->
+        <script type="module">
+            import { ProfileSuggestionBanner } from '../components/ProfileSuggestionBanner.js';
+        </script>
+        <profile-suggestion-banner></profile-suggestion-banner>
+
+        <script>
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('glass') === 'true') {
+                document.body.classList.add('has-glass');
+            }
+        </script>
+    </body>
+</html>
