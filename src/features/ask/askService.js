@@ -920,9 +920,8 @@ class AskService {
                             console.log(`[AskService] Actions: Found ${actions.length} action(s) in response`);
 
                             if (actions.length > 0) {
-                                // Get user context for action execution
-                                const userState = await modelStateService.getModelState();
-                                const userId = userState?.user?.uid || 'default_user';
+                                // FIX: Use authService.getCurrentUserId() instead of non-existent getModelState()
+                                const userId = authService.getCurrentUserId() || 'default_user';
 
                                 const executionContext = {
                                     sessionId,
@@ -958,8 +957,8 @@ class AskService {
 
                     // Phase 2: Auto-index conversation after AI response
                     // This indexes the conversation in the background for future RAG retrieval
-                    const userState = await modelStateService.getModelState();
-                    const indexUserId = userState?.user?.uid || authService.getCurrentUserId();
+                    // FIX: Use authService.getCurrentUserId() directly instead of non-existent getModelState()
+                    const indexUserId = authService.getCurrentUserId();
                     if (sessionId && indexUserId) {
                         this._tryAutoIndexSession(sessionId, indexUserId);
                     }

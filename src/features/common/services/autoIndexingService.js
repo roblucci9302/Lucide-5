@@ -17,7 +17,9 @@ const { estimateTokens } = require('../utils/tokenUtils');
 const logger = require('../utils/logger');
 const sqliteClient = require('./sqliteClient');
 const conversationHistoryService = require('./conversationHistoryService');
-const embeddingProvider = require('./embeddingProvider');
+// FIX: Use EmbeddingProviderFactory to create an instance instead of importing the module directly
+const { EmbeddingProviderFactory } = require('./embeddingProvider');
+const embeddingProvider = EmbeddingProviderFactory.createAuto();
 const ocrService = require('./ocrService');
 const knowledgeOrganizerService = require('./knowledgeOrganizerService');
 

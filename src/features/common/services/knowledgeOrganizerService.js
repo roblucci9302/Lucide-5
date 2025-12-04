@@ -38,6 +38,9 @@ class KnowledgeOrganizerService {
             this.db = sqliteClient.getDb();
         }
 
+        // FIX: Ensure knowledge_graph table has required columns
+        await this._ensureKnowledgeGraphSchema();
+
         // Check if user is logged in with Firebase or has OpenAI key
         const user = authService.getCurrentUser();
         const isLoggedIn = user && user.isLoggedIn;
@@ -53,6 +56,45 @@ class KnowledgeOrganizerService {
 
         console.log('[KnowledgeOrganizerService] Service ready with LLM support');
         return true;
+    }
+
+    /**
+     * Ensure knowledge_graph table has required columns
+     * FIX: This adds missing columns that weren't in the original schema
+     * @private
+     */
+    async _ensureKnowledgeGraphSchema() {
+        try {
+            // Check if knowledge_graph table exists
+            const tableExists = this.db.prepare(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='knowledge_graph'"
+            ).get();
+
+            if (!tableExists) {
+                console.log('[KnowledgeOrganizerService] knowledge_graph table does not exist yet');
+                return;
+            }
+
+            // Check for missing columns using PRAGMA
+            const columns = this.db.prepare('PRAGMA table_info(knowledge_graph)').all();
+            const columnNames = columns.map(c => c.name);
+
+            // Add entity_value column if missing
+            if (!columnNames.includes('entity_value')) {
+                console.log('[KnowledgeOrganizerService] Adding missing entity_value column...');
+                this.db.exec('ALTER TABLE knowledge_graph ADD COLUMN entity_value TEXT');
+                console.log('[KnowledgeOrganizerService] ✅ Added entity_value column');
+            }
+
+            // Add confidence column if missing
+            if (!columnNames.includes('confidence')) {
+                console.log('[KnowledgeOrganizerService] Adding missing confidence column...');
+                this.db.exec('ALTER TABLE knowledge_graph ADD COLUMN confidence REAL DEFAULT 1.0');
+                console.log('[KnowledgeOrganizerService] ✅ Added confidence column');
+            }
+        } catch (error) {
+            console.error('[KnowledgeOrganizerService] Error ensuring schema:', error.message);
+        }
     }
 
     /**
