@@ -74,7 +74,8 @@ class PostCallService {
 
         try {
             // 1. Get session data
-            const session = sessionRepository.getById(sessionId);
+            // FIX: Added await - getById is async
+            const session = await sessionRepository.getById(sessionId);
             if (!session) {
                 throw new Error(`Session ${sessionId} not found`);
             }
