@@ -1,5 +1,6 @@
 const http = require('http');
 const fetch = require('node-fetch');
+const { validateApiKey } = require('../utils/apiKeyValidator');
 
 // Request Queue System for Ollama API (only for non-streaming requests)
 class RequestQueue {
@@ -75,17 +76,14 @@ class RequestQueue {
 const requestQueue = new RequestQueue();
 
 class OllamaProvider {
+    /**
+     * Validate Ollama service availability
+     * REFACTORED: Now uses centralized apiKeyValidator utility
+     * Note: Ollama is local and doesn't require an API key, just checks if server is running
+     * @returns {Promise<{success: boolean, error?: string}>}
+     */
     static async validateApiKey() {
-        try {
-            const response = await fetch('http://localhost:11434/api/tags');
-            if (response.ok) {
-                return { success: true };
-            } else {
-                return { success: false, error: 'Ollama service is not running. Please start Ollama first.' };
-            }
-        } catch (error) {
-            return { success: false, error: 'Cannot connect to Ollama. Please ensure Ollama is installed and running.' };
-        }
+        return validateApiKey(null, 'ollama');
     }
 }
 

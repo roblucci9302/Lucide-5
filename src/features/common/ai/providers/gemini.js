@@ -1,27 +1,16 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai")
 const { GoogleGenAI } = require("@google/genai")
+const { validateApiKey } = require('../utils/apiKeyValidator');
 
 class GeminiProvider {
+    /**
+     * Validate a Gemini API key
+     * REFACTORED: Now uses centralized apiKeyValidator utility
+     * @param {string} key - API key to validate
+     * @returns {Promise<{success: boolean, error?: string}>}
+     */
     static async validateApiKey(key) {
-        if (!key || typeof key !== 'string') {
-            return { success: false, error: 'Invalid Gemini API key format.' };
-        }
-
-        try {
-            const validationUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${key}`;
-            const response = await fetch(validationUrl);
-
-            if (response.ok) {
-                return { success: true };
-            } else {
-                const errorData = await response.json().catch(() => ({}));
-                const message = errorData.error?.message || `Validation failed with status: ${response.status}`;
-                return { success: false, error: message };
-            }
-        } catch (error) {
-            console.error(`[GeminiProvider] Network error during key validation:`, error);
-            return { success: false, error: 'A network error occurred during validation.' };
-        }
+        return validateApiKey(key, 'gemini');
     }
 }
 

@@ -2,6 +2,7 @@
 
 const { createClient, LiveTranscriptionEvents } = require('@deepgram/sdk');
 const WebSocket = require('ws');
+const { validateApiKey } = require('../utils/apiKeyValidator');
 
 /**
  * Classe Provider Deepgram. Gère la validation des clés API.
@@ -9,30 +10,12 @@ const WebSocket = require('ws');
 class DeepgramProvider {
     /**
      * Valide une clé API Deepgram.
+     * REFACTORED: Now uses centralized apiKeyValidator utility
      * @param {string} key - La clé API Deepgram à valider
      * @returns {Promise<{success: boolean, error?: string}>}
      */
     static async validateApiKey(key) {
-        if (!key || typeof key !== 'string') {
-            return { success: false, error: 'Invalid Deepgram API key format.' };
-        }
-        try {
-            // ✨ Modification : Appel direct via fetch au lieu du SDK pour plus de stabilité (méthode openai.js)
-            const response = await fetch('https://api.deepgram.com/v1/projects', {
-                headers: { 'Authorization': `Token ${key}` }
-            });
-
-            if (response.ok) {
-                return { success: true };
-            } else {
-                const errorData = await response.json().catch(() => ({}));
-                const message = errorData.err_msg || `Validation failed with status: ${response.status}`;
-                return { success: false, error: message };
-            }
-        } catch (error) {
-            console.error(`[DeepgramProvider] Network error during key validation:`, error);
-            return { success: false, error: error.message || 'A network error occurred during validation.' };
-        }
+        return validateApiKey(key, 'deepgram');
     }
 }
 

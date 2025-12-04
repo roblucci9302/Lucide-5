@@ -150,10 +150,15 @@ router.post('/push', async (req, res) => {
         }
 
         // Update user's last sync time
-        await supabase
+        // FIX ERR-5: Check for update errors
+        const { error: updateError } = await supabase
             .from('users')
             .update({ last_sync_at: Math.floor(Date.now() / 1000) })
             .eq('uid', req.user.id);
+
+        if (updateError) {
+            console.error('[Sync] Failed to update last_sync_at:', updateError);
+        }
 
         res.json({
             success: true,
@@ -219,7 +224,10 @@ router.get('/pull', async (req, res) => {
 
             const { data: messagesData, error: messagesError } = await messagesQuery;
 
-            if (!messagesError) {
+            // FIX ERR-2: Log messages error instead of silently ignoring
+            if (messagesError) {
+                console.error('[Sync] Pull messages error:', messagesError);
+            } else {
                 messages = messagesData || [];
             }
         }
@@ -239,6 +247,11 @@ router.get('/pull', async (req, res) => {
 
         const { data: documents, error: documentsError } = await documentsQuery;
 
+        // FIX ERR-3: Log documents error instead of silently ignoring
+        if (documentsError) {
+            console.error('[Sync] Pull documents error:', documentsError);
+        }
+
         // ========================================================================
         // PULL PROMPT PRESETS
         // ========================================================================
@@ -253,6 +266,11 @@ router.get('/pull', async (req, res) => {
         }
 
         const { data: presets, error: presetsError } = await presetsQuery;
+
+        // FIX ERR-4: Log presets error instead of silently ignoring
+        if (presetsError) {
+            console.error('[Sync] Pull presets error:', presetsError);
+        }
 
         res.json({
             success: true,
@@ -354,11 +372,23 @@ router.post('/full', async (req, res) => {
             .eq('uid', req.user.id)
             .gt('updated_at', lastSyncTimestamp);
 
-        // Pull messages
-        const { data: remoteMessages } = await supabase
-            .from('ai_messages')
-            .select('*')
-            .gt('created_at', lastSyncTimestamp);
+        // Pull messages - SECURITY FIX VUL-1: Filter by user's sessions only
+        const { data: userSessions } = await supabase
+            .from('sessions')
+            .select('id')
+            .eq('uid', req.user.id);
+
+        const userSessionIds = (userSessions || []).map(s => s.id);
+        let remoteMessages = [];
+
+        if (userSessionIds.length > 0) {
+            const { data: messagesData } = await supabase
+                .from('ai_messages')
+                .select('*')
+                .in('session_id', userSessionIds)
+                .gt('created_at', lastSyncTimestamp);
+            remoteMessages = messagesData || [];
+        }
 
         // Update last sync time
         await supabase
