@@ -298,6 +298,146 @@ export class PostMeetingPanel extends LitElement {
             color: var(--color-white-60);
         }
 
+        /* Phase 4: Quality Score Badge */
+        .quality-score {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        .quality-score.excellent {
+            background: color-mix(in srgb, var(--color-success-500) 20%, transparent);
+            color: var(--color-success-400);
+            border: 1px solid var(--color-success-500);
+        }
+
+        .quality-score.good {
+            background: color-mix(in srgb, var(--color-primary-500) 20%, transparent);
+            color: var(--color-primary-400);
+            border: 1px solid var(--color-primary-500);
+        }
+
+        .quality-score.fair {
+            background: color-mix(in srgb, var(--color-warning-500) 20%, transparent);
+            color: var(--color-warning-400);
+            border: 1px solid var(--color-warning-500);
+        }
+
+        .quality-score.poor {
+            background: color-mix(in srgb, var(--color-error-500) 20%, transparent);
+            color: var(--color-error-400);
+            border: 1px solid var(--color-error-500);
+        }
+
+        /* Phase 4: Meeting Type Badge */
+        .meeting-type-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 500;
+            background: var(--color-white-10);
+            color: var(--color-white-80);
+            border: 1px solid var(--color-white-20);
+        }
+
+        /* Phase 4: Severity Badges for Risks */
+        .severity-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 9px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .severity-badge.high {
+            background: color-mix(in srgb, var(--color-error-500) 20%, transparent);
+            color: var(--color-error-400);
+        }
+
+        .severity-badge.medium {
+            background: color-mix(in srgb, var(--color-warning-500) 20%, transparent);
+            color: var(--color-warning-400);
+        }
+
+        .severity-badge.low {
+            background: color-mix(in srgb, var(--color-success-500) 20%, transparent);
+            color: var(--color-success-400);
+        }
+
+        /* Phase 4: Enhanced Action Item Card */
+        .action-item-card {
+            background: var(--color-black-20);
+            border: 1px solid var(--color-white-10);
+            border-radius: 6px;
+            padding: 10px;
+            margin-bottom: 8px;
+        }
+
+        .action-item-card.priority-high {
+            border-left: 3px solid var(--color-error-400);
+        }
+
+        .action-item-card.priority-medium {
+            border-left: 3px solid var(--color-warning-400);
+        }
+
+        .action-item-card.priority-low {
+            border-left: 3px solid var(--color-success-400);
+        }
+
+        .action-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 8px;
+        }
+
+        .action-details {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 8px;
+            font-size: 10px;
+            color: var(--color-white-60);
+        }
+
+        .action-detail {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        /* Phase 4: Risk Card */
+        .risk-card {
+            background: var(--color-black-20);
+            border: 1px solid var(--color-white-10);
+            border-radius: 6px;
+            padding: 10px;
+            margin-bottom: 8px;
+        }
+
+        .risk-card.severity-high {
+            border-left: 3px solid var(--color-error-400);
+            background: color-mix(in srgb, var(--color-error-500) 5%, var(--color-black-20));
+        }
+
+        .risk-card.severity-medium {
+            border-left: 3px solid var(--color-warning-400);
+        }
+
+        .risk-card.severity-low {
+            border-left: 3px solid var(--color-success-400);
+        }
+
         /* Export Section */
         .export-grid {
             display: grid;
@@ -802,10 +942,38 @@ export class PostMeetingPanel extends LitElement {
                 </div>
             ` : ''}
 
+            ${data.metadata?.qualityScore !== null || data.meetingType !== 'general' ? html`
+                <div class="summary-section" style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+                    ${data.meetingType && data.meetingType !== 'general' ? html`
+                        <span class="meeting-type-badge">
+                            ${this._getMeetingTypeIcon(data.meetingType)} ${this._getMeetingTypeLabel(data.meetingType)}
+                        </span>
+                    ` : ''}
+                    ${data.metadata?.qualityScore !== null ? html`
+                        <span class="quality-score ${this._getQualityScoreClass(data.metadata.qualityScore)}">
+                            ${this._getQualityScoreIcon(data.metadata.qualityScore)} Qualité: ${data.metadata.qualityScore}/100
+                        </span>
+                    ` : ''}
+                </div>
+            ` : ''}
+
             <div class="summary-section">
                 <h3 class="section-title">📝 Résumé exécutif</h3>
                 <div class="summary-text">${data.executiveSummary || 'Aucun résumé disponible'}</div>
             </div>
+
+            ${data.objectives && data.objectives.length > 0 ? html`
+                <div class="summary-section">
+                    <h3 class="section-title">🎯 Objectifs de la réunion</h3>
+                    <ul class="item-list">
+                        ${data.objectives.map(obj => html`
+                            <li class="list-item">
+                                ${typeof obj === 'string' ? obj : obj.objective || obj.description || JSON.stringify(obj)}
+                            </li>
+                        `)}
+                    </ul>
+                </div>
+            ` : ''}
 
             ${data.keyPoints && data.keyPoints.length > 0 ? html`
                 <div class="summary-section">
@@ -820,19 +988,82 @@ export class PostMeetingPanel extends LitElement {
 
             ${data.decisions && data.decisions.length > 0 ? html`
                 <div class="summary-section">
-                    <h3 class="section-title">🔍 Décisions prises</h3>
+                    <h3 class="section-title">🔍 Décisions prises (${data.decisions.length})</h3>
                     <ul class="item-list">
                         ${data.decisions.map(decision => html`
                             <li class="list-item">
-                                <div class="item-title">${decision.decision || decision.title}</div>
-                                ${decision.description || decision.rationale ? html`
-                                    <div style="color: var(--color-white-70); margin-top: 4px;">
-                                        ${decision.description || decision.rationale}
+                                <div class="item-title">${decision.decision || decision.title || decision}</div>
+                                ${decision.rationale ? html`
+                                    <div style="color: var(--color-white-70); margin-top: 4px; font-size: 10px;">
+                                        <strong>Justification:</strong> ${decision.rationale}
+                                    </div>
+                                ` : ''}
+                                ${decision.impact ? html`
+                                    <div style="color: var(--color-primary-400); margin-top: 2px; font-size: 10px;">
+                                        <strong>Impact:</strong> ${decision.impact}
                                     </div>
                                 ` : ''}
                             </li>
                         `)}
                     </ul>
+                </div>
+            ` : ''}
+
+            ${data.actionItems && data.actionItems.length > 0 ? html`
+                <div class="summary-section">
+                    <h3 class="section-title">✅ Actions à suivre (${data.actionItems.length})</h3>
+                    ${data.actionItems.map(action => html`
+                        <div class="action-item-card priority-${action.priority || 'medium'}">
+                            <div class="action-header">
+                                <div class="item-title" style="flex: 1;">${action.task || action.action || action}</div>
+                                <span class="severity-badge ${action.priority || 'medium'}">
+                                    ${action.priority === 'high' ? '🔴' : action.priority === 'low' ? '🟢' : '🟡'} ${action.priority || 'medium'}
+                                </span>
+                            </div>
+                            <div class="action-details">
+                                ${action.assignee && action.assignee !== 'Non assigné' ? html`
+                                    <span class="action-detail">👤 ${action.assignee}</span>
+                                ` : ''}
+                                ${action.deadline && action.deadline !== 'Non défini' ? html`
+                                    <span class="action-detail">📅 ${action.deadline}</span>
+                                ` : ''}
+                                ${action.status ? html`
+                                    <span class="action-detail">📋 ${action.status}</span>
+                                ` : ''}
+                            </div>
+                            ${action.successCriteria ? html`
+                                <div style="color: var(--color-success-400); margin-top: 6px; font-size: 10px;">
+                                    ✓ Critère de succès: ${action.successCriteria}
+                                </div>
+                            ` : ''}
+                            ${action.dependencies && action.dependencies.length > 0 ? html`
+                                <div style="color: var(--color-white-50); margin-top: 4px; font-size: 10px;">
+                                    🔗 Dépendances: ${action.dependencies.join(', ')}
+                                </div>
+                            ` : ''}
+                        </div>
+                    `)}
+                </div>
+            ` : ''}
+
+            ${data.risks && data.risks.length > 0 ? html`
+                <div class="summary-section">
+                    <h3 class="section-title">⚠️ Risques identifiés (${data.risks.length})</h3>
+                    ${data.risks.map(risk => html`
+                        <div class="risk-card severity-${risk.severity || 'medium'}">
+                            <div class="action-header">
+                                <div class="item-title" style="flex: 1;">${risk.risk || risk.description || risk}</div>
+                                <span class="severity-badge ${risk.severity || 'medium'}">
+                                    ${risk.severity || 'medium'}
+                                </span>
+                            </div>
+                            ${risk.mitigation ? html`
+                                <div style="color: var(--color-success-400); margin-top: 6px; font-size: 10px;">
+                                    💡 Mitigation: ${risk.mitigation}
+                                </div>
+                            ` : ''}
+                        </div>
+                    `)}
                 </div>
             ` : ''}
 
@@ -898,14 +1129,29 @@ export class PostMeetingPanel extends LitElement {
             ` : ''}
 
             ${data.metadata ? html`
-                <div class="summary-section">
-                    <div class="info-row">
-                        <span class="info-label">Modèle utilisé:</span>
-                        <span>${data.metadata.model || 'N/A'}</span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label">Tokens utilisés:</span>
-                        <span>${data.metadata.tokensUsed || 0}</span>
+                <div class="summary-section" style="background: var(--color-black-10); border-radius: 6px; padding: 12px; margin-top: 16px;">
+                    <h3 class="section-title" style="font-size: 11px; color: var(--color-white-60); margin-bottom: 8px;">📊 Informations techniques</h3>
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;">
+                        <div class="info-row">
+                            <span class="info-label">Modèle:</span>
+                            <span>${data.metadata.model || 'N/A'}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Tokens:</span>
+                            <span>${data.metadata.tokensUsed || 0}</span>
+                        </div>
+                        ${data.metadata.transcriptCount ? html`
+                            <div class="info-row">
+                                <span class="info-label">Entrées:</span>
+                                <span>${data.metadata.preprocessedCount || data.metadata.transcriptCount} / ${data.metadata.transcriptCount}</span>
+                            </div>
+                        ` : ''}
+                        ${data.metadata.generatedAt ? html`
+                            <div class="info-row">
+                                <span class="info-label">Généré:</span>
+                                <span>${new Date(data.metadata.generatedAt).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}</span>
+                            </div>
+                        ` : ''}
                     </div>
                 </div>
             ` : ''}
@@ -1079,28 +1325,123 @@ export class PostMeetingPanel extends LitElement {
     }
 
     _parseNoteData(meetingNotes) {
+        // Phase 4: Enhanced data parsing with all Phase 2/3 fields
         const data = {
             executiveSummary: '',
+            meetingType: 'general',
+            objectives: [],
             participants: [],
             keyPoints: [],
             decisions: [],
+            actionItems: [],
+            risks: [],
+            timeline: [],
+            unresolvedItems: [],
+            nextSteps: [],
+            importantQuotes: [],
             metadata: null
         };
 
         try {
             data.executiveSummary = meetingNotes.executive_summary || '';
-            data.participants = JSON.parse(meetingNotes.participants || '[]');
-            data.keyPoints = JSON.parse(meetingNotes.key_points || '[]');
-            data.decisions = JSON.parse(meetingNotes.decisions || '[]');
+            data.meetingType = meetingNotes.meeting_type || 'general';
+
+            // Parse JSON fields safely
+            const safeJsonParse = (field, fallback = []) => {
+                if (!field) return fallback;
+                if (Array.isArray(field)) return field;
+                try {
+                    return JSON.parse(field);
+                } catch {
+                    return fallback;
+                }
+            };
+
+            data.objectives = safeJsonParse(meetingNotes.objectives);
+            data.participants = safeJsonParse(meetingNotes.participants);
+            data.keyPoints = safeJsonParse(meetingNotes.key_points);
+            data.decisions = safeJsonParse(meetingNotes.decisions);
+            data.actionItems = safeJsonParse(meetingNotes.action_items);
+            data.risks = safeJsonParse(meetingNotes.risks);
+            data.timeline = safeJsonParse(meetingNotes.timeline);
+            data.unresolvedItems = safeJsonParse(meetingNotes.unresolved_items);
+            data.nextSteps = safeJsonParse(meetingNotes.next_steps);
+            data.importantQuotes = safeJsonParse(meetingNotes.important_quotes);
+
+            // Phase 4: Enhanced metadata with quality score
             data.metadata = {
                 model: meetingNotes.model_used,
-                tokensUsed: meetingNotes.tokens_used
+                tokensUsed: meetingNotes.tokens_used,
+                qualityScore: meetingNotes.quality_score || null,
+                generatedAt: meetingNotes.generated_at || meetingNotes.created_at,
+                preprocessedCount: meetingNotes.preprocessed_count,
+                transcriptCount: meetingNotes.transcript_count
             };
         } catch (error) {
             console.error('[PostMeetingPanel] Error parsing note data:', error);
         }
 
         return data;
+    }
+
+    /**
+     * Phase 4: Get quality score CSS class
+     */
+    _getQualityScoreClass(score) {
+        if (score >= 80) return 'excellent';
+        if (score >= 60) return 'good';
+        if (score >= 40) return 'fair';
+        return 'poor';
+    }
+
+    /**
+     * Phase 4: Get quality score icon
+     */
+    _getQualityScoreIcon(score) {
+        if (score >= 80) return '⭐';
+        if (score >= 60) return '✓';
+        if (score >= 40) return '○';
+        return '△';
+    }
+
+    /**
+     * Phase 4: Get meeting type icon
+     */
+    _getMeetingTypeIcon(type) {
+        const icons = {
+            'standup': '🧍',
+            'brainstorming': '💡',
+            'planning': '📋',
+            'review': '🔍',
+            'retrospective': '🔄',
+            'one-on-one': '👥',
+            'interview': '🎤',
+            'presentation': '📊',
+            'workshop': '🛠️',
+            'training': '📚',
+            'general': '📝'
+        };
+        return icons[type] || icons['general'];
+    }
+
+    /**
+     * Phase 4: Get meeting type label in French
+     */
+    _getMeetingTypeLabel(type) {
+        const labels = {
+            'standup': 'Daily/Standup',
+            'brainstorming': 'Brainstorming',
+            'planning': 'Planification',
+            'review': 'Revue',
+            'retrospective': 'Rétrospective',
+            'one-on-one': 'One-on-One',
+            'interview': 'Entretien',
+            'presentation': 'Présentation',
+            'workshop': 'Atelier',
+            'training': 'Formation',
+            'general': 'Général'
+        };
+        return labels[type] || type;
     }
 
     render() {
