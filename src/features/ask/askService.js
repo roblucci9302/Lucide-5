@@ -1,5 +1,5 @@
 const { BrowserWindow } = require('electron');
-const { createStreamingLLM } = require('../common/ai/factory');
+const { createStreamingLLM, supportsVision } = require('../common/ai/factory');
 // Lazy require helper to avoid circular dependency issues
 const getWindowManager = () => require('../../window/windowManager');
 const internalBridge = require('../../bridge/internalBridge');
@@ -519,10 +519,39 @@ class AskService {
             const isScreenshotEnabled = getWindowManager().getScreenshotEnabled();
             console.log(`[AskService] Screenshot capture is ${isScreenshotEnabled ? 'enabled' : 'disabled'}`);
 
-            const screenshotResult = isScreenshotEnabled
-                ? await captureScreenshot({ quality: 'medium' })
-                : { success: false, base64: null };
-            const screenshotBase64 = screenshotResult.success ? screenshotResult.base64 : null;
+            // Fix: Verify model supports vision BEFORE capturing screenshot
+            const visionSupport = supportsVision(modelInfo.provider, modelInfo.model);
+            console.log(`[AskService] 👁️ Vision support: ${visionSupport.supported ? 'YES' : 'NO'} - ${visionSupport.reason}`);
+
+            let screenshotBase64 = null;
+            let visionWarning = null;
+
+            if (isScreenshotEnabled) {
+                if (visionSupport.supported) {
+                    // Model supports vision, capture screenshot
+                    const screenshotResult = await captureScreenshot({ quality: 'medium' });
+                    screenshotBase64 = screenshotResult.success ? screenshotResult.base64 : null;
+
+                    if (!screenshotResult.success) {
+                        console.warn(`[AskService] ⚠️ Screenshot capture failed: ${screenshotResult.error}`);
+                    }
+                } else {
+                    // Model does NOT support vision - warn user
+                    visionWarning = visionSupport.reason;
+                    console.warn(`[AskService] ⚠️ Vision disabled: ${visionWarning}`);
+
+                    // Notify UI about vision limitation
+                    const askWin = getWindowPool()?.get('ask');
+                    if (askWin && !askWin.isDestroyed()) {
+                        askWin.webContents.send('ask:vision-warning', {
+                            supported: false,
+                            reason: visionWarning,
+                            currentModel: modelInfo.model,
+                            suggestedModels: ['gpt-4o', 'gpt-4-turbo', 'claude-3-5-sonnet', 'gemini-2.5-flash']
+                        });
+                    }
+                }
+            }
 
             // Récupérer l'historique de la session actuelle depuis la DB
             const previousMessages = await conversationHistoryService.getSessionMessages(sessionId);
@@ -633,6 +662,13 @@ class AskService {
                 });
 
                 console.log('[AskService] 📸 Screenshot attached to message - model informed of vision capability');
+            } else if (visionWarning && isScreenshotEnabled) {
+                // Model doesn't support vision but user has it enabled - inform in the prompt
+                userMessageContent.push({
+                    type: 'text',
+                    text: `[NOTE: L'utilisateur a activé les captures d'écran, mais le modèle actuel (${modelInfo.model}) ne supporte pas la vision. Si l'utilisateur pose une question sur son écran ou demande d'analyser une image, informe-le poliment qu'il doit changer de modèle pour un modèle avec vision comme gpt-4o, gpt-4-turbo, claude-3-5-sonnet, ou gemini-2.5-flash.]\n\nUser Request: ${userPrompt.trim()}`
+                });
+                console.log('[AskService] ⚠️ Vision warning added to prompt - model informed of limitation');
             } else {
                 userMessageContent.push({
                     type: 'text',

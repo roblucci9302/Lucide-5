@@ -17,6 +17,99 @@
 /**
  * @type {Object.<string, Provider>}
  */
+
+/**
+ * Sanitize model ID by removing provider-specific suffixes
+ * @param {string} model - Model ID to sanitize
+ * @returns {string} Sanitized model ID
+ */
+function sanitizeModelId(model) {
+  return (typeof model === 'string') ? model.replace(/-lucide$/, '') : model;
+}
+
+/**
+ * Models that support vision/image input
+ * This list is used to check if a model can process images before sending
+ */
+const VISION_CAPABLE_MODELS = {
+  // OpenAI models with vision
+  'gpt-4o': true,
+  'gpt-4o-lucide': true,
+  'gpt-4-turbo': true,
+  'gpt-4-turbo-lucide': true,
+  'gpt-4-vision-preview': true,
+  // GPT-4 base does NOT support vision
+  'gpt-4': false,
+  'gpt-4-lucide': false,
+
+  // Anthropic Claude 3+ models support vision
+  'claude-3-5-sonnet-20241022': true,
+  'claude-3-opus-20240229': true,
+  'claude-3-sonnet-20240229': true,
+  'claude-3-haiku-20240307': true,
+
+  // Google Gemini models support vision
+  'gemini-2.5-flash': true,
+  'gemini-1.5-pro': true,
+  'gemini-1.5-flash': true,
+  'gemini-pro-vision': true,
+
+  // Ollama models with vision (common ones)
+  'llava': true,
+  'llava:latest': true,
+  'llava:13b': true,
+  'llava:34b': true,
+  'bakllava': true,
+  'moondream': true,
+  'moondream2': true,
+};
+
+/**
+ * Check if a model supports vision/image input
+ * @param {string} provider - Provider ID (e.g., 'openai', 'anthropic')
+ * @param {string} model - Model ID (e.g., 'gpt-4o', 'claude-3-5-sonnet-20241022')
+ * @returns {{supported: boolean, reason: string}} Vision support status and reason
+ */
+function supportsVision(provider, model) {
+  if (!model) {
+    return { supported: false, reason: 'No model specified' };
+  }
+
+  // Sanitize model ID (remove -lucide suffix for lookup if needed)
+  const sanitizedModel = sanitizeModelId(model);
+
+  // Check explicit list first
+  if (VISION_CAPABLE_MODELS[model] === true || VISION_CAPABLE_MODELS[sanitizedModel] === true) {
+    return { supported: true, reason: `${model} supports vision` };
+  }
+
+  if (VISION_CAPABLE_MODELS[model] === false || VISION_CAPABLE_MODELS[sanitizedModel] === false) {
+    return {
+      supported: false,
+      reason: `${model} does not support vision. Consider using gpt-4o, gpt-4-turbo, claude-3-5-sonnet, or gemini-2.5-flash instead.`
+    };
+  }
+
+  // For Ollama, check if model name contains vision-capable indicators
+  if (provider === 'ollama') {
+    const lowerModel = model.toLowerCase();
+    if (lowerModel.includes('llava') || lowerModel.includes('vision') ||
+        lowerModel.includes('moondream') || lowerModel.includes('bakllava')) {
+      return { supported: true, reason: `${model} appears to support vision (Ollama)` };
+    }
+    return {
+      supported: false,
+      reason: `${model} (Ollama) may not support vision. For vision, use models like llava, moondream, or bakllava.`
+    };
+  }
+
+  // Unknown model - assume no vision support to be safe
+  return {
+    supported: false,
+    reason: `${model} vision support unknown. Contact support if this model should support images.`
+  };
+}
+
 const PROVIDERS = {
   'openai': {
       name: 'OpenAI',
@@ -99,10 +192,6 @@ const PROVIDERS = {
   },
 };
 
-function sanitizeModelId(model) {
-  return (typeof model === 'string') ? model.replace(/-lucide$/, '') : model;
-}
-
 function createSTT(provider, opts) {
   if (provider === 'openai-lucide') provider = 'openai';
   
@@ -181,9 +270,11 @@ function getAvailableProviders() {
 
 module.exports = {
   PROVIDERS,
+  VISION_CAPABLE_MODELS,
   createSTT,
   createLLM,
   createStreamingLLM,
   getProviderClass,
   getAvailableProviders,
+  supportsVision,
 };
