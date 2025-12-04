@@ -426,14 +426,40 @@ export class EmailPreviewModal extends LitElement {
         `;
     }
 
+    /**
+     * FIX CRITICAL: Sanitize HTML content to prevent XSS attacks
+     * @param {string} htmlContent - Raw HTML content
+     * @returns {string} Sanitized HTML
+     */
+    sanitizeHtml(htmlContent) {
+        if (!htmlContent) return '';
+
+        // Use DOMPurify if available
+        if (window.DOMPurify) {
+            return window.DOMPurify.sanitize(htmlContent, {
+                ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'b', 'i', 'u', 'a', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'pre', 'code', 'span', 'div'],
+                ALLOWED_ATTR: ['href', 'title', 'class', 'style'],
+                ALLOW_DATA_ATTR: false
+            });
+        }
+
+        // Fallback: basic HTML entity escaping
+        console.warn('[EmailPreviewModal] DOMPurify not available, using basic escaping');
+        const div = document.createElement('div');
+        div.textContent = htmlContent;
+        return div.innerHTML;
+    }
+
     renderPreview() {
         if (!this.emailData) return '';
 
         const content = this.viewMode === 'html' ? this.emailData.bodyHtml : this.emailData.body;
 
         if (this.viewMode === 'html') {
+            // FIX CRITICAL: Sanitize HTML before rendering to prevent XSS
+            const sanitizedContent = this.sanitizeHtml(content);
             return html`
-                <div class="email-preview" .innerHTML=${content}></div>
+                <div class="email-preview" .innerHTML=${sanitizedContent}></div>
             `;
         } else {
             return html`

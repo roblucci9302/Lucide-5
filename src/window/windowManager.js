@@ -743,37 +743,49 @@ function createFeatureWindows(header, namesToCreate) {
             }
 
             // Phase 1 - Meeting Assistant
+            // FIX HIGH: Added try-catch for window creation error handling
             case 'post-meeting': {
-                const postMeeting = new BrowserWindow({
-                    ...commonChildOptions,
-                    width: WINDOW.POST_MEETING_WIDTH,
-                    maxHeight: WINDOW.POST_MEETING_MAX_HEIGHT,
-                    parent: undefined,
-                    alwaysOnTop: false,
-                });
-
-                postMeeting.setContentProtection(isContentProtectionOn);
-                postMeeting.setVisibleOnAllWorkspaces(true, {visibleOnFullScreen:true});
-                if (process.platform === 'darwin') {
-                    postMeeting.setWindowButtonVisibility(false);
-                }
-
-                const postMeetingLoadOptions = { query: { view: 'post-meeting' } };
-                if (!shouldUseLiquidGlass) {
-                    postMeeting.loadFile(path.join(__dirname, '../ui/app/content.html'), postMeetingLoadOptions);
-                } else {
-                    postMeetingLoadOptions.query.glass = 'true';
-                    postMeeting.loadFile(path.join(__dirname, '../ui/app/content.html'), postMeetingLoadOptions);
-                    postMeeting.webContents.once('did-finish-load', () => {
-                        const viewId = liquidGlass.addView(postMeeting.getNativeWindowHandle());
-                        if (viewId !== -1) {
-                            liquidGlass.unstable_setVariant(viewId, liquidGlass.GlassMaterialVariant.bubbles);
-                        }
+                try {
+                    const postMeeting = new BrowserWindow({
+                        ...commonChildOptions,
+                        width: WINDOW.POST_MEETING_WIDTH,
+                        maxHeight: WINDOW.POST_MEETING_MAX_HEIGHT,
+                        parent: undefined,
+                        alwaysOnTop: false,
                     });
-                }
 
-                windowPool.set('post-meeting', postMeeting);
-                openDevToolsInDevelopment(postMeeting);
+                    postMeeting.setContentProtection(isContentProtectionOn);
+                    postMeeting.setVisibleOnAllWorkspaces(true, {visibleOnFullScreen:true});
+                    if (process.platform === 'darwin') {
+                        postMeeting.setWindowButtonVisibility(false);
+                    }
+
+                    const postMeetingLoadOptions = { query: { view: 'post-meeting' } };
+                    if (!shouldUseLiquidGlass) {
+                        postMeeting.loadFile(path.join(__dirname, '../ui/app/content.html'), postMeetingLoadOptions);
+                    } else {
+                        postMeetingLoadOptions.query.glass = 'true';
+                        postMeeting.loadFile(path.join(__dirname, '../ui/app/content.html'), postMeetingLoadOptions);
+                        postMeeting.webContents.once('did-finish-load', () => {
+                            // FIX HIGH: Check liquidGlass is available before using
+                            if (liquidGlass && typeof liquidGlass.addView === 'function') {
+                                try {
+                                    const viewId = liquidGlass.addView(postMeeting.getNativeWindowHandle());
+                                    if (viewId !== -1 && typeof liquidGlass.unstable_setVariant === 'function') {
+                                        liquidGlass.unstable_setVariant(viewId, liquidGlass.GlassMaterialVariant.bubbles);
+                                    }
+                                } catch (glassErr) {
+                                    console.error('[WindowManager] LiquidGlass error for post-meeting:', glassErr);
+                                }
+                            }
+                        });
+                    }
+
+                    windowPool.set('post-meeting', postMeeting);
+                    openDevToolsInDevelopment(postMeeting);
+                } catch (err) {
+                    console.error('[WindowManager] Failed to create post-meeting window:', err);
+                }
                 break;
             }
         }

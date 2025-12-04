@@ -174,11 +174,18 @@ module.exports = {
 
         /**
          * Register for upgrade notifications
+         * FIX HIGH: Check if sender is still valid before sending
          */
         ipcMain.handle('license:on-upgrade-needed', async (event) => {
             try {
+                const sender = event.sender;
                 featureGates.onUpgradeNeeded((feature, requiredTier) => {
-                    event.sender.send('license:upgrade-needed', { feature, requiredTier });
+                    // FIX HIGH: Validate sender is not destroyed before sending
+                    if (sender && !sender.isDestroyed()) {
+                        sender.send('license:upgrade-needed', { feature, requiredTier });
+                    } else {
+                        console.warn('[LicenseBridge] Cannot send upgrade notification - sender destroyed');
+                    }
                 });
                 return { success: true };
             } catch (error) {

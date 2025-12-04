@@ -35,7 +35,33 @@ class NotificationService extends EventEmitter {
         this.unreadCount = 0;
         this.isEnabled = true;
 
+        // FIX MEDIUM: Track expiration timers for proper cleanup
+        this._expireTimers = new Map(); // Map<notificationId, timerId>
+
         console.log('[NotificationService] Initialized');
+    }
+
+    /**
+     * FIX MEDIUM: Clear expiration timer for a notification
+     * @private
+     */
+    _clearExpireTimer(notificationId) {
+        if (this._expireTimers.has(notificationId)) {
+            clearTimeout(this._expireTimers.get(notificationId));
+            this._expireTimers.delete(notificationId);
+        }
+    }
+
+    /**
+     * FIX MEDIUM: Clear all expiration timers
+     * Called during reset to prevent memory leaks
+     */
+    clearAllTimers() {
+        for (const [id, timerId] of this._expireTimers) {
+            clearTimeout(timerId);
+        }
+        this._expireTimers.clear();
+        console.log('[NotificationService] All timers cleared');
     }
 
     /**
@@ -271,10 +297,13 @@ class NotificationService extends EventEmitter {
         }
 
         // Auto-expire if enabled
+        // FIX MEDIUM: Store timer ID for proper cleanup
         if (this.preferences.inApp.autoExpire && notification.priority !== NotificationPriority.CRITICAL) {
-            setTimeout(() => {
+            const timerId = setTimeout(() => {
+                this._expireTimers.delete(notification.id);
                 this._expireNotification(notification.id);
             }, this.preferences.inApp.expireDuration);
+            this._expireTimers.set(notification.id, timerId);
         }
 
         console.log(`[NotificationService] ${notification.priority.toUpperCase()}: ${notification.title}`);
@@ -387,8 +416,10 @@ class NotificationService extends EventEmitter {
 
     /**
      * Clear all notifications
+     * FIX MEDIUM: Also clear all expiration timers
      */
     clearAll() {
+        this.clearAllTimers(); // Prevent timer accumulation
         this.notifications = [];
         this.unreadCount = 0;
         this.emit('all-notifications-cleared');
@@ -432,8 +463,10 @@ class NotificationService extends EventEmitter {
 
     /**
      * Reset service
+     * FIX MEDIUM: Also clear all expiration timers
      */
     reset() {
+        this.clearAllTimers(); // Prevent timer accumulation
         this.notifications = [];
         this.unreadCount = 0;
         console.log('[NotificationService] Reset');
