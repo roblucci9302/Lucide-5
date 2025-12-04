@@ -323,6 +323,62 @@ export class ListenView extends LitElement {
             height: 12px;
         }
 
+        /* FIX: Bouton "Voir le compte-rendu" qui apparaît après l'enregistrement */
+        .done-button {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: linear-gradient(135deg, var(--color-primary-500, #6366f1) 0%, var(--color-primary-600, #4f46e5) 100%);
+            color: white;
+            border: none;
+            outline: 1px solid rgba(255, 255, 255, 0.2);
+            outline-offset: -1px;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+
+        .done-button:hover {
+            background: linear-gradient(135deg, var(--color-primary-600, #4f46e5) 0%, var(--color-primary-700, #4338ca) 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        }
+
+        .done-button:active {
+            transform: translateY(0);
+        }
+
+        .done-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .done-button svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        /* Barre de contrôle étendue pour le bouton done */
+        .bar-controls.with-done {
+            width: auto;
+            gap: 8px;
+        }
+
+        /* Animation pour faire ressortir le bouton */
+        @keyframes pulseGlow {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4); }
+            50% { box-shadow: 0 0 0 8px rgba(99, 102, 241, 0); }
+        }
+
+        .done-button.highlight {
+            animation: pulseGlow 2s ease-in-out infinite;
+        }
+
         /* ────────────────[ GLASS BYPASS ]─────────────── */
         :host-context(body.has-glass) .assistant-container,
         :host-context(body.has-glass) .top-bar,
@@ -466,12 +522,14 @@ export class ListenView extends LitElement {
         captureStartTime: { type: Number },
         isSessionActive: { type: Boolean },
         hasCompletedRecording: { type: Boolean },
+        isOpeningPostMeeting: { type: Boolean },
     };
 
     constructor() {
         super();
         this.isSessionActive = false;
         this.hasCompletedRecording = false;
+        this.isOpeningPostMeeting = false;
         this.viewMode = 'insights';
         this.isHovering = false;
         this.isAnimating = false;
@@ -617,6 +675,40 @@ export class ListenView extends LitElement {
         }
     }
 
+    /**
+     * FIX: Ouvre la fenêtre post-meeting pour générer le compte-rendu
+     * Cette méthode était manquante - cause du bug où le compte-rendu ne se génère pas
+     */
+    async handleOpenPostMeeting() {
+        if (this.isOpeningPostMeeting) return;
+
+        this.isOpeningPostMeeting = true;
+        console.log('[ListenView] Opening post-meeting window...');
+
+        try {
+            // Récupérer l'ID de la session récente
+            const result = await window.api.listenView.getRecentListenSession();
+
+            if (result && result.success && result.sessionId) {
+                console.log('[ListenView] Session found:', result.sessionId);
+
+                // Ouvrir la fenêtre post-meeting avec le sessionId
+                await window.api.listenView.openPostMeetingWindow(result.sessionId);
+
+                // Masquer la fenêtre Listen
+                window.api.listenView.hideListenWindow();
+            } else {
+                console.error('[ListenView] No session found:', result?.error);
+                // Afficher un message d'erreur à l'utilisateur (pourrait être amélioré avec un toast)
+                alert('Aucune session d\'écoute trouvée. Assurez-vous d\'avoir enregistré une conversation.');
+            }
+        } catch (error) {
+            console.error('[ListenView] Error opening post-meeting:', error);
+        } finally {
+            this.isOpeningPostMeeting = false;
+        }
+    }
+
     async handleCopy() {
         if (this.copyState === 'copied') return;
 
@@ -683,7 +775,10 @@ export class ListenView extends LitElement {
     }
 
     render() {
-        const displayText = this.isHovering
+        // FIX: Afficher un message différent quand l'enregistrement est terminé
+        const displayText = this.hasCompletedRecording
+            ? 'Enregistrement terminé'
+            : this.isHovering
             ? this.viewMode === 'transcript'
                 ? 'Copier la transcription'
                 : this.viewMode === 'suggestions'
@@ -701,8 +796,28 @@ export class ListenView extends LitElement {
                     <div class="bar-left-text">
                         <span class="bar-left-text-content ${this.isAnimating ? 'slide-in' : ''}">${displayText}</span>
                     </div>
-                    <div class="bar-controls">
+                    <div class="bar-controls ${this.hasCompletedRecording ? 'with-done' : ''}">
                         <notification-center></notification-center>
+
+                        <!-- FIX: Bouton "Voir le compte-rendu" affiché après l'enregistrement -->
+                        ${this.hasCompletedRecording ? html`
+                            <button
+                                class="done-button highlight"
+                                @click=${this.handleOpenPostMeeting}
+                                ?disabled=${this.isOpeningPostMeeting}
+                                title="Générer le compte-rendu de réunion"
+                            >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                    <polyline points="14 2 14 8 20 8"></polyline>
+                                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                                    <polyline points="10 9 9 9 8 9"></polyline>
+                                </svg>
+                                ${this.isOpeningPostMeeting ? 'Ouverture...' : 'Compte-rendu'}
+                            </button>
+                        ` : ''}
+
                         <button class="close-button" @click=${this.handleCloseWindow} title="Fermer">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <line x1="18" y1="6" x2="6" y2="18" />
