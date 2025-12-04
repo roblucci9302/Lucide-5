@@ -313,25 +313,47 @@ Génère maintenant les notes structurées:`;
 
     /**
      * Valide que la structure JSON contient les champs requis
+     * FIX: Ajoute les champs manquants avec des valeurs par défaut
      * @private
      */
     _validateStructure(data) {
-        const requiredFields = [
-            'executiveSummary',
-            'meetingMetadata',
-            'keyPoints',
-            'decisions',
-            'actionItems',
-            'timeline',
-            'unresolvedItems',
-            'nextSteps'
-        ];
+        // Define required fields with their default values
+        const fieldDefaults = {
+            'executiveSummary': 'Résumé non disponible',
+            'meetingMetadata': {
+                participants: [],
+                duration: 'Non disponible',
+                mainTopic: 'Non disponible'
+            },
+            'keyPoints': [],
+            'decisions': [],
+            'actionItems': [],
+            'timeline': [],
+            'unresolvedItems': [],
+            'nextSteps': [],
+            'importantQuotes': []
+        };
 
-        for (const field of requiredFields) {
+        // Check and add missing fields
+        for (const [field, defaultValue] of Object.entries(fieldDefaults)) {
             if (!(field in data)) {
-                console.warn(`[StructuredNotesService] Missing field: ${field}`);
+                console.warn(`[StructuredNotesService] Missing field: ${field} - adding default value`);
+                data[field] = defaultValue;
+            } else if (data[field] === null || data[field] === undefined) {
+                // Also fix null/undefined values
+                console.warn(`[StructuredNotesService] Field ${field} is null/undefined - adding default value`);
+                data[field] = defaultValue;
             }
         }
+
+        // Ensure meetingMetadata has all required sub-fields
+        if (data.meetingMetadata && typeof data.meetingMetadata === 'object') {
+            if (!data.meetingMetadata.participants) data.meetingMetadata.participants = [];
+            if (!data.meetingMetadata.duration) data.meetingMetadata.duration = 'Non disponible';
+            if (!data.meetingMetadata.mainTopic) data.meetingMetadata.mainTopic = 'Non disponible';
+        }
+
+        console.log('[StructuredNotesService] Structure validation complete');
     }
 
     /**
