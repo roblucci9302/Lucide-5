@@ -8,12 +8,41 @@ const exportService = require('../../features/listen/postCall/exportService');
 const sttRepository = require('../../features/listen/stt/repositories');
 const { meetingNotesRepository, meetingTasksRepository } = require('../../features/listen/postCall/repositories');
 
+// FIX MEDIUM: Add retry utility for transient failures
+async function withRetry(fn, options = {}) {
+    const { maxRetries = 2, delayMs = 1000, retryableErrors = [] } = options;
+    let lastError;
+
+    for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
+        try {
+            return await fn();
+        } catch (error) {
+            lastError = error;
+
+            // Check if error is retryable
+            const isRetryable = retryableErrors.length === 0 ||
+                retryableErrors.some(pattern =>
+                    error.message && error.message.toLowerCase().includes(pattern.toLowerCase())
+                );
+
+            if (!isRetryable || attempt > maxRetries) {
+                throw error;
+            }
+
+            console.warn(`[PostMeetingBridge] Attempt ${attempt} failed, retrying in ${delayMs}ms: ${error.message}`);
+            await new Promise(resolve => setTimeout(resolve, delayMs * attempt));
+        }
+    }
+    throw lastError;
+}
+
 module.exports = {
     initialize() {
         console.log('[PostMeetingBridge] Initializing IPC handlers...');
 
         /**
          * Generate meeting notes for a session
+         * FIX MEDIUM: Added retry logic for transient failures
          * @param {string} sessionId - Session ID
          * @returns {Promise<Object>} Generated notes and tasks
          */
@@ -21,9 +50,15 @@ module.exports = {
             try {
                 console.log(`[PostMeetingBridge] Generating notes for session ${sessionId}`);
 
-                const result = await postCallService.generateMeetingNotes(sessionId, {
-                    meetingType: 'general'
-                });
+                // FIX MEDIUM: Retry on transient failures (network, AI service)
+                const result = await withRetry(
+                    () => postCallService.generateMeetingNotes(sessionId, { meetingType: 'general' }),
+                    {
+                        maxRetries: 2,
+                        delayMs: 1000,
+                        retryableErrors: ['network', 'timeout', 'ECONNRESET', 'ETIMEDOUT', '503', '504', 'rate limit']
+                    }
+                );
 
                 // Send update to renderer
                 const { windowPool } = require('../../window/windowManager');

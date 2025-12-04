@@ -6,6 +6,68 @@ const crypto = require('crypto');
  */
 
 /**
+ * FIX MEDIUM: Safely stringify JSON, handling circular references
+ * @param {any} value - Value to stringify
+ * @param {string} fieldName - Field name for error logging
+ * @returns {string} JSON string
+ */
+function safeJsonStringify(value, fieldName = 'unknown') {
+    if (value === null || value === undefined) {
+        return '[]';
+    }
+
+    try {
+        // Test for circular references
+        const seen = new WeakSet();
+        const result = JSON.stringify(value, (key, val) => {
+            if (typeof val === 'object' && val !== null) {
+                if (seen.has(val)) {
+                    console.warn(`[MeetingNotesRepo] Circular reference detected in ${fieldName}.${key}`);
+                    return '[Circular Reference]';
+                }
+                seen.add(val);
+            }
+            return val;
+        });
+        return result;
+    } catch (error) {
+        console.error(`[MeetingNotesRepo] JSON stringify failed for ${fieldName}:`, error.message);
+        return '[]';
+    }
+}
+
+/**
+ * FIX MEDIUM: Validate and sanitize structured data before storage
+ * @param {Object} data - Structured data to validate
+ * @returns {Object} Sanitized data
+ */
+function sanitizeStructuredData(data) {
+    if (!data || typeof data !== 'object') {
+        console.warn('[MeetingNotesRepo] Invalid structured data, using empty object');
+        return {};
+    }
+
+    // Ensure arrays are arrays
+    const arrayFields = ['keyPoints', 'decisions', 'actionItems', 'timeline', 'unresolvedItems', 'nextSteps', 'importantQuotes'];
+    const sanitized = { ...data };
+
+    for (const field of arrayFields) {
+        if (sanitized[field] && !Array.isArray(sanitized[field])) {
+            console.warn(`[MeetingNotesRepo] Field ${field} is not an array, converting`);
+            sanitized[field] = [];
+        }
+    }
+
+    // Ensure meetingMetadata is an object
+    if (sanitized.meetingMetadata && typeof sanitized.meetingMetadata !== 'object') {
+        console.warn('[MeetingNotesRepo] meetingMetadata is not an object, converting');
+        sanitized.meetingMetadata = {};
+    }
+
+    return sanitized;
+}
+
+/**
  * Get meeting note by ID
  * @param {string} id - Meeting note ID
  * @returns {Object|null} Meeting note object or null
@@ -58,23 +120,28 @@ function create(data) {
     const {
         sessionId,
         uid,
-        structuredData,
+        structuredData: rawStructuredData,
         modelUsed = '',
         tokensUsed = 0
     } = data;
 
-    // Extract fields from structured data
-    const executiveSummary = structuredData.executiveSummary || '';
-    const participants = JSON.stringify(structuredData.meetingMetadata?.participants || []);
-    const meetingMetadata = JSON.stringify(structuredData.meetingMetadata || {});
-    const keyPoints = JSON.stringify(structuredData.keyPoints || []);
-    const decisions = JSON.stringify(structuredData.decisions || []);
-    const actionItems = JSON.stringify(structuredData.actionItems || []);
-    const timeline = JSON.stringify(structuredData.timeline || []);
-    const unresolvedItems = JSON.stringify(structuredData.unresolvedItems || []);
-    const nextSteps = JSON.stringify(structuredData.nextSteps || []);
-    const importantQuotes = JSON.stringify(structuredData.importantQuotes || []);
-    const fullStructuredData = JSON.stringify(structuredData);
+    // FIX MEDIUM: Sanitize and validate structured data before storage
+    const structuredData = sanitizeStructuredData(rawStructuredData);
+
+    // Extract fields from structured data with safe JSON stringify
+    const executiveSummary = (structuredData.executiveSummary && typeof structuredData.executiveSummary === 'string')
+        ? structuredData.executiveSummary
+        : '';
+    const participants = safeJsonStringify(structuredData.meetingMetadata?.participants || [], 'participants');
+    const meetingMetadata = safeJsonStringify(structuredData.meetingMetadata || {}, 'meetingMetadata');
+    const keyPoints = safeJsonStringify(structuredData.keyPoints || [], 'keyPoints');
+    const decisions = safeJsonStringify(structuredData.decisions || [], 'decisions');
+    const actionItems = safeJsonStringify(structuredData.actionItems || [], 'actionItems');
+    const timeline = safeJsonStringify(structuredData.timeline || [], 'timeline');
+    const unresolvedItems = safeJsonStringify(structuredData.unresolvedItems || [], 'unresolvedItems');
+    const nextSteps = safeJsonStringify(structuredData.nextSteps || [], 'nextSteps');
+    const importantQuotes = safeJsonStringify(structuredData.importantQuotes || [], 'importantQuotes');
+    const fullStructuredData = safeJsonStringify(structuredData, 'fullStructuredData');
 
     const query = `
         INSERT INTO meeting_notes (

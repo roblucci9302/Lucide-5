@@ -51,8 +51,45 @@ class ListenService {
         this.lastTranscription = '';
         this.suggestionDebounceTimer = null; // For debouncing AI suggestion requests
 
+        // FIX MEDIUM: Track recent transcripts to prevent duplicates
+        this._recentTranscripts = new Map(); // Map<hash, timestamp>
+        this._transcriptDedupeWindowMs = 5000; // 5 second window for deduplication
+
         this.setupServiceCallbacks();
         console.log('[ListenService] Service instance created.');
+    }
+
+    /**
+     * FIX MEDIUM: Generate a simple hash for transcript deduplication
+     * @private
+     */
+    _getTranscriptHash(speaker, text) {
+        return `${speaker}:${text.trim().toLowerCase()}`;
+    }
+
+    /**
+     * FIX MEDIUM: Check if transcript is a duplicate within the time window
+     * @private
+     */
+    _isDuplicateTranscript(speaker, text) {
+        const hash = this._getTranscriptHash(speaker, text);
+        const now = Date.now();
+
+        // Clean up old entries
+        for (const [key, timestamp] of this._recentTranscripts) {
+            if (now - timestamp > this._transcriptDedupeWindowMs) {
+                this._recentTranscripts.delete(key);
+            }
+        }
+
+        if (this._recentTranscripts.has(hash)) {
+            console.warn(`[ListenService] Duplicate transcript detected and skipped: ${text.substring(0, 50)}...`);
+            return true;
+        }
+
+        // Add to recent transcripts
+        this._recentTranscripts.set(hash, now);
+        return false;
     }
 
     setupServiceCallbacks() {
@@ -361,14 +398,20 @@ class ListenService {
             console.error('[DB] Cannot save turn, no active session ID.');
             return;
         }
-        if (transcription.trim() === '') return;
+        const trimmedText = transcription.trim();
+        if (trimmedText === '') return;
+
+        // FIX MEDIUM: Check for duplicate transcripts
+        if (this._isDuplicateTranscript(speaker, trimmedText)) {
+            return; // Skip duplicate
+        }
 
         try {
             await sessionRepository.touch(this.currentSessionId);
             await sttRepository.addTranscript({
                 sessionId: this.currentSessionId,
                 speaker: speaker,
-                text: transcription.trim(),
+                text: trimmedText,
             });
             console.log(`[DB] Saved transcript for session ${this.currentSessionId}: (${speaker})`);
         } catch (error) {
@@ -385,9 +428,17 @@ class ListenService {
                 // This case should ideally not happen as authService initializes a default user.
                 throw new Error("Cannot initialize session: auth service not ready.");
             }
-            
+
             this.currentSessionId = await sessionRepository.getOrCreateActive('listen');
             console.log(`[DB] New listen session ensured: ${this.currentSessionId}`);
+
+            // FIX HIGH: Validate session type after retrieval to ensure it's 'listen'
+            // This catches cases where session promotion from 'ask' to 'listen' failed
+            const session = await sessionRepository.getById(this.currentSessionId);
+            if (session && session.session_type !== 'listen') {
+                console.warn(`[ListenService] Session ${this.currentSessionId} has wrong type '${session.session_type}', forcing to 'listen'`);
+                await sessionRepository.updateType(this.currentSessionId, 'listen');
+            }
 
             // Set session ID for summary service
             this.summaryService.setSessionId(this.currentSessionId);
@@ -578,24 +629,29 @@ class ListenService {
                 this.suggestionDebounceTimer = null;
             }
 
+            // FIX CRITICAL: Save session ID before any async operations to prevent transcript loss
+            // This ensures late-arriving transcriptions can still be saved
+            const closingSessionId = this.currentSessionId;
+            const userId = authService.getCurrentUserId();
+
             // Close STT sessions
             await this.sttService.closeSessions();
 
             await this.stopMacOSAudioCapture();
 
-            // End database session and trigger auto-indexing
-            if (this.currentSessionId) {
-                // Save session info before reset for auto-indexing
-                const sessionIdToIndex = this.currentSessionId;
-                const userId = authService.getCurrentUserId();
+            // FIX: Wait for any pending transcription callbacks to complete
+            // This prevents race condition where transcriptions arrive after currentSessionId is null
+            await new Promise(resolve => setTimeout(resolve, 100));
 
-                await sessionRepository.end(this.currentSessionId);
-                console.log(`[DB] Session ${this.currentSessionId} ended.`);
+            // End database session and trigger auto-indexing
+            if (closingSessionId) {
+                await sessionRepository.end(closingSessionId);
+                console.log(`[DB] Session ${closingSessionId} ended.`);
 
                 // Phase 2: Auto-index the audio session (non-blocking)
                 // This extracts entities, speakers, actions from the transcription
                 if (userId) {
-                    autoIndexingService.indexAudioSession(sessionIdToIndex, userId)
+                    autoIndexingService.indexAudioSession(closingSessionId, userId)
                         .then(result => {
                             if (result.indexed) {
                                 console.log(`[ListenService] ✅ Audio session auto-indexed: ${result.content_id}`);
@@ -613,7 +669,7 @@ class ListenService {
                 }
             }
 
-            // Reset state
+            // Reset state - now safe since STT is fully closed and pending callbacks processed
             this.currentSessionId = null;
             this.summaryService.resetConversationHistory();
             responseService.resetConversationHistory();

@@ -11,6 +11,7 @@ const exportService = require('../../features/common/services/exportService');
 const askService = require('../../features/ask/askService');
 const browserService = require('../../features/browser/browserService');
 const listenService = require('../../features/listen/listenService');
+const sessionRepository = require('../../features/common/repositories/session');
 
 module.exports = {
     initialize() {
