@@ -3,9 +3,14 @@ const { createLLM } = require('../../common/ai/factory');
 const modelStateService = require('../../common/services/modelStateService');
 const tokenTrackingService = require('../../common/services/tokenTrackingService');
 
+// Phase 4: Enhanced post-processing modules
+const { ActionItemValidator, enrichActionItems } = require('./actionItemValidator');
+const { MeetingTemplateFormatter, getAvailableTemplates } = require('./meetingTemplates');
+
 /**
  * Service pour générer des notes structurées à partir d'une transcription de réunion
  * Phase 3: Améliorations - Pré-traitement, validation enrichie, post-traitement
+ * Phase 4: Validation anti-hallucination + Templates de formatage
  *
  * Utilise le prompt 'structured_meeting_notes' pour extraire:
  * - Résumé exécutif (4-6 phrases)
@@ -19,6 +24,12 @@ const tokenTrackingService = require('../../common/services/tokenTrackingService
  * - Points non résolus
  * - Prochaines étapes
  * - Citations importantes
+ *
+ * Phase 4 Features:
+ * - Action item validation with hallucination detection (grounding check)
+ * - Action item enrichment (category, effort estimation, dependencies)
+ * - Multiple output templates (executive_brief, detailed, bullet_points, etc.)
+ * - Re-formatting without re-generation
  */
 
 // Fix LOW BUG: Token limits for different models
@@ -57,6 +68,17 @@ class StructuredNotesService {
         this.onNotesGenerated = null;
         this.onGenerationError = null;
         this.onStatusUpdate = null;
+
+        // Phase 4: Action item validator with hallucination detection
+        this.actionItemValidator = new ActionItemValidator({
+            minConfidenceScore: 0.6,
+            enableHallucinationDetection: true,
+            enableConsistencyCheck: true,
+            language: 'fr'
+        });
+
+        // Phase 4: Template formatter for different output styles
+        this.templateFormatter = new MeetingTemplateFormatter();
     }
 
     setCallbacks({ onNotesGenerated, onGenerationError, onStatusUpdate }) {
@@ -71,9 +93,20 @@ class StructuredNotesService {
      * @param {Array<Object>} params.transcripts - Array de {speaker, text, timestamp}
      * @param {String} params.sessionId - ID de la session
      * @param {Object} params.meetingMetadata - Métadonnées optionnelles (durée, type, etc.)
-     * @returns {Promise<Object>} Notes structurées au format JSON
+     * @param {Object} params.options - Options avancées
+     * @param {string} params.options.template - Template de formatage ('executive_brief', 'detailed', 'bullet_points', 'action_focused', 'timeline', 'email_ready')
+     * @param {boolean} params.options.validateActionItems - Activer la validation anti-hallucination (défaut: true)
+     * @param {boolean} params.options.enrichActionItems - Enrichir les action items avec catégorie/effort (défaut: true)
+     * @returns {Promise<Object>} Notes structurées au format JSON avec formattedOutput optionnel
      */
-    async generateStructuredNotes({ transcripts, sessionId, meetingMetadata = {} }) {
+    async generateStructuredNotes({ transcripts, sessionId, meetingMetadata = {}, options = {} }) {
+        // Phase 4: Default options
+        const {
+            template = null, // null = pas de formatage, retourne le JSON brut
+            validateActionItems = true,
+            enrichItems = true
+        } = options;
+
         if (this.isGenerating) {
             console.warn('[StructuredNotesService] Generation already in progress');
             return null;
@@ -189,6 +222,33 @@ class StructuredNotesService {
             this._updateStatus('Post-traitement des notes...');
             this._postProcessNotes(structuredNotes, preprocessedTranscripts);
 
+            // Phase 4: Validate action items for hallucinations
+            if (validateActionItems && structuredNotes.actionItems && structuredNotes.actionItems.length > 0) {
+                this._updateStatus('Validation des actions (anti-hallucination)...');
+                const originalTranscriptText = this._formatTranscripts(preprocessedTranscripts);
+                const validationResult = this.actionItemValidator.validateActionItems(
+                    structuredNotes.actionItems,
+                    originalTranscriptText
+                );
+
+                // Update action items with validation data
+                structuredNotes.actionItems = validationResult.validatedItems;
+                structuredNotes.actionItemsValidation = {
+                    summary: validationResult.summary,
+                    flaggedForReview: validationResult.flaggedItems.length,
+                    averageConfidence: validationResult.summary.averageConfidence
+                };
+
+                console.log(`[StructuredNotesService] Action items validated: ${validationResult.summary.highConfidence} high, ${validationResult.summary.mediumConfidence} medium, ${validationResult.summary.lowConfidence} low confidence`);
+            }
+
+            // Phase 4: Enrich action items with category, effort, dependencies
+            if (enrichItems && structuredNotes.actionItems && structuredNotes.actionItems.length > 0) {
+                this._updateStatus('Enrichissement des actions...');
+                structuredNotes.actionItems = enrichActionItems(structuredNotes.actionItems);
+                console.log(`[StructuredNotesService] Action items enriched with categories and effort estimates`);
+            }
+
             // Add enhanced metadata
             structuredNotes.metadata = {
                 sessionId,
@@ -202,6 +262,23 @@ class StructuredNotesService {
             };
 
             console.log('[StructuredNotesService] ✅ Structured notes generated successfully');
+
+            // Phase 4: Apply template formatting if requested
+            if (template) {
+                this._updateStatus(`Formatage avec template "${template}"...`);
+                try {
+                    structuredNotes.formattedOutput = this.templateFormatter.format(structuredNotes, {
+                        templateId: template,
+                        includeMetadata: true,
+                        language: 'fr'
+                    });
+                    structuredNotes.metadata.templateUsed = template;
+                    console.log(`[StructuredNotesService] Applied template: ${template}`);
+                } catch (templateError) {
+                    console.warn(`[StructuredNotesService] Template formatting failed: ${templateError.message}`);
+                    // Continue without formatted output - don't fail the whole generation
+                }
+            }
 
             this._updateStatus('Notes générées avec succès');
 
@@ -722,6 +799,59 @@ Génère maintenant les notes structurées:`;
      */
     isGeneratingNotes() {
         return this.isGenerating;
+    }
+
+    /**
+     * Phase 4: Get available templates for UI selection
+     * @returns {Array<Object>} List of available templates
+     */
+    getAvailableTemplates() {
+        return getAvailableTemplates();
+    }
+
+    /**
+     * Phase 4: Format existing notes with a different template
+     * Useful for re-formatting without re-generating
+     * @param {Object} structuredNotes - Previously generated notes
+     * @param {string} templateId - Template to apply
+     * @returns {string} Formatted output
+     */
+    formatWithTemplate(structuredNotes, templateId) {
+        return this.templateFormatter.format(structuredNotes, {
+            templateId,
+            includeMetadata: true,
+            language: 'fr'
+        });
+    }
+
+    /**
+     * Phase 4: Re-validate action items with updated options
+     * @param {Array} actionItems - Action items to validate
+     * @param {string} transcriptText - Original transcript for grounding check
+     * @param {Object} validatorOptions - Override validator options
+     * @returns {Object} Validation result
+     */
+    validateActionItems(actionItems, transcriptText, validatorOptions = {}) {
+        if (validatorOptions && Object.keys(validatorOptions).length > 0) {
+            // Create temporary validator with custom options
+            const tempValidator = new ActionItemValidator({
+                ...this.actionItemValidator.options,
+                ...validatorOptions
+            });
+            return tempValidator.validateActionItems(actionItems, transcriptText);
+        }
+        return this.actionItemValidator.validateActionItems(actionItems, transcriptText);
+    }
+
+    /**
+     * Phase 4: Configure validator options
+     * @param {Object} options - New validator options
+     */
+    setValidatorOptions(options) {
+        this.actionItemValidator = new ActionItemValidator({
+            ...this.actionItemValidator.options,
+            ...options
+        });
     }
 }
 
