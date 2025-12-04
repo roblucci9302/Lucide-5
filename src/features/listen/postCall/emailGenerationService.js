@@ -89,7 +89,7 @@ class EmailGenerationService {
 
             // Generate email using Claude AI
             const generatedContent = await aiService.generateResponse(prompt, {
-                model: 'claude-sonnet-4',
+                model: 'gpt-4o',
                 maxTokens: 2000,
                 temperature: 0.7
             });
@@ -107,7 +107,7 @@ class EmailGenerationService {
                 generatedAt: new Date().toISOString(),
                 template,
                 tone,
-                model: 'claude-sonnet-4'
+                model: 'gpt-4o'
             };
 
             console.log('[EmailGenerationService] Email generated successfully');

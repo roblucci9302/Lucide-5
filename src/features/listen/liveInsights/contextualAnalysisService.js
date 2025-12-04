@@ -70,7 +70,7 @@ class ContextualAnalysisService {
             const prompt = this._buildSentimentPrompt(text, context);
 
             const response = await aiService.generateResponse(prompt, {
-                model: 'claude-sonnet-4',
+                model: 'gpt-4o',
                 maxTokens: 200,
                 temperature: 0.3
             });
@@ -102,7 +102,7 @@ class ContextualAnalysisService {
             const prompt = this._buildProactiveSuggestionsPrompt(insights);
 
             const response = await aiService.generateResponse(prompt, {
-                model: 'claude-sonnet-4',
+                model: 'gpt-4o',
                 maxTokens: 800,
                 temperature: 0.7
             });
@@ -136,7 +136,7 @@ class ContextualAnalysisService {
             const prompt = this._buildSummaryPrompt();
 
             const response = await aiService.generateResponse(prompt, {
-                model: 'claude-sonnet-4',
+                model: 'gpt-4o',
                 maxTokens: 500,
                 temperature: 0.4
             });
@@ -164,7 +164,7 @@ class ContextualAnalysisService {
             const prompt = this._buildPatternDetectionPrompt(turns);
 
             const response = await aiService.generateResponse(prompt, {
-                model: 'claude-sonnet-4',
+                model: 'gpt-4o',
                 maxTokens: 400,
                 temperature: 0.3
             });
@@ -338,7 +338,7 @@ What are 1-2 immediate next steps?
 Respond with brief action items only (comma-separated).`;
 
             const response = await aiService.generateResponse(prompt, {
-                model: 'claude-sonnet-4',
+                model: 'gpt-4o',
                 maxTokens: 100,
                 temperature: 0.5
             });

@@ -172,7 +172,7 @@ class FollowUpSuggestionsService {
             const prompt = this._buildAISuggestionsPrompt(structuredData, tasks, participants);
 
             const response = await aiService.generateResponse(prompt, {
-                model: 'claude-sonnet-4',
+                model: 'gpt-4o',
                 maxTokens: 1500,
                 temperature: 0.7
             });
