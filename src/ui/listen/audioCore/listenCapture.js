@@ -24,8 +24,6 @@ async function getAec () {
   return aecModPromise;
 }
 
-// Pour voir les logs d'échec de chargement immédiatement
-// getAec().catch(console.error);
 // ---------------------------
 // Constants & Globals
 // ---------------------------
@@ -66,8 +64,6 @@ function isVoiceActive(audioFloat32Array, threshold = 0.005) {
         sumOfSquares += audioFloat32Array[i] * audioFloat32Array[i];
     }
     const rms = Math.sqrt(sumOfSquares / audioFloat32Array.length);
-
-    // console.log(`VAD RMS: ${rms.toFixed(4)}`); // For debugging VAD threshold
 
     return rms > threshold;
 }
@@ -355,7 +351,6 @@ function disposeAec () {
 
 function runAecSync(micF32, sysF32) {
     if (!aecMod || !aecPtr || !aecMod.HEAPU8) {
-        // console.log('🔊 No AEC module or heap buffer');
         return micF32;
     }
 
@@ -528,7 +523,6 @@ async function setupMicProcessing(micStream) {
     micProcessor.onaudioprocess = (e) => {
         const inputData = e.inputBuffer.getChannelData(0);
         audioBuffer.push(...inputData);
-        // console.log('🎤 micProcessor.onaudioprocess');
 
         // Envoyer quand samplesPerChunk(=2400) échantillons sont accumulés
         while (audioBuffer.length >= samplesPerChunk) {
@@ -542,7 +536,6 @@ async function setupMicProcessing(micStream) {
 
                 // **Exécuter uniquement pendant les segments vocaux**
                 processedChunk = runAecSync(new Float32Array(chunk), sysF32);
-                // console.log('🔊 Applied WASM-AEC (speex)');
             } else {
                 console.log('🔊 No system audio for AEC reference');
             }

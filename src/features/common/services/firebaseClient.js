@@ -4,8 +4,6 @@ const Store = require('electron-store');
 const { getFirestore, setLogLevel, initializeFirestore, connectFirestoreEmulator } = require('firebase/firestore');
 const { getAnalytics } = require('firebase/analytics');
 
-// setLogLevel('debug');
-
 /**
  * Firebase Auth expects the `persistence` option passed to `initializeAuth()` to be *classes*,
  * not instances. It then calls `new PersistenceClass()` internally.  
