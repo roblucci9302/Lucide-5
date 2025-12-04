@@ -5,8 +5,16 @@
 
 const express = require('express');
 const router = express.Router();
+const validator = require('validator');
 const { supabaseAdmin, getSupabaseClient } = require('../config/supabase');
 const { authenticateToken } = require('../middleware/auth.middleware');
+
+// SECURITY FIX VUL-3: Sanitize user input to prevent XSS
+function sanitizeDisplayName(name) {
+    if (!name || typeof name !== 'string') return null;
+    // Remove HTML tags and escape special characters
+    return validator.escape(validator.trim(name)).substring(0, 100);
+}
 
 // All routes require authentication
 router.use(authenticateToken);
@@ -78,7 +86,12 @@ router.patch('/:uid', async (req, res) => {
         const filteredUpdates = {};
         for (const field of allowedFields) {
             if (updates[field] !== undefined) {
-                filteredUpdates[field] = updates[field];
+                // Sanitize display_name to prevent XSS
+                if (field === 'display_name') {
+                    filteredUpdates[field] = sanitizeDisplayName(updates[field]);
+                } else {
+                    filteredUpdates[field] = updates[field];
+                }
             }
         }
 
@@ -137,13 +150,23 @@ router.get('/:uid/stats', async (req, res) => {
             .select('id', { count: 'exact', head: true })
             .eq('uid', uid);
 
-        // Get messages count
-        const { count: messagesCount } = await supabase
-            .from('ai_messages')
-            .select('id', { count: 'exact', head: true })
-            .in('session_id',
-                supabase.from('sessions').select('id').eq('uid', uid)
-            );
+        // FIX VAL-1: Get messages count with proper two-step query
+        // First get user's session IDs, then count messages
+        const { data: userSessions } = await supabase
+            .from('sessions')
+            .select('id')
+            .eq('uid', uid);
+
+        const sessionIds = (userSessions || []).map(s => s.id);
+        let messagesCount = 0;
+
+        if (sessionIds.length > 0) {
+            const { count } = await supabase
+                .from('ai_messages')
+                .select('id', { count: 'exact', head: true })
+                .in('session_id', sessionIds);
+            messagesCount = count || 0;
+        }
 
         // Get documents count
         const { count: documentsCount } = await supabase

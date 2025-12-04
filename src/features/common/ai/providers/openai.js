@@ -2,31 +2,19 @@ const OpenAI = require('openai');
 const WebSocket = require('ws');
 const { Portkey } = require('portkey-ai');
 const { Readable } = require('stream');
+const { validateApiKey } = require('../utils/apiKeyValidator');
 // FIX: Removed non-existent import 'getProviderForModel' that caused module load failure
 
 
 class OpenAIProvider {
+    /**
+     * Validate an OpenAI API key
+     * REFACTORED: Now uses centralized apiKeyValidator utility
+     * @param {string} key - API key to validate
+     * @returns {Promise<{success: boolean, error?: string}>}
+     */
     static async validateApiKey(key) {
-        if (!key || typeof key !== 'string' || !key.startsWith('sk-')) {
-            return { success: false, error: 'Invalid OpenAI API key format.' };
-        }
-
-        try {
-            const response = await fetch('https://api.openai.com/v1/models', {
-                headers: { 'Authorization': `Bearer ${key}` }
-            });
-
-            if (response.ok) {
-                return { success: true };
-            } else {
-                const errorData = await response.json().catch(() => ({}));
-                const message = errorData.error?.message || `Validation failed with status: ${response.status}`;
-                return { success: false, error: message };
-            }
-        } catch (error) {
-            console.error(`[OpenAIProvider] Network error during key validation:`, error);
-            return { success: false, error: 'A network error occurred during validation.' };
-        }
+        return validateApiKey(key, 'openai');
     }
 }
 

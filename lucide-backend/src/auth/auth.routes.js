@@ -5,8 +5,15 @@
 
 const express = require('express');
 const router = express.Router();
+const validator = require('validator');
 const { supabase } = require('../config/supabase');
 const { authenticateToken } = require('../middleware/auth.middleware');
+
+// Sanitize display name to prevent XSS
+function sanitizeDisplayName(name) {
+    if (!name || typeof name !== 'string') return null;
+    return validator.escape(validator.trim(name)).substring(0, 100);
+}
 
 /**
  * POST /api/auth/signup
@@ -23,13 +30,16 @@ router.post('/signup', async (req, res) => {
             });
         }
 
+        // Sanitize display name
+        const safeDisplayName = sanitizeDisplayName(displayName) || email.split('@')[0];
+
         // Create user with Supabase Auth
         const { data, error } = await supabase.auth.signUp({
             email,
             password,
             options: {
                 data: {
-                    display_name: displayName || email.split('@')[0]
+                    display_name: safeDisplayName
                 }
             }
         });
@@ -41,25 +51,36 @@ router.post('/signup', async (req, res) => {
             });
         }
 
-        // Insert user record into users table
+        // FIX ERR-1: Insert user record into users table with proper error handling
         const { error: insertError } = await supabase
             .from('users')
             .insert({
                 uid: data.user.id,
                 email: email,
-                display_name: displayName || email.split('@')[0],
+                display_name: safeDisplayName,
                 subscription_tier: 'starter' // Default tier
             });
 
         if (insertError) {
             console.error('[Auth] Failed to create user record:', insertError);
+            // Rollback: Delete the auth user since we couldn't create the profile
+            try {
+                await supabase.auth.admin.deleteUser(data.user.id);
+                console.log('[Auth] Rolled back auth user creation due to DB error');
+            } catch (rollbackError) {
+                console.error('[Auth] Failed to rollback auth user:', rollbackError);
+            }
+            return res.status(500).json({
+                error: 'SignupError',
+                message: 'Failed to create user profile. Please try again.'
+            });
         }
 
         res.status(201).json({
             user: {
                 id: data.user.id,
                 email: data.user.email,
-                displayName: displayName || email.split('@')[0]
+                displayName: safeDisplayName
             },
             session: data.session
         });

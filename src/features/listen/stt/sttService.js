@@ -230,7 +230,6 @@ class SttService {
                 console.log('[SttService] Ignoring message - session already closed or closing');
                 return;
             }
-            // console.log('[SttService] handleMyMessage', message);
 
             // Fix HIGH MEDIUM BUG-M8: Wrap message processing in try-catch to prevent service crash
             try {
