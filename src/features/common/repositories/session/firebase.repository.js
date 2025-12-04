@@ -5,6 +5,15 @@ const encryptionService = require('../../services/encryptionService');
 
 const sessionConverter = createEncryptedConverter(['title']);
 
+// FIX MEDIUM: Add session type whitelist validation (matching SQLite)
+const ALLOWED_SESSION_TYPES = ['ask', 'listen'];
+
+function validateSessionType(type) {
+    if (!ALLOWED_SESSION_TYPES.includes(type)) {
+        throw new Error(`Invalid session type: ${type}. Must be 'ask' or 'listen'`);
+    }
+}
+
 function sessionsCol() {
     const db = getFirestoreInstance();
     // Fix HIGH BUG-H8: Check if Firestore instance is null before using it
@@ -36,6 +45,9 @@ async function getById(id) {
 }
 
 async function create(uid, type = 'ask') {
+    // FIX MEDIUM: Validate session type before creating
+    validateSessionType(type);
+
     const now = Timestamp.now();
     const newSession = {
         uid: uid,
@@ -111,8 +123,11 @@ async function end(id) {
 }
 
 async function updateType(id, type) {
+    // FIX MEDIUM: Validate session type before updating
+    validateSessionType(type);
+
     const docRef = doc(sessionsCol(), id);
-    await updateDoc(docRef, { session_type: type });
+    await updateDoc(docRef, { session_type: type, updated_at: Timestamp.now() });
     return { changes: 1 };
 }
 

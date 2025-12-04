@@ -277,13 +277,35 @@ class PostCallService {
 
         const startTime = session.started_at;
         const endTime = session.ended_at || Math.floor(Date.now() / 1000);
+        const now = Math.floor(Date.now() / 1000);
+
+        // FIX MEDIUM: Validate timestamps are realistic
+        // Timestamps should not be in the far future (more than 1 day ahead)
+        const oneDayInSeconds = 86400;
+        if (startTime > now + oneDayInSeconds) {
+            console.warn(`[PostCallService] Session start time is in the future: ${startTime}`);
+            throw new Error('[PostCallService] Session start time is in the future');
+        }
+
+        // Timestamps should not be before Unix epoch + reasonable app age (2020)
+        const minValidTimestamp = 1577836800; // Jan 1, 2020
+        if (startTime < minValidTimestamp) {
+            console.warn(`[PostCallService] Session start time is too old: ${startTime}`);
+            throw new Error('[PostCallService] Session start time is invalid (before 2020)');
+        }
 
         // Validate endTime is after startTime
         if (endTime < startTime) {
             throw new Error('[PostCallService] Session end time is before start time');
         }
 
-        const durationSeconds = endTime - startTime;
+        // FIX MEDIUM: Cap maximum duration to 24 hours to detect corruption
+        const maxDurationSeconds = 24 * 3600; // 24 hours
+        let durationSeconds = endTime - startTime;
+        if (durationSeconds > maxDurationSeconds) {
+            console.warn(`[PostCallService] Session duration exceeds 24h, capping: ${durationSeconds}s`);
+            durationSeconds = maxDurationSeconds;
+        }
 
         // Format duration as HH:MM:SS or MM:SS
         const hours = Math.floor(durationSeconds / 3600);
@@ -341,15 +363,35 @@ class PostCallService {
         }
 
         try {
-            const tasks = actionItems.map(item => ({
+            // FIX MEDIUM: Validate action items before processing
+            const validPriorities = ['low', 'medium', 'high', 'urgent'];
+            const validatedItems = actionItems.filter(item => {
+                // Must have a task description
+                if (!item || !item.task || typeof item.task !== 'string' || item.task.trim().length === 0) {
+                    console.warn('[PostCallService] Skipping action item without valid task:', item);
+                    return false;
+                }
+                return true;
+            });
+
+            if (validatedItems.length === 0) {
+                console.log('[PostCallService] No valid action items to save after validation');
+                return [];
+            }
+
+            if (validatedItems.length < actionItems.length) {
+                console.warn(`[PostCallService] Filtered out ${actionItems.length - validatedItems.length} invalid action items`);
+            }
+
+            const tasks = validatedItems.map(item => ({
                 meetingNoteId: noteId,
                 sessionId,
                 uid,
-                taskDescription: item.task,
-                assignedTo: item.assignedTo || 'TBD',
-                deadline: item.deadline || 'TBD',
-                priority: item.priority || 'medium',
-                context: item.context || ''
+                taskDescription: item.task.trim(),
+                assignedTo: (item.assignedTo && typeof item.assignedTo === 'string') ? item.assignedTo.trim() : 'TBD',
+                deadline: (item.deadline && typeof item.deadline === 'string') ? item.deadline.trim() : 'TBD',
+                priority: validPriorities.includes(item.priority) ? item.priority : 'medium',
+                context: (item.context && typeof item.context === 'string') ? item.context.trim() : ''
             }));
 
             const taskIds = meetingTasksRepository.createBulk(tasks);

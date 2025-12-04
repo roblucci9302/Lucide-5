@@ -419,6 +419,14 @@ export class PostMeetingPanel extends LitElement {
         this.suggestions = [];
         this.isLoadingSuggestions = false;
 
+        // FIX MEDIUM: Store callback references for cleanup
+        this._ipcCallbacks = {
+            onSetSession: null,
+            onNotesGenerated: null,
+            onExportComplete: null,
+            onError: null
+        };
+
         // Setup IPC listeners
         this._setupListeners();
     }
@@ -431,17 +439,46 @@ export class PostMeetingPanel extends LitElement {
         }
     }
 
+    /**
+     * FIX MEDIUM: Clean up IPC listeners to prevent memory leaks
+     */
+    disconnectedCallback() {
+        super.disconnectedCallback();
+        this._cleanupListeners();
+    }
+
+    _cleanupListeners() {
+        // Remove all IPC listeners to prevent memory leaks
+        if (window.api?.postMeeting) {
+            if (this._ipcCallbacks.onSetSession) {
+                window.api.postMeeting.removeOnSetSession?.(this._ipcCallbacks.onSetSession);
+            }
+            if (this._ipcCallbacks.onNotesGenerated) {
+                window.api.postMeeting.removeOnNotesGenerated?.(this._ipcCallbacks.onNotesGenerated);
+            }
+            if (this._ipcCallbacks.onExportComplete) {
+                window.api.postMeeting.removeOnExportComplete?.(this._ipcCallbacks.onExportComplete);
+            }
+            if (this._ipcCallbacks.onError) {
+                window.api.postMeeting.removeOnError?.(this._ipcCallbacks.onError);
+            }
+        }
+        console.log('[PostMeetingPanel] IPC listeners cleaned up');
+    }
+
     _setupListeners() {
+        // FIX MEDIUM: Store callback references for proper cleanup
         // Listen for session ID from main process (when window opens)
-        window.api?.postMeeting?.onSetSession?.((sessionId) => {
+        this._ipcCallbacks.onSetSession = (sessionId) => {
             console.log('[PostMeetingPanel] Session ID received:', sessionId);
             this.sessionId = sessionId;
             // Automatically load meeting notes for this session
             this.loadMeetingNotes();
-        });
+        };
+        window.api?.postMeeting?.onSetSession?.(this._ipcCallbacks.onSetSession);
 
         // Listen for meeting notes updates from main process
-        window.api?.postMeeting?.onNotesGenerated?.(({ notes, tasks }) => {
+        this._ipcCallbacks.onNotesGenerated = ({ notes, tasks }) => {
             console.log('[PostMeetingPanel] Notes generated:', notes);
             this.meetingNotes = notes;
             this.tasks = tasks || [];
@@ -449,20 +486,23 @@ export class PostMeetingPanel extends LitElement {
             this.isLoading = false;
             this.message = { type: 'success', text: '✅ Notes générées avec succès' };
             setTimeout(() => { this.message = null; }, 3000);
-        });
+        };
+        window.api?.postMeeting?.onNotesGenerated?.(this._ipcCallbacks.onNotesGenerated);
 
-        window.api?.postMeeting?.onExportComplete?.(({ format, filePath }) => {
+        this._ipcCallbacks.onExportComplete = ({ format, filePath }) => {
             console.log(`[PostMeetingPanel] Export ${format} complete:`, filePath);
             this.message = { type: 'success', text: `✅ Export ${format.toUpperCase()} réussi: ${filePath}` };
             setTimeout(() => { this.message = null; }, 5000);
-        });
+        };
+        window.api?.postMeeting?.onExportComplete?.(this._ipcCallbacks.onExportComplete);
 
-        window.api?.postMeeting?.onError?.(({ error }) => {
+        this._ipcCallbacks.onError = ({ error }) => {
             console.error('[PostMeetingPanel] Error:', error);
             this.isGenerating = false;
             this.isLoading = false;
             this.message = { type: 'error', text: `❌ Erreur: ${error}` };
-        });
+        };
+        window.api?.postMeeting?.onError?.(this._ipcCallbacks.onError);
     }
 
     async loadMeetingNotes() {

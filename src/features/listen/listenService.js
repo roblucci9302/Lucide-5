@@ -51,8 +51,45 @@ class ListenService {
         this.lastTranscription = '';
         this.suggestionDebounceTimer = null; // For debouncing AI suggestion requests
 
+        // FIX MEDIUM: Track recent transcripts to prevent duplicates
+        this._recentTranscripts = new Map(); // Map<hash, timestamp>
+        this._transcriptDedupeWindowMs = 5000; // 5 second window for deduplication
+
         this.setupServiceCallbacks();
         console.log('[ListenService] Service instance created.');
+    }
+
+    /**
+     * FIX MEDIUM: Generate a simple hash for transcript deduplication
+     * @private
+     */
+    _getTranscriptHash(speaker, text) {
+        return `${speaker}:${text.trim().toLowerCase()}`;
+    }
+
+    /**
+     * FIX MEDIUM: Check if transcript is a duplicate within the time window
+     * @private
+     */
+    _isDuplicateTranscript(speaker, text) {
+        const hash = this._getTranscriptHash(speaker, text);
+        const now = Date.now();
+
+        // Clean up old entries
+        for (const [key, timestamp] of this._recentTranscripts) {
+            if (now - timestamp > this._transcriptDedupeWindowMs) {
+                this._recentTranscripts.delete(key);
+            }
+        }
+
+        if (this._recentTranscripts.has(hash)) {
+            console.warn(`[ListenService] Duplicate transcript detected and skipped: ${text.substring(0, 50)}...`);
+            return true;
+        }
+
+        // Add to recent transcripts
+        this._recentTranscripts.set(hash, now);
+        return false;
     }
 
     setupServiceCallbacks() {
@@ -361,14 +398,20 @@ class ListenService {
             console.error('[DB] Cannot save turn, no active session ID.');
             return;
         }
-        if (transcription.trim() === '') return;
+        const trimmedText = transcription.trim();
+        if (trimmedText === '') return;
+
+        // FIX MEDIUM: Check for duplicate transcripts
+        if (this._isDuplicateTranscript(speaker, trimmedText)) {
+            return; // Skip duplicate
+        }
 
         try {
             await sessionRepository.touch(this.currentSessionId);
             await sttRepository.addTranscript({
                 sessionId: this.currentSessionId,
                 speaker: speaker,
-                text: transcription.trim(),
+                text: trimmedText,
             });
             console.log(`[DB] Saved transcript for session ${this.currentSessionId}: (${speaker})`);
         } catch (error) {

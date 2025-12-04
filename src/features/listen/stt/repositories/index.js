@@ -11,16 +11,62 @@ function getBaseRepository() {
 }
 
 const sttRepositoryAdapter = {
-    addTranscript: ({ sessionId, speaker, text }) => {
+    /**
+     * Add a transcript with error handling and fallback
+     * FIX MEDIUM: Added try-catch with fallback to SQLite if Firebase fails
+     */
+    addTranscript: async ({ sessionId, speaker, text }) => {
         const uid = authService.getCurrentUserId();
-        return getBaseRepository().addTranscript({ uid, sessionId, speaker, text });
+        const repo = getBaseRepository();
+
+        try {
+            return await repo.addTranscript({ uid, sessionId, speaker, text });
+        } catch (error) {
+            console.error('[STTRepository] Error adding transcript:', error.message);
+
+            // If Firebase fails, try SQLite as fallback
+            if (repo === firebaseRepository) {
+                console.warn('[STTRepository] Firebase failed, falling back to SQLite');
+                try {
+                    return await sqliteRepository.addTranscript({ uid, sessionId, speaker, text });
+                } catch (fallbackError) {
+                    console.error('[STTRepository] SQLite fallback also failed:', fallbackError.message);
+                    throw fallbackError;
+                }
+            }
+            throw error;
+        }
     },
-    getAllTranscriptsBySessionId: (sessionId) => {
-        return getBaseRepository().getAllTranscriptsBySessionId(sessionId);
+
+    /**
+     * Get all transcripts with error handling
+     * FIX MEDIUM: Added try-catch with fallback
+     */
+    getAllTranscriptsBySessionId: async (sessionId) => {
+        const repo = getBaseRepository();
+
+        try {
+            return await repo.getAllTranscriptsBySessionId(sessionId);
+        } catch (error) {
+            console.error('[STTRepository] Error getting transcripts:', error.message);
+
+            // If Firebase fails, try SQLite as fallback
+            if (repo === firebaseRepository) {
+                console.warn('[STTRepository] Firebase failed, falling back to SQLite');
+                try {
+                    return await sqliteRepository.getAllTranscriptsBySessionId(sessionId);
+                } catch (fallbackError) {
+                    console.error('[STTRepository] SQLite fallback also failed:', fallbackError.message);
+                    return []; // Return empty array instead of throwing
+                }
+            }
+            return []; // Return empty array on error
+        }
     },
+
     // Alias for compatibility - both names point to the same function
-    getTranscriptsBySessionId: (sessionId) => {
-        return getBaseRepository().getAllTranscriptsBySessionId(sessionId);
+    getTranscriptsBySessionId: async (sessionId) => {
+        return sttRepositoryAdapter.getAllTranscriptsBySessionId(sessionId);
     }
 };
 

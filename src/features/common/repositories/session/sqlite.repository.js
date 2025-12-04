@@ -29,10 +29,21 @@ function create(uid, type = 'ask') {
     }
 }
 
-function getAllByUserId(uid) {
+// FIX MEDIUM: Add configurable limit for performance
+const DEFAULT_SESSION_LIMIT = 100;
+const MAX_SESSION_LIMIT = 500;
+
+function getAllByUserId(uid, options = {}) {
     const db = sqliteClient.getDb();
-    const query = "SELECT id, uid, title, session_type, started_at, ended_at, sync_state, updated_at FROM sessions WHERE uid = ? ORDER BY started_at DESC";
-    return db.prepare(query).all(uid);
+    // FIX MEDIUM: Add limit to prevent performance issues with large datasets
+    const limit = Math.min(options.limit || DEFAULT_SESSION_LIMIT, MAX_SESSION_LIMIT);
+    const offset = options.offset || 0;
+
+    const query = `SELECT id, uid, title, session_type, started_at, ended_at, sync_state, updated_at
+                   FROM sessions WHERE uid = ?
+                   ORDER BY started_at DESC
+                   LIMIT ? OFFSET ?`;
+    return db.prepare(query).all(uid, limit, offset);
 }
 
 function updateTitle(id, title) {
@@ -191,8 +202,11 @@ function isPostProcessed(id) {
  * @param {string} uid - User ID
  * @returns {Array} List of unprocessed sessions
  */
-function getUnprocessedSessions(uid) {
+function getUnprocessedSessions(uid, options = {}) {
     const db = sqliteClient.getDb();
+    // FIX MEDIUM: Add limit for performance
+    const limit = Math.min(options.limit || 50, 100);
+
     const query = `
         SELECT * FROM sessions
         WHERE uid = ?
@@ -200,8 +214,9 @@ function getUnprocessedSessions(uid) {
           AND ended_at IS NOT NULL
           AND (is_post_processed IS NULL OR is_post_processed = 0)
         ORDER BY ended_at DESC
+        LIMIT ?
     `;
-    return db.prepare(query).all(uid);
+    return db.prepare(query).all(uid, limit);
 }
 
 module.exports = {
