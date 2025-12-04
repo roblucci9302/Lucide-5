@@ -385,9 +385,17 @@ class ListenService {
                 // This case should ideally not happen as authService initializes a default user.
                 throw new Error("Cannot initialize session: auth service not ready.");
             }
-            
+
             this.currentSessionId = await sessionRepository.getOrCreateActive('listen');
             console.log(`[DB] New listen session ensured: ${this.currentSessionId}`);
+
+            // FIX HIGH: Validate session type after retrieval to ensure it's 'listen'
+            // This catches cases where session promotion from 'ask' to 'listen' failed
+            const session = await sessionRepository.getById(this.currentSessionId);
+            if (session && session.session_type !== 'listen') {
+                console.warn(`[ListenService] Session ${this.currentSessionId} has wrong type '${session.session_type}', forcing to 'listen'`);
+                await sessionRepository.updateType(this.currentSessionId, 'listen');
+            }
 
             // Set session ID for summary service
             this.summaryService.setSessionId(this.currentSessionId);
@@ -578,24 +586,29 @@ class ListenService {
                 this.suggestionDebounceTimer = null;
             }
 
+            // FIX CRITICAL: Save session ID before any async operations to prevent transcript loss
+            // This ensures late-arriving transcriptions can still be saved
+            const closingSessionId = this.currentSessionId;
+            const userId = authService.getCurrentUserId();
+
             // Close STT sessions
             await this.sttService.closeSessions();
 
             await this.stopMacOSAudioCapture();
 
-            // End database session and trigger auto-indexing
-            if (this.currentSessionId) {
-                // Save session info before reset for auto-indexing
-                const sessionIdToIndex = this.currentSessionId;
-                const userId = authService.getCurrentUserId();
+            // FIX: Wait for any pending transcription callbacks to complete
+            // This prevents race condition where transcriptions arrive after currentSessionId is null
+            await new Promise(resolve => setTimeout(resolve, 100));
 
-                await sessionRepository.end(this.currentSessionId);
-                console.log(`[DB] Session ${this.currentSessionId} ended.`);
+            // End database session and trigger auto-indexing
+            if (closingSessionId) {
+                await sessionRepository.end(closingSessionId);
+                console.log(`[DB] Session ${closingSessionId} ended.`);
 
                 // Phase 2: Auto-index the audio session (non-blocking)
                 // This extracts entities, speakers, actions from the transcription
                 if (userId) {
-                    autoIndexingService.indexAudioSession(sessionIdToIndex, userId)
+                    autoIndexingService.indexAudioSession(closingSessionId, userId)
                         .then(result => {
                             if (result.indexed) {
                                 console.log(`[ListenService] ✅ Audio session auto-indexed: ${result.content_id}`);
@@ -613,7 +626,7 @@ class ListenService {
                 }
             }
 
-            // Reset state
+            // Reset state - now safe since STT is fully closed and pending callbacks processed
             this.currentSessionId = null;
             this.summaryService.resetConversationHistory();
             responseService.resetConversationHistory();
