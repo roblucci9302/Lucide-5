@@ -375,14 +375,29 @@ export class DocumentPreview extends LitElement {
         }
     }
 
+    /**
+     * FIX CRITICAL: Escape HTML entities to prevent XSS
+     * @param {string} text - Raw text
+     * @returns {string} Escaped text
+     */
+    escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
     formatContent(content) {
         if (!content) return '';
 
-        // Basic markdown-style formatting
-        // This is a simple implementation - for full markdown, use marked.js
-        let formatted = content;
+        // FIX CRITICAL: Escape HTML FIRST to prevent XSS attacks
+        // This ensures user content like "###<script>alert('xss')</script>" is safe
+        let formatted = this.escapeHtml(content);
 
-        // Headers
+        // Basic markdown-style formatting (now safe because content is escaped)
+        // This is a simple implementation - for full markdown, use marked.js
+
+        // Headers (content already escaped, safe to wrap in tags)
         formatted = formatted.replace(/^### (.*$)/gim, '<h3>$1</h3>');
         formatted = formatted.replace(/^## (.*$)/gim, '<h2>$1</h2>');
         formatted = formatted.replace(/^# (.*$)/gim, '<h1>$1</h1>');
@@ -393,6 +408,17 @@ export class DocumentPreview extends LitElement {
 
         // Code
         formatted = formatted.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+        // Line breaks
+        formatted = formatted.replace(/\n/g, '<br>');
+
+        // Final sanitization with DOMPurify if available
+        if (window.DOMPurify) {
+            return window.DOMPurify.sanitize(formatted, {
+                ALLOWED_TAGS: ['h1', 'h2', 'h3', 'strong', 'em', 'code', 'br', 'p'],
+                ALLOWED_ATTR: []
+            });
+        }
 
         return formatted;
     }

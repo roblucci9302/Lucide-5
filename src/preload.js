@@ -538,47 +538,56 @@ contextBridge.exposeInMainWorld('api', {
   },
 
   // Phase 2 - Participant Attribution
+  // FIX HIGH: Added .catch() blocks to all promise chains
   participants: {
     // Detect speakers from session transcripts
     detectSpeakers: (sessionId) => ipcRenderer.invoke('participants:detect-speakers', sessionId)
-      .then(result => result.success ? result.speakers : []),
+      .then(result => result.success ? result.speakers : [])
+      .catch(err => { console.error('[Preload] detectSpeakers error:', err); return []; }),
 
     // Get participants for a session
     getSessionParticipants: (sessionId) => ipcRenderer.invoke('participants:get-session-participants', sessionId)
-      .then(result => result.success ? result.participants : []),
+      .then(result => result.success ? result.participants : [])
+      .catch(err => { console.error('[Preload] getSessionParticipants error:', err); return []; }),
 
     // Save participants for a session
     saveParticipants: (sessionId, participantsData) => ipcRenderer.invoke('participants:save-participants', sessionId, participantsData)
       .then(result => {
         if (!result.success) throw new Error(result.error);
         return result;
-      }),
+      })
+      .catch(err => { console.error('[Preload] saveParticipants error:', err); throw err; }),
 
     // Get frequent participants for autocomplete
     getFrequentParticipants: (limit = 10) => ipcRenderer.invoke('participants:get-frequent', limit)
-      .then(result => result.success ? result.participants : []),
+      .then(result => result.success ? result.participants : [])
+      .catch(err => { console.error('[Preload] getFrequentParticipants error:', err); return []; }),
 
     // Check if participants are assigned
     hasParticipantsAssigned: (sessionId) => ipcRenderer.invoke('participants:has-assigned', sessionId)
-      .then(result => result.success ? result.hasAssigned : false),
+      .then(result => result.success ? result.hasAssigned : false)
+      .catch(err => { console.error('[Preload] hasParticipantsAssigned error:', err); return false; }),
 
     // Get participant mapping (speaker label -> participant info)
     getParticipantMapping: (sessionId) => ipcRenderer.invoke('participants:get-mapping', sessionId)
-      .then(result => result.success ? result.mapping : {}),
+      .then(result => result.success ? result.mapping : {})
+      .catch(err => { console.error('[Preload] getParticipantMapping error:', err); return {}; }),
 
     // Delete participants for a session
     deleteSessionParticipants: (sessionId) => ipcRenderer.invoke('participants:delete-session-participants', sessionId)
       .then(result => {
         if (!result.success) throw new Error(result.error);
         return result;
-      }),
+      })
+      .catch(err => { console.error('[Preload] deleteSessionParticipants error:', err); throw err; }),
 
     // Update meeting notes with participant names
     updateNotesWithParticipants: (sessionId, meetingNoteId) => ipcRenderer.invoke('participants:update-notes', sessionId, meetingNoteId)
       .then(result => {
         if (!result.success) throw new Error(result.error);
         return result;
-      }),
+      })
+      .catch(err => { console.error('[Preload] updateNotesWithParticipants error:', err); throw err; }),
 
     // Listeners
     onParticipantsSaved: (callback) => ipcRenderer.on('participants:saved', (event, data) => callback(data)),
