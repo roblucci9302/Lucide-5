@@ -529,11 +529,14 @@ class AskService {
             if (isScreenshotEnabled) {
                 if (visionSupport.supported) {
                     // Model supports vision, capture screenshot
+                    console.log(`[AskService] 📷 Attempting screenshot capture...`);
                     const screenshotResult = await captureScreenshot({ quality: 'medium' });
-                    screenshotBase64 = screenshotResult.success ? screenshotResult.base64 : null;
 
-                    if (!screenshotResult.success) {
-                        console.warn(`[AskService] ⚠️ Screenshot capture failed: ${screenshotResult.error}`);
+                    if (screenshotResult.success) {
+                        screenshotBase64 = screenshotResult.base64;
+                        console.log(`[AskService] ✅ Screenshot captured successfully (${Math.round(screenshotBase64.length / 1024)}KB base64, ${screenshotResult.width}x${screenshotResult.height})`);
+                    } else {
+                        console.error(`[AskService] ❌ Screenshot capture FAILED: ${screenshotResult.error}`);
                     }
                 } else {
                     // Model does NOT support vision - warn user
@@ -656,12 +659,16 @@ class AskService {
                 });
 
                 // Ajouter l'image après le texte d'instruction
+                const imageDataUrl = `data:image/jpeg;base64,${screenshotBase64}`;
                 userMessageContent.push({
                     type: 'image_url',
-                    image_url: { url: `data:image/jpeg;base64,${screenshotBase64}` },
+                    image_url: { url: imageDataUrl },
                 });
 
-                console.log('[AskService] 📸 Screenshot attached to message - model informed of vision capability');
+                console.log(`[AskService] 📸 Screenshot attached to message:`);
+                console.log(`[AskService]    - Model: ${modelInfo.model} (provider: ${modelInfo.provider})`);
+                console.log(`[AskService]    - Image size: ${Math.round(screenshotBase64.length / 1024)}KB`);
+                console.log(`[AskService]    - Content parts: ${userMessageContent.length} (text + image_url)`);
             } else if (visionWarning && isScreenshotEnabled) {
                 // Model doesn't support vision but user has it enabled - inform in the prompt
                 userMessageContent.push({
@@ -674,6 +681,12 @@ class AskService {
                     type: 'text',
                     text: `User Request: ${userPrompt.trim()}`
                 });
+                // Log why no screenshot was attached
+                if (!isScreenshotEnabled) {
+                    console.log(`[AskService] ℹ️ No screenshot: Screenshot capture is DISABLED in settings`);
+                } else if (!screenshotBase64) {
+                    console.log(`[AskService] ℹ️ No screenshot: Capture failed or returned empty`);
+                }
             }
 
             messages.push({
