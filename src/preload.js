@@ -534,7 +534,10 @@ contextBridge.exposeInMainWorld('api', {
     onExportComplete: (callback) => ipcRenderer.on('post-meeting:export-complete', (event, data) => callback(data)),
     removeOnExportComplete: (callback) => ipcRenderer.removeListener('post-meeting:export-complete', callback),
     onError: (callback) => ipcRenderer.on('post-meeting:error', (event, data) => callback(data)),
-    removeOnError: (callback) => ipcRenderer.removeListener('post-meeting:error', callback)
+    removeOnError: (callback) => ipcRenderer.removeListener('post-meeting:error', callback),
+
+    // FIX: Close the post-meeting window
+    closeWindow: () => ipcRenderer.invoke('post-meeting:close-window')
   },
 
   // Phase 2 - Participant Attribution

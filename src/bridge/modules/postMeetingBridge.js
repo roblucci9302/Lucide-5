@@ -60,11 +60,11 @@ module.exports = {
                     }
                 );
 
-                // Send update to renderer
+                // Send update to renderer - FIX: Send to post-meeting window, not settings
                 const { windowPool } = require('../../window/windowManager');
-                const settingsWindow = windowPool?.get('settings');
-                if (settingsWindow && !settingsWindow.isDestroyed()) {
-                    settingsWindow.webContents.send('post-meeting:notes-generated', {
+                const postMeetingWindow = windowPool?.get('post-meeting');
+                if (postMeetingWindow && !postMeetingWindow.isDestroyed()) {
+                    postMeetingWindow.webContents.send('post-meeting:notes-generated', {
                         notes: result.structuredData,
                         tasks: result.tasks
                     });
@@ -78,11 +78,11 @@ module.exports = {
             } catch (error) {
                 console.error('[PostMeetingBridge] Error generating notes:', error);
 
-                // Send error to renderer
+                // Send error to renderer - FIX: Send to post-meeting window
                 const { windowPool } = require('../../window/windowManager');
-                const settingsWindow = windowPool?.get('settings');
-                if (settingsWindow && !settingsWindow.isDestroyed()) {
-                    settingsWindow.webContents.send('post-meeting:error', {
+                const postMeetingWindow = windowPool?.get('post-meeting');
+                if (postMeetingWindow && !postMeetingWindow.isDestroyed()) {
+                    postMeetingWindow.webContents.send('post-meeting:error', {
                         error: error.message
                     });
                 }
@@ -184,11 +184,11 @@ module.exports = {
                         throw new Error(`Unsupported export format: ${format}`);
                 }
 
-                // Send completion event to renderer
+                // Send completion event to renderer - FIX: Send to post-meeting window
                 const { windowPool } = require('../../window/windowManager');
-                const settingsWindow = windowPool?.get('settings');
-                if (settingsWindow && !settingsWindow.isDestroyed()) {
-                    settingsWindow.webContents.send('post-meeting:export-complete', {
+                const postMeetingWindow = windowPool?.get('post-meeting');
+                if (postMeetingWindow && !postMeetingWindow.isDestroyed()) {
+                    postMeetingWindow.webContents.send('post-meeting:export-complete', {
                         format,
                         filePath
                     });
@@ -202,11 +202,11 @@ module.exports = {
             } catch (error) {
                 console.error('[PostMeetingBridge] Error exporting notes:', error);
 
-                // Send error to renderer
+                // Send error to renderer - FIX: Send to post-meeting window
                 const { windowPool } = require('../../window/windowManager');
-                const settingsWindow = windowPool?.get('settings');
-                if (settingsWindow && !settingsWindow.isDestroyed()) {
-                    settingsWindow.webContents.send('post-meeting:error', {
+                const postMeetingWindow = windowPool?.get('post-meeting');
+                if (postMeetingWindow && !postMeetingWindow.isDestroyed()) {
+                    postMeetingWindow.webContents.send('post-meeting:error', {
                         error: error.message
                     });
                 }
@@ -348,6 +348,24 @@ module.exports = {
                     error: error.message,
                     hasNotes: false
                 };
+            }
+        });
+
+        /**
+         * Close the post-meeting window
+         * FIX: Added IPC handler for close button
+         */
+        ipcMain.handle('post-meeting:close-window', async (event) => {
+            try {
+                const { windowPool } = require('../../window/windowManager');
+                const postMeetingWindow = windowPool?.get('post-meeting');
+                if (postMeetingWindow && !postMeetingWindow.isDestroyed()) {
+                    postMeetingWindow.close();
+                }
+                return { success: true };
+            } catch (error) {
+                console.error('[PostMeetingBridge] Error closing window:', error);
+                return { success: false, error: error.message };
             }
         });
 

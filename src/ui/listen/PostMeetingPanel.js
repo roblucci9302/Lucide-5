@@ -641,7 +641,15 @@ export class PostMeetingPanel extends LitElement {
     }
 
     handleClose() {
-        this.dispatchEvent(new CustomEvent('close', { bubbles: true, composed: true }));
+        // FIX: Close the window directly via IPC instead of dispatching unused event
+        if (window.api?.postMeeting?.closeWindow) {
+            window.api.postMeeting.closeWindow();
+        } else if (window.api?.window?.close) {
+            window.api.window.close();
+        } else {
+            // Fallback: try to close via standard web API
+            window.close();
+        }
     }
 
     handleOpenParticipantModal() {
