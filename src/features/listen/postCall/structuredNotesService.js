@@ -5,13 +5,20 @@ const tokenTrackingService = require('../../common/services/tokenTrackingService
 
 /**
  * Service pour générer des notes structurées à partir d'une transcription de réunion
+ * Phase 3: Améliorations - Pré-traitement, validation enrichie, post-traitement
+ *
  * Utilise le prompt 'structured_meeting_notes' pour extraire:
- * - Résumé exécutif
- * - Participants
- * - Points clés
- * - Décisions
- * - Actions
- * - Timeline
+ * - Résumé exécutif (4-6 phrases)
+ * - Participants avec rôles
+ * - Points clés avec contexte
+ * - Décisions avec justifications
+ * - Actions avec responsables et délais
+ * - Risques identifiés
+ * - Objectifs de la réunion
+ * - Timeline chronologique
+ * - Points non résolus
+ * - Prochaines étapes
+ * - Citations importantes
  */
 
 // Fix LOW BUG: Token limits for different models
@@ -33,6 +40,14 @@ const MODEL_TOKEN_LIMITS = {
 
 // Approximate characters per token (varies by language, ~4 for English, ~2-3 for French)
 const CHARS_PER_TOKEN = 3;
+
+// Phase 3: Configuration for retry logic
+const MAX_RETRIES = 2;
+const RETRY_DELAY_MS = 2000;
+
+// Phase 3: Minimum quality thresholds
+const MIN_EXECUTIVE_SUMMARY_LENGTH = 100;
+const MIN_KEY_POINTS = 1;
 
 class StructuredNotesService {
     constructor() {
@@ -73,6 +88,11 @@ class StructuredNotesService {
                 throw new Error('No transcripts provided for note generation');
             }
 
+            // Phase 3: Pre-process transcripts to improve quality
+            this._updateStatus('Pré-traitement de la transcription...');
+            const preprocessedTranscripts = this._preprocessTranscripts(transcripts);
+            console.log(`[StructuredNotesService] Pre-processed: ${transcripts.length} entries → ${preprocessedTranscripts.length} entries`);
+
             // Get AI model configuration first to determine token limit
             const modelInfo = await modelStateService.getCurrentModelInfo('llm');
             if (!modelInfo || !modelInfo.apiKey) {
@@ -83,9 +103,9 @@ class StructuredNotesService {
             const tokenLimit = this._getTokenLimitForModel(modelInfo.model);
             const maxInputChars = tokenLimit * CHARS_PER_TOKEN;
 
-            // Format transcripts into conversation text with size limit
+            // Format transcripts into conversation text with size limit (use preprocessed)
             const { conversationText, wasTruncated, originalLength, truncatedLength } =
-                this._formatTranscriptsWithLimit(transcripts, maxInputChars);
+                this._formatTranscriptsWithLimit(preprocessedTranscripts, maxInputChars);
 
             if (wasTruncated) {
                 console.warn(`[StructuredNotesService] Transcript truncated from ${originalLength} to ${truncatedLength} chars for model ${modelInfo.model}`);
@@ -93,7 +113,11 @@ class StructuredNotesService {
                 meetingMetadata.originalTranscriptLength = originalLength;
             }
 
-            console.log(`[StructuredNotesService] Processing ${transcripts.length} transcript entries (${conversationText.length} chars)`);
+            // Phase 3: Add preprocessing metadata
+            meetingMetadata.originalEntryCount = transcripts.length;
+            meetingMetadata.preprocessedEntryCount = preprocessedTranscripts.length;
+
+            console.log(`[StructuredNotesService] Processing ${preprocessedTranscripts.length} transcript entries (${conversationText.length} chars)`);
             console.log(`[StructuredNotesService] Using ${modelInfo.provider} - ${modelInfo.model}`);
 
             // Build the prompt
@@ -124,8 +148,26 @@ class StructuredNotesService {
 
             this._updateStatus('Appel au modèle AI...');
 
-            // Call the LLM
-            const completion = await llm.chat(messages);
+            // Phase 3: Call the LLM with retry logic
+            let completion;
+            let lastError;
+            for (let attempt = 1; attempt <= MAX_RETRIES + 1; attempt++) {
+                try {
+                    completion = await llm.chat(messages);
+                    break; // Success, exit retry loop
+                } catch (error) {
+                    lastError = error;
+                    console.warn(`[StructuredNotesService] AI call attempt ${attempt} failed:`, error.message);
+                    if (attempt <= MAX_RETRIES) {
+                        this._updateStatus(`Nouvelle tentative (${attempt}/${MAX_RETRIES})...`);
+                        await this._delay(RETRY_DELAY_MS * attempt);
+                    }
+                }
+            }
+
+            if (!completion) {
+                throw new Error(`AI call failed after ${MAX_RETRIES + 1} attempts: ${lastError?.message}`);
+            }
 
             // Track token usage
             tokenTrackingService.trackUsage({
@@ -140,15 +182,22 @@ class StructuredNotesService {
             console.log('[StructuredNotesService] Raw AI response received');
 
             // Parse the JSON response
+            this._updateStatus('Analyse de la réponse...');
             const structuredNotes = this._parseAIResponse(responseText);
 
-            // Add metadata
+            // Phase 3: Post-process to enhance results
+            this._updateStatus('Post-traitement des notes...');
+            this._postProcessNotes(structuredNotes, preprocessedTranscripts);
+
+            // Add enhanced metadata
             structuredNotes.metadata = {
                 sessionId,
                 generatedAt: new Date().toISOString(),
                 transcriptCount: transcripts.length,
+                preprocessedCount: preprocessedTranscripts.length,
                 model: modelInfo.model,
                 provider: modelInfo.provider,
+                qualityScore: this._calculateQualityScore(structuredNotes),
                 ...meetingMetadata
             };
 
@@ -313,21 +362,25 @@ Génère maintenant les notes structurées:`;
 
     /**
      * Valide que la structure JSON contient les champs requis
-     * FIX: Ajoute les champs manquants avec des valeurs par défaut
+     * Phase 3: Validation enrichie avec nouveaux champs et qualité
      * @private
      */
     _validateStructure(data) {
-        // Define required fields with their default values
+        // Define required fields with their default values (includes Phase 2 fields)
         const fieldDefaults = {
             'executiveSummary': 'Résumé non disponible',
+            'meetingType': 'general',
+            'objectives': [],
             'meetingMetadata': {
                 participants: [],
                 duration: 'Non disponible',
-                mainTopic: 'Non disponible'
+                mainTopic: 'Non disponible',
+                date: new Date().toISOString().split('T')[0]
             },
             'keyPoints': [],
             'decisions': [],
             'actionItems': [],
+            'risks': [],
             'timeline': [],
             'unresolvedItems': [],
             'nextSteps': [],
@@ -351,9 +404,79 @@ Génère maintenant les notes structurées:`;
             if (!data.meetingMetadata.participants) data.meetingMetadata.participants = [];
             if (!data.meetingMetadata.duration) data.meetingMetadata.duration = 'Non disponible';
             if (!data.meetingMetadata.mainTopic) data.meetingMetadata.mainTopic = 'Non disponible';
+            if (!data.meetingMetadata.date) data.meetingMetadata.date = new Date().toISOString().split('T')[0];
         }
 
+        // Phase 3: Validate array items have proper structure
+        this._validateArrayItems(data);
+
         console.log('[StructuredNotesService] Structure validation complete');
+    }
+
+    /**
+     * Phase 3: Validate array items have proper structure
+     * @private
+     */
+    _validateArrayItems(data) {
+        // Ensure actionItems have required fields
+        if (Array.isArray(data.actionItems)) {
+            data.actionItems = data.actionItems.map((item, index) => {
+                if (typeof item === 'string') {
+                    return {
+                        task: item,
+                        assignee: 'Non assigné',
+                        deadline: 'Non défini',
+                        priority: 'medium',
+                        status: 'pending'
+                    };
+                }
+                return {
+                    task: item.task || item.action || item.description || `Action ${index + 1}`,
+                    assignee: item.assignee || item.responsible || 'Non assigné',
+                    deadline: item.deadline || item.dueDate || 'Non défini',
+                    priority: item.priority || 'medium',
+                    status: item.status || 'pending',
+                    dependencies: item.dependencies || [],
+                    successCriteria: item.successCriteria || ''
+                };
+            });
+        }
+
+        // Ensure decisions have required fields
+        if (Array.isArray(data.decisions)) {
+            data.decisions = data.decisions.map((item, index) => {
+                if (typeof item === 'string') {
+                    return {
+                        decision: item,
+                        rationale: '',
+                        impact: ''
+                    };
+                }
+                return {
+                    decision: item.decision || item.description || `Décision ${index + 1}`,
+                    rationale: item.rationale || item.justification || '',
+                    impact: item.impact || ''
+                };
+            });
+        }
+
+        // Ensure risks have required fields
+        if (Array.isArray(data.risks)) {
+            data.risks = data.risks.map((item, index) => {
+                if (typeof item === 'string') {
+                    return {
+                        risk: item,
+                        severity: 'medium',
+                        mitigation: ''
+                    };
+                }
+                return {
+                    risk: item.risk || item.description || `Risque ${index + 1}`,
+                    severity: item.severity || item.level || 'medium',
+                    mitigation: item.mitigation || item.action || ''
+                };
+            });
+        }
     }
 
     /**
@@ -390,6 +513,204 @@ Génère maintenant les notes structurées:`;
         if (this.onStatusUpdate) {
             this.onStatusUpdate(status);
         }
+    }
+
+    /**
+     * Phase 3: Pré-traitement des transcriptions pour améliorer la qualité
+     * - Fusionne les entrées consécutives du même locuteur
+     * - Nettoie les bégaiements et répétitions
+     * - Filtre les entrées trop courtes (bruit)
+     * @private
+     */
+    _preprocessTranscripts(transcripts) {
+        if (!transcripts || transcripts.length === 0) return [];
+
+        const processed = [];
+        let currentEntry = null;
+
+        for (const entry of transcripts) {
+            // Skip very short entries (likely noise)
+            if (!entry.text || entry.text.trim().length < 3) {
+                continue;
+            }
+
+            // Clean the text
+            let cleanedText = this._cleanTranscriptText(entry.text);
+
+            // Skip if cleaned text is too short
+            if (cleanedText.length < 3) {
+                continue;
+            }
+
+            // Merge consecutive entries from the same speaker
+            if (currentEntry && currentEntry.speaker === entry.speaker) {
+                currentEntry.text += ' ' + cleanedText;
+                currentEntry.timestamp = entry.timestamp; // Update to latest timestamp
+            } else {
+                // Save previous entry if exists
+                if (currentEntry) {
+                    processed.push(currentEntry);
+                }
+                // Start new entry
+                currentEntry = {
+                    speaker: entry.speaker || 'Intervenant',
+                    text: cleanedText,
+                    timestamp: entry.timestamp
+                };
+            }
+        }
+
+        // Don't forget the last entry
+        if (currentEntry) {
+            processed.push(currentEntry);
+        }
+
+        console.log(`[StructuredNotesService] Preprocessing: merged ${transcripts.length} entries into ${processed.length}`);
+        return processed;
+    }
+
+    /**
+     * Phase 3: Nettoie le texte d'une transcription
+     * @private
+     */
+    _cleanTranscriptText(text) {
+        if (!text) return '';
+
+        let cleaned = text.trim();
+
+        // Remove common filler words repetitions (euh, hum, etc.)
+        cleaned = cleaned.replace(/\b(euh|hum|hmm|ah|oh)\b[\s,.]*/gi, '');
+
+        // Remove repeated words (bégaiements)
+        cleaned = cleaned.replace(/\b(\w+)\s+\1\b/gi, '$1');
+
+        // Remove excessive spaces
+        cleaned = cleaned.replace(/\s+/g, ' ').trim();
+
+        // Remove trailing punctuation artifacts
+        cleaned = cleaned.replace(/^[,.\s]+|[,.\s]+$/g, '').trim();
+
+        return cleaned;
+    }
+
+    /**
+     * Phase 3: Post-traitement pour enrichir les notes
+     * @private
+     */
+    _postProcessNotes(notes, transcripts) {
+        // Ensure executive summary is substantial
+        if (notes.executiveSummary && notes.executiveSummary.length < MIN_EXECUTIVE_SUMMARY_LENGTH) {
+            console.warn('[StructuredNotesService] Executive summary is too short, marking as incomplete');
+            notes.executiveSummary = notes.executiveSummary + ' (Résumé potentiellement incomplet - transcription courte)';
+        }
+
+        // Enhance participants list from transcripts if missing
+        if (!notes.meetingMetadata.participants || notes.meetingMetadata.participants.length === 0) {
+            const speakers = [...new Set(transcripts.map(t => t.speaker).filter(s => s))];
+            notes.meetingMetadata.participants = speakers.map(name => ({ name, role: 'Participant' }));
+            console.log(`[StructuredNotesService] Auto-extracted ${speakers.length} participants from transcripts`);
+        }
+
+        // Calculate meeting duration estimate if not provided
+        if (notes.meetingMetadata.duration === 'Non disponible' && transcripts.length > 0) {
+            const firstTimestamp = transcripts[0]?.timestamp;
+            const lastTimestamp = transcripts[transcripts.length - 1]?.timestamp;
+            if (firstTimestamp && lastTimestamp) {
+                try {
+                    const start = new Date(firstTimestamp);
+                    const end = new Date(lastTimestamp);
+                    const durationMs = end - start;
+                    if (durationMs > 0) {
+                        const minutes = Math.round(durationMs / 60000);
+                        notes.meetingMetadata.duration = `~${minutes} minutes`;
+                    }
+                } catch (e) {
+                    // Ignore timestamp parsing errors
+                }
+            }
+        }
+
+        // Sort action items by priority
+        if (notes.actionItems && notes.actionItems.length > 1) {
+            const priorityOrder = { high: 0, medium: 1, low: 2 };
+            notes.actionItems.sort((a, b) => {
+                const pa = priorityOrder[a.priority] ?? 1;
+                const pb = priorityOrder[b.priority] ?? 1;
+                return pa - pb;
+            });
+        }
+
+        // Sort risks by severity
+        if (notes.risks && notes.risks.length > 1) {
+            const severityOrder = { high: 0, medium: 1, low: 2 };
+            notes.risks.sort((a, b) => {
+                const sa = severityOrder[a.severity] ?? 1;
+                const sb = severityOrder[b.severity] ?? 1;
+                return sa - sb;
+            });
+        }
+    }
+
+    /**
+     * Phase 3: Calcule un score de qualité pour les notes générées
+     * Score de 0 à 100
+     * @private
+     */
+    _calculateQualityScore(notes) {
+        let score = 0;
+        const weights = {
+            executiveSummary: 25,
+            keyPoints: 20,
+            actionItems: 20,
+            decisions: 15,
+            timeline: 10,
+            risks: 10
+        };
+
+        // Executive summary quality
+        if (notes.executiveSummary && notes.executiveSummary.length >= MIN_EXECUTIVE_SUMMARY_LENGTH) {
+            score += weights.executiveSummary;
+        } else if (notes.executiveSummary && notes.executiveSummary.length > 50) {
+            score += weights.executiveSummary * 0.5;
+        }
+
+        // Key points
+        if (notes.keyPoints && notes.keyPoints.length >= MIN_KEY_POINTS) {
+            const pointScore = Math.min(notes.keyPoints.length / 5, 1);
+            score += weights.keyPoints * pointScore;
+        }
+
+        // Action items
+        if (notes.actionItems && notes.actionItems.length > 0) {
+            const hasDetails = notes.actionItems.some(a => a.assignee && a.assignee !== 'Non assigné');
+            score += hasDetails ? weights.actionItems : weights.actionItems * 0.7;
+        }
+
+        // Decisions
+        if (notes.decisions && notes.decisions.length > 0) {
+            score += weights.decisions;
+        }
+
+        // Timeline
+        if (notes.timeline && notes.timeline.length > 0) {
+            score += weights.timeline;
+        }
+
+        // Risks
+        if (notes.risks && notes.risks.length > 0) {
+            score += weights.risks;
+        }
+
+        console.log(`[StructuredNotesService] Quality score: ${Math.round(score)}/100`);
+        return Math.round(score);
+    }
+
+    /**
+     * Phase 3: Helper pour les délais de retry
+     * @private
+     */
+    _delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
     }
 
     /**
