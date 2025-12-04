@@ -67,7 +67,7 @@ class KnowledgeOrganizerService {
         if (isLoggedIn) {
             // Use Firebase authentication for OpenAI
             return createLLM('openai', {
-                model: 'gpt-4.1',
+                model: 'gpt-4o',
                 temperature: 0.3 // Lower temperature for more consistent extraction
             });
         } else {
@@ -79,7 +79,7 @@ class KnowledgeOrganizerService {
 
             return createLLM('openai', {
                 apiKey: settings.api_key,
-                model: 'gpt-4.1',
+                model: 'gpt-4o',
                 temperature: 0.3
             });
         }
@@ -129,7 +129,7 @@ Return ONLY the JSON object, no other text.`;
                 { role: 'user', content: prompt }
             ];
 
-            const response = await llm(messages);
+            const response = await llm.chat(messages);
 
             // Parse the response
             let entities;
@@ -248,7 +248,7 @@ ${text.substring(0, 4000)}
                 { role: 'user', content: prompt }
             ];
 
-            const response = await llm(messages);
+            const response = await llm.chat(messages);
             const summary = (response.content || response).trim();
 
             return summary;
@@ -293,7 +293,7 @@ ${text.substring(0, 3000)}
                 { role: 'user', content: prompt }
             ];
 
-            const response = await llm(messages);
+            const response = await llm.chat(messages);
 
             // Parse response
             try {

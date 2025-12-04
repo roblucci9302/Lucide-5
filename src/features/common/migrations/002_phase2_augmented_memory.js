@@ -118,6 +118,28 @@ function up(db) {
 
         logger.info('[Migration 002] ✅ knowledge_graph table created');
 
+        // 2b. Add missing columns to knowledge_graph (for existing databases)
+        // These columns are needed by knowledgeOrganizerService but weren't in original schema
+        try {
+            db.exec(`ALTER TABLE knowledge_graph ADD COLUMN entity_value TEXT`);
+            logger.info('[Migration 002] ✅ Added entity_value column to knowledge_graph');
+        } catch (e) {
+            // Column already exists, ignore
+            if (!e.message.includes('duplicate column')) {
+                logger.warn('[Migration 002] entity_value column may already exist');
+            }
+        }
+
+        try {
+            db.exec(`ALTER TABLE knowledge_graph ADD COLUMN confidence REAL DEFAULT 1.0`);
+            logger.info('[Migration 002] ✅ Added confidence column to knowledge_graph');
+        } catch (e) {
+            // Column already exists, ignore
+            if (!e.message.includes('duplicate column')) {
+                logger.warn('[Migration 002] confidence column may already exist');
+            }
+        }
+
         // 3. Memory Statistics Table
         db.exec(`
             CREATE TABLE IF NOT EXISTS memory_stats (
