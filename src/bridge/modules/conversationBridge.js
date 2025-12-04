@@ -279,20 +279,44 @@ module.exports = {
                     }
                 }
 
-                // Otherwise, find the most recent ended listen session
+                // Otherwise, find the most recent listen session (ended or orphaned)
                 const authService = require('../../features/common/services/authService');
                 const userId = authService.getCurrentUserId();
                 const sessions = await sessionRepository.getAllByUserId(userId);
 
-                // Filter for listen sessions with ended_at, sort by ended_at desc
-                const endedListenSessions = sessions
-                    .filter(s => s.session_type === 'listen' && s.ended_at !== null)
+                // Filter for listen sessions, prioritizing ended ones
+                const listenSessions = sessions.filter(s => s.session_type === 'listen');
+
+                // First, try to find ended sessions (sorted by ended_at desc)
+                const endedListenSessions = listenSessions
+                    .filter(s => s.ended_at !== null)
                     .sort((a, b) => b.ended_at - a.ended_at);
 
                 if (endedListenSessions.length > 0 && endedListenSessions[0]?.id) {
                     return {
                         success: true,
                         sessionId: endedListenSessions[0].id,
+                        hasEnded: true
+                    };
+                }
+
+                // FIX: If no ended sessions, look for orphaned sessions (started but not ended)
+                // This handles cases where:
+                // - User didn't click "Stop" before requesting analysis
+                // - App restarted while session was active
+                const orphanedSessions = listenSessions
+                    .filter(s => s.ended_at === null && s.started_at !== null)
+                    .sort((a, b) => b.started_at - a.started_at);
+
+                if (orphanedSessions.length > 0 && orphanedSessions[0]?.id) {
+                    console.log(`[ConversationBridge] Found orphaned listen session: ${orphanedSessions[0].id}`);
+                    // Auto-end the orphaned session so it can be properly analyzed
+                    await sessionRepository.end(orphanedSessions[0].id);
+                    console.log(`[ConversationBridge] Auto-ended orphaned session: ${orphanedSessions[0].id}`);
+
+                    return {
+                        success: true,
+                        sessionId: orphanedSessions[0].id,
                         hasEnded: true
                     };
                 }
