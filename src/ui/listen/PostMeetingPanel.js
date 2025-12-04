@@ -836,6 +836,67 @@ export class PostMeetingPanel extends LitElement {
                 </div>
             ` : ''}
 
+            ${data.timeline && data.timeline.length > 0 ? html`
+                <div class="summary-section">
+                    <h3 class="section-title">📅 Chronologie de la réunion</h3>
+                    <ul class="item-list">
+                        ${data.timeline.map(item => html`
+                            <li class="list-item">
+                                <div style="display: flex; gap: 12px; align-items: flex-start;">
+                                    <span style="color: var(--color-primary); font-weight: 500; min-width: 80px;">${item.time || item.timestamp || 'N/A'}</span>
+                                    <div style="flex: 1;">
+                                        <div class="item-title">${item.topic || item.subject || 'N/A'}</div>
+                                        ${item.duration ? html`<div style="color: var(--color-white-60); font-size: 10px;">⏱️ ${item.duration}</div>` : ''}
+                                    </div>
+                                </div>
+                            </li>
+                        `)}
+                    </ul>
+                </div>
+            ` : ''}
+
+            ${data.unresolvedItems && data.unresolvedItems.length > 0 ? html`
+                <div class="summary-section">
+                    <h3 class="section-title">⚠️ Points non résolus</h3>
+                    <ul class="item-list">
+                        ${data.unresolvedItems.map(item => html`
+                            <li class="list-item" style="border-left: 3px solid var(--color-warning); padding-left: 12px;">
+                                ${typeof item === 'string' ? item : item.issue || item.description || JSON.stringify(item)}
+                            </li>
+                        `)}
+                    </ul>
+                </div>
+            ` : ''}
+
+            ${data.nextSteps && data.nextSteps.length > 0 ? html`
+                <div class="summary-section">
+                    <h3 class="section-title">➡️ Prochaines étapes</h3>
+                    <ul class="item-list">
+                        ${data.nextSteps.map((step, index) => html`
+                            <li class="list-item">
+                                <span style="color: var(--color-primary); margin-right: 8px;">${index + 1}.</span>
+                                ${typeof step === 'string' ? step : step.action || step.description || JSON.stringify(step)}
+                            </li>
+                        `)}
+                    </ul>
+                </div>
+            ` : ''}
+
+            ${data.importantQuotes && data.importantQuotes.length > 0 ? html`
+                <div class="summary-section">
+                    <h3 class="section-title">💬 Citations importantes</h3>
+                    <ul class="item-list">
+                        ${data.importantQuotes.map(quote => html`
+                            <li class="list-item" style="border-left: 3px solid var(--color-primary); padding-left: 12px; font-style: italic;">
+                                <div>"${quote.quote || quote.text || quote}"</div>
+                                ${quote.speaker ? html`<div style="color: var(--color-white-60); font-size: 10px; margin-top: 4px;">— ${quote.speaker}</div>` : ''}
+                                ${quote.context ? html`<div style="color: var(--color-white-50); font-size: 10px; margin-top: 2px;">${quote.context}</div>` : ''}
+                            </li>
+                        `)}
+                    </ul>
+                </div>
+            ` : ''}
+
             ${data.metadata ? html`
                 <div class="summary-section">
                     <div class="info-row">

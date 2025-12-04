@@ -117,7 +117,7 @@ class StructuredNotesService {
                 apiKey: modelInfo.apiKey,
                 model: modelInfo.model,
                 temperature: 0.3, // Lower temperature for more consistent structured output
-                maxTokens: 2048, // Increased for comprehensive notes
+                maxTokens: 4096, // Phase 1: Increased for more detailed and comprehensive notes
                 usePortkey: modelInfo.provider === 'openai-lucide',
                 portkeyVirtualKey: modelInfo.provider === 'openai-lucide' ? modelInfo.apiKey : undefined,
             });
