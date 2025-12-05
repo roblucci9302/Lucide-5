@@ -947,7 +947,8 @@ function createWindows() {
     setupWindowController(windowPool, layoutManager, movementManager);
 
     if (currentHeaderState === 'main') {
-        createFeatureWindows(header, ['listen', 'ask', 'settings', 'shortcut-settings']);
+        // Phase 1 Fix: Added 'post-meeting' to ensure the window is created at startup
+        createFeatureWindows(header, ['listen', 'ask', 'settings', 'shortcut-settings', 'post-meeting']);
     }
 
     header.setContentProtection(isContentProtectionOn);
