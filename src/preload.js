@@ -204,6 +204,12 @@ contextBridge.exposeInMainWorld('api', {
     getRecentListenSession: () => ipcRenderer.invoke('listen:getRecentListenSession'),
     openPostMeetingWindow: (sessionId) => ipcRenderer.invoke('listen:openPostMeetingWindow', sessionId),
 
+    // Phase 3 - Robustness Improvements
+    getTranscriptStats: () => ipcRenderer.invoke('listen:getTranscriptStats'),
+    validatePreRecording: () => ipcRenderer.invoke('listen:validatePreRecording'),
+    onTranscriptStats: (callback) => ipcRenderer.on('transcript-stats', (event, stats) => callback(stats)),
+    removeOnTranscriptStats: (callback) => ipcRenderer.removeListener('transcript-stats', callback),
+
     // Listeners
     onSessionStateChanged: (callback) => ipcRenderer.on('session-state-changed', callback),
     removeOnSessionStateChanged: (callback) => ipcRenderer.removeListener('session-state-changed', callback)
@@ -519,6 +525,10 @@ contextBridge.exposeInMainWorld('api', {
     // Get all meeting notes for current user
     getAllNotes: () => ipcRenderer.invoke('post-meeting:get-all-notes')
       .catch(err => { console.error('[Preload] getAllNotes error:', err); return { success: false, notes: [] }; }),
+
+    // Phase 2.4: Update meeting notes (for editing)
+    updateNotes: (noteId, updates) => ipcRenderer.invoke('post-meeting:update-notes', noteId, updates)
+      .catch(err => { console.error('[Preload] updateNotes error:', err); return { success: false, error: err.message }; }),
 
     // Task management
     updateTask: (taskId, updates) => ipcRenderer.invoke('post-meeting:update-task', taskId, updates)
