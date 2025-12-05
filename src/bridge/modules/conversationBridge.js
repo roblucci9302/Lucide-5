@@ -363,6 +363,42 @@ module.exports = {
             }
         });
 
+        // Phase 3.1: Get transcript statistics for current session
+        ipcMain.handle('listen:getTranscriptStats', async () => {
+            try {
+                return {
+                    success: true,
+                    stats: listenService.getTranscriptStats()
+                };
+            } catch (error) {
+                console.error('[ConversationBridge] Error getting transcript stats:', error);
+                return {
+                    success: false,
+                    error: error.message,
+                    stats: { count: 0, characters: 0 }
+                };
+            }
+        });
+
+        // Phase 3.2: Validate pre-recording configuration
+        ipcMain.handle('listen:validatePreRecording', async () => {
+            try {
+                const result = await listenService.validatePreRecording();
+                return {
+                    success: true,
+                    ...result
+                };
+            } catch (error) {
+                console.error('[ConversationBridge] Error validating pre-recording:', error);
+                return {
+                    success: false,
+                    valid: false,
+                    errors: [{ code: 'VALIDATION_ERROR', message: error.message }],
+                    warnings: []
+                };
+            }
+        });
+
         console.log('[ConversationBridge] Initialized');
     },
 

@@ -16,6 +16,14 @@ const autoIndexingService = require('../common/services/autoIndexingService'); /
 // Reduced from 2000ms for faster real-time responses while still avoiding mid-sentence triggers
 const SUGGESTION_GENERATION_DEBOUNCE_MS = 800;
 
+// Phase 3.4: Increased close delay to prevent transcript loss from late callbacks
+// Increased from 100ms to 500ms for more reliable transcript capture
+const SESSION_CLOSE_DELAY_MS = 500;
+
+// Phase 3.3: Buffer configuration for transcript queue during initialization
+const TRANSCRIPT_BUFFER_MAX_SIZE = 100; // Maximum transcripts to buffer
+const TRANSCRIPT_BUFFER_FLUSH_DELAY_MS = 50; // Delay between flush attempts
+
 // Fix LOW BUG-L1: Extract button state magic strings
 // Button text states used in header for listen mode control
 // Support both French and English translations
@@ -54,6 +62,14 @@ class ListenService {
         // FIX MEDIUM: Track recent transcripts to prevent duplicates
         this._recentTranscripts = new Map(); // Map<hash, timestamp>
         this._transcriptDedupeWindowMs = 5000; // 5 second window for deduplication
+
+        // Phase 3.1: Transcript counter for real-time UI feedback
+        this._transcriptCount = 0;
+        this._totalCharacters = 0;
+
+        // Phase 3.3: Transcript buffer for initialization race condition prevention
+        this._transcriptBuffer = [];
+        this._isFlushingBuffer = false;
 
         this.setupServiceCallbacks();
         console.log('[ListenService] Service instance created.');
@@ -394,12 +410,27 @@ class ListenService {
     }
 
     async saveConversationTurn(speaker, transcription) {
-        if (!this.currentSessionId) {
-            console.error('[DB] Cannot save turn, no active session ID.');
-            return;
-        }
         const trimmedText = transcription.trim();
         if (trimmedText === '') return;
+
+        // Phase 3.3: Buffer transcripts if session not ready yet
+        if (!this.currentSessionId) {
+            if (this.isInitializingSession) {
+                // Buffer the transcript for later
+                if (this._transcriptBuffer.length < TRANSCRIPT_BUFFER_MAX_SIZE) {
+                    this._transcriptBuffer.push({ speaker, text: trimmedText, timestamp: Date.now() });
+                    console.log(`[ListenService] Buffered transcript (${this._transcriptBuffer.length}): ${trimmedText.substring(0, 30)}...`);
+                } else {
+                    console.warn('[ListenService] Transcript buffer full, dropping oldest entry');
+                    this._transcriptBuffer.shift();
+                    this._transcriptBuffer.push({ speaker, text: trimmedText, timestamp: Date.now() });
+                }
+                return;
+            } else {
+                console.error('[DB] Cannot save turn, no active session ID.');
+                return;
+            }
+        }
 
         // FIX MEDIUM: Check for duplicate transcripts
         if (this._isDuplicateTranscript(speaker, trimmedText)) {
@@ -413,9 +444,66 @@ class ListenService {
                 speaker: speaker,
                 text: trimmedText,
             });
-            console.log(`[DB] Saved transcript for session ${this.currentSessionId}: (${speaker})`);
+
+            // Phase 3.1: Update transcript counter and notify UI
+            this._transcriptCount++;
+            this._totalCharacters += trimmedText.length;
+            this._sendTranscriptStats();
+
+            console.log(`[DB] Saved transcript for session ${this.currentSessionId}: (${speaker}) [${this._transcriptCount} total]`);
         } catch (error) {
             console.error('Failed to save transcript to DB:', error);
+        }
+    }
+
+    /**
+     * Phase 3.1: Send transcript statistics to renderer for real-time display
+     * @private
+     */
+    _sendTranscriptStats() {
+        this.sendToRenderer('transcript-stats', {
+            count: this._transcriptCount,
+            characters: this._totalCharacters,
+            sessionId: this.currentSessionId
+        });
+    }
+
+    /**
+     * Phase 3.3: Flush buffered transcripts after session is initialized
+     * @private
+     */
+    async _flushTranscriptBuffer() {
+        if (this._isFlushingBuffer || this._transcriptBuffer.length === 0) return;
+
+        this._isFlushingBuffer = true;
+        console.log(`[ListenService] Flushing ${this._transcriptBuffer.length} buffered transcripts...`);
+
+        try {
+            while (this._transcriptBuffer.length > 0 && this.currentSessionId) {
+                const { speaker, text } = this._transcriptBuffer.shift();
+
+                // Skip if already a duplicate
+                if (this._isDuplicateTranscript(speaker, text)) continue;
+
+                await sttRepository.addTranscript({
+                    sessionId: this.currentSessionId,
+                    speaker: speaker,
+                    text: text,
+                });
+
+                this._transcriptCount++;
+                this._totalCharacters += text.length;
+
+                // Small delay to avoid overwhelming the DB
+                await new Promise(resolve => setTimeout(resolve, TRANSCRIPT_BUFFER_FLUSH_DELAY_MS));
+            }
+
+            this._sendTranscriptStats();
+            console.log(`[ListenService] Flushed all buffered transcripts. Total: ${this._transcriptCount}`);
+        } catch (error) {
+            console.error('[ListenService] Error flushing transcript buffer:', error);
+        } finally {
+            this._isFlushingBuffer = false;
         }
     }
 
@@ -428,6 +516,11 @@ class ListenService {
                 // This case should ideally not happen as authService initializes a default user.
                 throw new Error("Cannot initialize session: auth service not ready.");
             }
+
+            // Phase 3.1: Reset transcript counters for new session
+            this._transcriptCount = 0;
+            this._totalCharacters = 0;
+            this._sendTranscriptStats();
 
             this.currentSessionId = await sessionRepository.getOrCreateActive('listen');
             console.log(`[DB] New listen session ensured: ${this.currentSessionId}`);
@@ -455,6 +548,9 @@ class ListenService {
             // Reset conversation history
             this.summaryService.resetConversationHistory();
             responseService.resetConversationHistory();
+
+            // Phase 3.3: Flush any buffered transcripts that arrived during initialization
+            this._flushTranscriptBuffer();
 
             console.log('New conversation session started:', this.currentSessionId);
             return true;
@@ -634,14 +730,17 @@ class ListenService {
             const closingSessionId = this.currentSessionId;
             const userId = authService.getCurrentUserId();
 
+            // Phase 3.1: Log final transcript stats before closing
+            console.log(`[ListenService] Session closing with ${this._transcriptCount} transcripts (${this._totalCharacters} chars)`);
+
             // Close STT sessions
             await this.sttService.closeSessions();
 
             await this.stopMacOSAudioCapture();
 
-            // FIX: Wait for any pending transcription callbacks to complete
-            // This prevents race condition where transcriptions arrive after currentSessionId is null
-            await new Promise(resolve => setTimeout(resolve, 100));
+            // Phase 3.4: Wait for any pending transcription callbacks to complete
+            // Increased from 100ms to 500ms for more reliable transcript capture
+            await new Promise(resolve => setTimeout(resolve, SESSION_CLOSE_DELAY_MS));
 
             // End database session and trigger auto-indexing
             if (closingSessionId) {
@@ -675,6 +774,12 @@ class ListenService {
             responseService.resetConversationHistory();
             liveInsightsService.reset(); // Phase 3
 
+            // Phase 3.1/3.3: Reset counters and clear buffer
+            this._transcriptCount = 0;
+            this._totalCharacters = 0;
+            this._transcriptBuffer = [];
+            this._recentTranscripts.clear();
+
             console.log('Listen service session closed.');
             return { success: true };
         } catch (error) {
@@ -690,6 +795,90 @@ class ListenService {
             totalTexts: this.summaryService.getConversationHistory().length,
             analysisData: this.summaryService.getCurrentAnalysisData(),
         };
+    }
+
+    /**
+     * Phase 3.1: Get current transcript statistics
+     * @returns {Object} Transcript stats { count, characters, sessionId }
+     */
+    getTranscriptStats() {
+        return {
+            count: this._transcriptCount,
+            characters: this._totalCharacters,
+            sessionId: this.currentSessionId,
+            bufferSize: this._transcriptBuffer.length
+        };
+    }
+
+    /**
+     * Phase 3.2: Validate that required services are configured before recording
+     * @returns {Promise<Object>} Validation result { valid, errors, warnings }
+     */
+    async validatePreRecording() {
+        const errors = [];
+        const warnings = [];
+
+        try {
+            // Check STT configuration
+            const modelStateService = require('../common/services/modelStateService');
+            const sttModel = await modelStateService.getCurrentModelInfo('stt');
+
+            if (!sttModel) {
+                errors.push({
+                    code: 'STT_NOT_CONFIGURED',
+                    message: 'Aucun modèle de transcription configuré',
+                    action: 'Configurez un modèle STT dans les paramètres'
+                });
+            } else if (!sttModel.apiKey) {
+                errors.push({
+                    code: 'STT_NO_API_KEY',
+                    message: `Clé API manquante pour ${sttModel.provider || 'STT'}`,
+                    action: 'Ajoutez votre clé API dans les paramètres'
+                });
+            }
+
+            // Check LLM configuration (for post-meeting generation)
+            const llmModel = await modelStateService.getCurrentModelInfo('llm');
+
+            if (!llmModel) {
+                warnings.push({
+                    code: 'LLM_NOT_CONFIGURED',
+                    message: 'Aucun modèle LLM configuré',
+                    action: 'La génération de compte-rendu ne sera pas disponible'
+                });
+            } else if (!llmModel.apiKey) {
+                warnings.push({
+                    code: 'LLM_NO_API_KEY',
+                    message: `Clé API manquante pour ${llmModel.provider || 'LLM'}`,
+                    action: 'La génération de compte-rendu ne sera pas disponible'
+                });
+            }
+
+            // Check audio permissions (macOS specific)
+            if (process.platform === 'darwin') {
+                // Note: Actual permission check would require native module
+                // This is a placeholder for future implementation
+            }
+
+            return {
+                valid: errors.length === 0,
+                errors,
+                warnings,
+                sttProvider: sttModel?.provider || null,
+                llmProvider: llmModel?.provider || null
+            };
+        } catch (error) {
+            console.error('[ListenService] Pre-recording validation error:', error);
+            return {
+                valid: false,
+                errors: [{
+                    code: 'VALIDATION_ERROR',
+                    message: error.message,
+                    action: 'Vérifiez la configuration de l\'application'
+                }],
+                warnings: []
+            };
+        }
     }
 
     getConversationHistory() {

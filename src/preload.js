@@ -204,6 +204,12 @@ contextBridge.exposeInMainWorld('api', {
     getRecentListenSession: () => ipcRenderer.invoke('listen:getRecentListenSession'),
     openPostMeetingWindow: (sessionId) => ipcRenderer.invoke('listen:openPostMeetingWindow', sessionId),
 
+    // Phase 3 - Robustness Improvements
+    getTranscriptStats: () => ipcRenderer.invoke('listen:getTranscriptStats'),
+    validatePreRecording: () => ipcRenderer.invoke('listen:validatePreRecording'),
+    onTranscriptStats: (callback) => ipcRenderer.on('transcript-stats', (event, stats) => callback(stats)),
+    removeOnTranscriptStats: (callback) => ipcRenderer.removeListener('transcript-stats', callback),
+
     // Listeners
     onSessionStateChanged: (callback) => ipcRenderer.on('session-state-changed', callback),
     removeOnSessionStateChanged: (callback) => ipcRenderer.removeListener('session-state-changed', callback)

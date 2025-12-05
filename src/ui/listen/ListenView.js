@@ -523,6 +523,9 @@ export class ListenView extends LitElement {
         isSessionActive: { type: Boolean },
         hasCompletedRecording: { type: Boolean },
         isOpeningPostMeeting: { type: Boolean },
+        // Phase 3.1: Transcript counter
+        transcriptCount: { type: Number },
+        transcriptChars: { type: Number },
     };
 
     constructor() {
@@ -541,6 +544,11 @@ export class ListenView extends LitElement {
         this.copyState = 'idle';
         this.copyTimeout = null;
 
+        // Phase 3.1: Transcript counter
+        this.transcriptCount = 0;
+        this.transcriptChars = 0;
+        this._transcriptStatsCallback = null;
+
         this.adjustWindowHeight = this.adjustWindowHeight.bind(this);
     }
 
@@ -557,6 +565,9 @@ export class ListenView extends LitElement {
 
                 if (!wasActive && isActive) {
                     this.hasCompletedRecording = false;
+                    // Phase 3.1: Reset transcript counter
+                    this.transcriptCount = 0;
+                    this.transcriptChars = 0;
                     this.startTimer();
                     // Reset child components
                     this.updateComplete.then(() => {
@@ -573,6 +584,14 @@ export class ListenView extends LitElement {
                     this.requestUpdate();
                 }
             });
+
+            // Phase 3.1: Listen for transcript stats updates
+            this._transcriptStatsCallback = (stats) => {
+                this.transcriptCount = stats.count || 0;
+                this.transcriptChars = stats.characters || 0;
+                this.requestUpdate();
+            };
+            window.api.listenView.onTranscriptStats?.(this._transcriptStatsCallback);
         }
     }
 
@@ -586,6 +605,11 @@ export class ListenView extends LitElement {
         }
         if (this.copyTimeout) {
             clearTimeout(this.copyTimeout);
+        }
+
+        // Phase 3.1: Clean up transcript stats listener
+        if (this._transcriptStatsCallback && window.api?.listenView?.removeOnTranscriptStats) {
+            window.api.listenView.removeOnTranscriptStats(this._transcriptStatsCallback);
         }
     }
 
@@ -776,8 +800,13 @@ export class ListenView extends LitElement {
 
     render() {
         // FIX: Afficher un message différent quand l'enregistrement est terminé
+        // Phase 3.1: Include transcript count in display
+        const transcriptInfo = this.transcriptCount > 0
+            ? ` (${this.transcriptCount} segment${this.transcriptCount > 1 ? 's' : ''})`
+            : '';
+
         const displayText = this.hasCompletedRecording
-            ? 'Enregistrement terminé'
+            ? `Terminé${transcriptInfo}`
             : this.isHovering
             ? this.viewMode === 'transcript'
                 ? 'Copier la transcription'
@@ -785,10 +814,10 @@ export class ListenView extends LitElement {
                 ? 'Suggestions IA'
                 : 'Copier l\'analyse Lucide'
             : this.viewMode === 'insights'
-            ? `Analyses en direct`
+            ? `Analyses en direct${transcriptInfo}`
             : this.viewMode === 'suggestions'
             ? `Suggestions IA`
-            : `Lucide écoute ${this.elapsedTime}`;
+            : `Lucide écoute ${this.elapsedTime}${transcriptInfo}`;
 
         return html`
             <div class="assistant-container">
