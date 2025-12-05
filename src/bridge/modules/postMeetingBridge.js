@@ -352,6 +352,37 @@ module.exports = {
         });
 
         /**
+         * Phase 2.4: Update meeting notes (for editing)
+         * @param {string} noteId - Meeting note ID
+         * @param {Object} updates - Fields to update
+         * @returns {Promise<Object>} Update result
+         */
+        ipcMain.handle('post-meeting:update-notes', async (event, noteId, updates) => {
+            try {
+                console.log(`[PostMeetingBridge] Updating notes ${noteId}`, Object.keys(updates));
+
+                // Validate noteId
+                if (!noteId) {
+                    throw new Error('Note ID is required');
+                }
+
+                // Update the meeting notes
+                const result = meetingNotesRepository.update(noteId, updates);
+
+                return {
+                    success: true,
+                    changes: result?.changes || 1
+                };
+            } catch (error) {
+                console.error('[PostMeetingBridge] Error updating notes:', error);
+                return {
+                    success: false,
+                    error: error.message
+                };
+            }
+        });
+
+        /**
          * Close the post-meeting window
          * FIX: Added IPC handler for close button
          */

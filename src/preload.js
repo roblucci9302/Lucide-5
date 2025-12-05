@@ -520,6 +520,10 @@ contextBridge.exposeInMainWorld('api', {
     getAllNotes: () => ipcRenderer.invoke('post-meeting:get-all-notes')
       .catch(err => { console.error('[Preload] getAllNotes error:', err); return { success: false, notes: [] }; }),
 
+    // Phase 2.4: Update meeting notes (for editing)
+    updateNotes: (noteId, updates) => ipcRenderer.invoke('post-meeting:update-notes', noteId, updates)
+      .catch(err => { console.error('[Preload] updateNotes error:', err); return { success: false, error: err.message }; }),
+
     // Task management
     updateTask: (taskId, updates) => ipcRenderer.invoke('post-meeting:update-task', taskId, updates)
       .catch(err => { console.error('[Preload] updateTask error:', err); return { success: false, error: err.message }; }),

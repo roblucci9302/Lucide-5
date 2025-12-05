@@ -525,6 +525,206 @@ export class PostMeetingPanel extends LitElement {
             opacity: 0.4;
             cursor: not-allowed;
         }
+
+        /* Phase 2.1: Session History Selector */
+        .session-selector {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: var(--color-black-20);
+            border-bottom: 1px solid var(--color-white-10);
+        }
+
+        .session-selector label {
+            font-size: 10px;
+            color: var(--color-white-60);
+            white-space: nowrap;
+        }
+
+        .session-dropdown {
+            flex: 1;
+            background: var(--color-black-30);
+            border: 1px solid var(--color-white-20);
+            border-radius: 4px;
+            color: white;
+            padding: 6px 8px;
+            font-size: 11px;
+            cursor: pointer;
+        }
+
+        .session-dropdown:hover {
+            border-color: var(--color-white-30);
+        }
+
+        .session-dropdown:focus {
+            outline: none;
+            border-color: var(--color-primary-500);
+        }
+
+        /* Phase 2.2: Progress Indicator */
+        .progress-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            padding: 24px;
+        }
+
+        .progress-steps {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .progress-step {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--color-white-20);
+            transition: all 0.3s ease;
+        }
+
+        .progress-step.active {
+            background: var(--color-primary-500);
+            transform: scale(1.2);
+        }
+
+        .progress-step.completed {
+            background: var(--color-success-500);
+        }
+
+        .progress-message {
+            font-size: 12px;
+            color: var(--color-white-80);
+            text-align: center;
+            margin-top: 8px;
+        }
+
+        .progress-spinner {
+            border: 3px solid var(--color-white-20);
+            border-top-color: var(--color-primary-500);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 16px;
+        }
+
+        /* Phase 2.3: Error State with Retry */
+        .error-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            padding: 24px;
+            text-align: center;
+        }
+
+        .error-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+
+        .error-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--color-error-400);
+            margin-bottom: 8px;
+        }
+
+        .error-message {
+            font-size: 11px;
+            color: var(--color-white-60);
+            margin-bottom: 16px;
+            max-width: 280px;
+        }
+
+        .retry-button {
+            background: var(--color-primary-500);
+            border: none;
+            border-radius: 4px;
+            color: white;
+            padding: 8px 20px;
+            font-size: 11px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .retry-button:hover {
+            background: var(--color-primary-600);
+        }
+
+        /* Phase 2.4: Edit Mode */
+        .edit-toolbar {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .edit-button {
+            background: var(--color-white-10);
+            border: 1px solid var(--color-white-20);
+            border-radius: 4px;
+            color: white;
+            padding: 6px 12px;
+            font-size: 10px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .edit-button:hover {
+            background: var(--color-white-15);
+        }
+
+        .edit-button.primary {
+            background: var(--color-primary-500);
+            border-color: var(--color-primary-600);
+        }
+
+        .edit-button.primary:hover {
+            background: var(--color-primary-600);
+        }
+
+        .editable-field {
+            position: relative;
+        }
+
+        .editable-field.editing .summary-text {
+            border-color: var(--color-primary-500);
+            background: var(--color-black-30);
+        }
+
+        .edit-textarea {
+            width: 100%;
+            min-height: 80px;
+            background: var(--color-black-30);
+            border: 1px solid var(--color-primary-500);
+            border-radius: 4px;
+            padding: 8px;
+            font-size: 11px;
+            line-height: 1.5;
+            color: var(--color-white-90);
+            resize: vertical;
+            font-family: inherit;
+        }
+
+        .edit-textarea:focus {
+            outline: none;
+            border-color: var(--color-primary-400);
+        }
+
+        .char-count {
+            position: absolute;
+            bottom: 4px;
+            right: 8px;
+            font-size: 9px;
+            color: var(--color-white-40);
+        }
     `;
 
     static properties = {
@@ -541,6 +741,12 @@ export class PostMeetingPanel extends LitElement {
         isGeneratingEmail: { type: Boolean },
         suggestions: { type: Array },
         isLoadingSuggestions: { type: Boolean },
+        // Phase 2 UX Improvements
+        allSessions: { type: Array },        // Phase 2.1: Session history
+        generationProgress: { type: Object }, // Phase 2.2: Progress indicator { step, total, message }
+        lastError: { type: Object },          // Phase 2.3: Error with retry capability
+        isEditing: { type: Boolean },         // Phase 2.4: Edit mode
+        editedFields: { type: Object },       // Phase 2.4: Fields being edited
     };
 
     constructor() {
@@ -559,12 +765,20 @@ export class PostMeetingPanel extends LitElement {
         this.suggestions = [];
         this.isLoadingSuggestions = false;
 
+        // Phase 2 UX Improvements
+        this.allSessions = [];              // Phase 2.1: All sessions with notes
+        this.generationProgress = null;     // Phase 2.2: { step: 1, total: 4, message: 'Étape...' }
+        this.lastError = null;              // Phase 2.3: { message, canRetry, retryAction }
+        this.isEditing = false;             // Phase 2.4: Edit mode toggle
+        this.editedFields = {};             // Phase 2.4: Edited field values
+
         // FIX MEDIUM: Store callback references for cleanup
         this._ipcCallbacks = {
             onSetSession: null,
             onNotesGenerated: null,
             onExportComplete: null,
-            onError: null
+            onError: null,
+            onProgress: null  // Phase 2.2: Progress updates
         };
 
         // Setup IPC listeners
@@ -573,6 +787,9 @@ export class PostMeetingPanel extends LitElement {
 
     connectedCallback() {
         super.connectedCallback();
+        // Phase 2.1: Load all sessions with notes for history navigation
+        this.loadAllSessions();
+
         // Load meeting notes if sessionId is provided
         if (this.sessionId) {
             this.loadMeetingNotes();
@@ -685,6 +902,149 @@ export class PostMeetingPanel extends LitElement {
         }
     }
 
+    // ==================== Phase 2 UX Methods ====================
+
+    /**
+     * Phase 2.1: Load all sessions with meeting notes for history navigation
+     */
+    async loadAllSessions() {
+        try {
+            const result = await window.api?.postMeeting?.getAllNotes?.();
+            if (result?.success && result.notes) {
+                // Sort by creation date descending (most recent first)
+                this.allSessions = result.notes.sort((a, b) =>
+                    (b.created_at || 0) - (a.created_at || 0)
+                );
+                console.log(`[PostMeetingPanel] Loaded ${this.allSessions.length} sessions with notes`);
+            }
+        } catch (error) {
+            console.error('[PostMeetingPanel] Error loading all sessions:', error);
+            this.allSessions = [];
+        }
+    }
+
+    /**
+     * Phase 2.1: Handle session change from dropdown
+     */
+    async handleSessionChange(event) {
+        const newSessionId = event.target.value;
+        if (newSessionId && newSessionId !== this.sessionId) {
+            this.sessionId = newSessionId;
+            this.meetingNotes = null;
+            this.tasks = [];
+            this.isEditing = false;
+            this.editedFields = {};
+            this.lastError = null;
+            await this.loadMeetingNotes();
+        }
+    }
+
+    /**
+     * Phase 2.2: Update generation progress
+     */
+    _updateProgress(step, message) {
+        const progressSteps = [
+            'Récupération de la transcription...',
+            'Analyse par l\'IA...',
+            'Extraction des actions...',
+            'Sauvegarde des notes...'
+        ];
+        this.generationProgress = {
+            step,
+            total: progressSteps.length,
+            message: message || progressSteps[step - 1] || 'Traitement...'
+        };
+    }
+
+    /**
+     * Phase 2.3: Handle retry after error
+     */
+    async handleRetry() {
+        this.lastError = null;
+        this.message = null;
+        await this.handleGenerateNotes();
+    }
+
+    /**
+     * Phase 2.4: Toggle edit mode
+     */
+    handleToggleEdit() {
+        if (this.isEditing) {
+            // Cancel editing - reset edited fields
+            this.editedFields = {};
+        } else {
+            // Start editing - initialize with current values
+            const data = this._parseNoteData(this.meetingNotes);
+            this.editedFields = {
+                executiveSummary: data.executiveSummary || ''
+            };
+        }
+        this.isEditing = !this.isEditing;
+    }
+
+    /**
+     * Phase 2.4: Update edited field value
+     */
+    handleFieldEdit(field, value) {
+        this.editedFields = {
+            ...this.editedFields,
+            [field]: value
+        };
+    }
+
+    /**
+     * Phase 2.4: Save edited notes
+     */
+    async handleSaveEdits() {
+        if (!this.sessionId || !this.meetingNotes) return;
+
+        this.isLoading = true;
+        try {
+            // Update the meeting notes with edited fields
+            const updates = {};
+            if (this.editedFields.executiveSummary !== undefined) {
+                updates.executive_summary = this.editedFields.executiveSummary;
+            }
+
+            const result = await window.api?.postMeeting?.updateNotes?.(
+                this.meetingNotes.id,
+                updates
+            );
+
+            if (result?.success) {
+                this.message = { type: 'success', text: '✅ Notes mises à jour' };
+                this.isEditing = false;
+                this.editedFields = {};
+                await this.loadMeetingNotes();
+            } else {
+                throw new Error(result?.error || 'Échec de la mise à jour');
+            }
+        } catch (error) {
+            console.error('[PostMeetingPanel] Error saving edits:', error);
+            this.message = { type: 'error', text: `❌ Erreur: ${error.message}` };
+        } finally {
+            this.isLoading = false;
+            setTimeout(() => { this.message = null; }, 3000);
+        }
+    }
+
+    /**
+     * Phase 2.2/2.3: Format session date for display
+     */
+    _formatSessionDate(timestamp) {
+        if (!timestamp) return 'Date inconnue';
+        const date = new Date(timestamp * 1000);
+        return date.toLocaleDateString('fr-FR', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }
+
+    // ==================== End Phase 2 UX Methods ====================
+
     async handleAcceptSuggestion(suggestion) {
         if (!this.sessionId) return;
 
@@ -737,15 +1097,80 @@ export class PostMeetingPanel extends LitElement {
         if (!this.sessionId || this.isGenerating) return;
 
         this.isGenerating = true;
-        this.message = { type: 'success', text: '⏳ Génération des notes en cours...' };
+        this.lastError = null;
+        this.message = null;
+
+        // Phase 2.2: Initialize progress
+        this._updateProgress(1, 'Récupération de la transcription...');
 
         try {
+            // Simulate progress updates (actual progress would come from IPC)
+            const progressInterval = setInterval(() => {
+                if (this.generationProgress && this.generationProgress.step < 4) {
+                    this._updateProgress(this.generationProgress.step + 1);
+                }
+            }, 2000);
+
             await window.api.postMeeting.generateNotes(this.sessionId);
+
+            clearInterval(progressInterval);
+            this.generationProgress = null;
+
+            // Reload all sessions to update the dropdown
+            await this.loadAllSessions();
+
         } catch (error) {
             console.error('[PostMeetingPanel] Error generating notes:', error);
             this.isGenerating = false;
-            this.message = { type: 'error', text: `❌ Erreur: ${error.message}` };
+            this.generationProgress = null;
+
+            // Phase 2.3: Set error with retry capability
+            this.lastError = {
+                message: this._getErrorMessage(error),
+                canRetry: this._canRetryError(error),
+                originalError: error.message
+            };
         }
+    }
+
+    /**
+     * Phase 2.3: Get user-friendly error message
+     */
+    _getErrorMessage(error) {
+        const msg = error.message?.toLowerCase() || '';
+
+        if (msg.includes('no transcripts') || msg.includes('aucune transcription')) {
+            return 'Aucune transcription trouvée. Assurez-vous d\'avoir parlé pendant l\'enregistrement.';
+        }
+        if (msg.includes('api key') || msg.includes('not configured')) {
+            return 'Clé API non configurée. Vérifiez vos paramètres de configuration.';
+        }
+        if (msg.includes('network') || msg.includes('timeout') || msg.includes('econnreset')) {
+            return 'Erreur réseau. Vérifiez votre connexion internet et réessayez.';
+        }
+        if (msg.includes('rate limit')) {
+            return 'Limite de requêtes atteinte. Veuillez patienter quelques minutes.';
+        }
+        if (msg.includes('session') && msg.includes('not found')) {
+            return 'Session introuvable. Essayez de relancer une nouvelle écoute.';
+        }
+
+        return error.message || 'Une erreur inattendue s\'est produite.';
+    }
+
+    /**
+     * Phase 2.3: Determine if error is retryable
+     */
+    _canRetryError(error) {
+        const msg = error.message?.toLowerCase() || '';
+
+        // Non-retryable errors
+        if (msg.includes('no transcripts') || msg.includes('aucune transcription')) return false;
+        if (msg.includes('api key') || msg.includes('not configured')) return false;
+        if (msg.includes('session') && msg.includes('not found')) return false;
+
+        // Retryable errors
+        return true;
     }
 
     async handleExport(format) {
@@ -876,6 +1301,22 @@ export class PostMeetingPanel extends LitElement {
         const data = this._parseNoteData(this.meetingNotes);
 
         return html`
+            <!-- Phase 2.4: Edit Toolbar -->
+            <div class="edit-toolbar">
+                ${this.isEditing ? html`
+                    <button class="edit-button" @click=${this.handleToggleEdit}>
+                        ✕ Annuler
+                    </button>
+                    <button class="edit-button primary" @click=${this.handleSaveEdits}>
+                        💾 Enregistrer
+                    </button>
+                ` : html`
+                    <button class="edit-button" @click=${this.handleToggleEdit}>
+                        ✏️ Modifier
+                    </button>
+                `}
+            </div>
+
             <div class="summary-section">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                     <h3 class="section-title" style="margin: 0;">👥 Attribution des participants</h3>
@@ -959,7 +1400,21 @@ export class PostMeetingPanel extends LitElement {
 
             <div class="summary-section">
                 <h3 class="section-title">📝 Résumé exécutif</h3>
-                <div class="summary-text">${data.executiveSummary || 'Aucun résumé disponible'}</div>
+                <!-- Phase 2.4: Editable executive summary -->
+                ${this.isEditing ? html`
+                    <div class="editable-field editing">
+                        <textarea
+                            class="edit-textarea"
+                            .value=${this.editedFields.executiveSummary || ''}
+                            @input=${(e) => this.handleFieldEdit('executiveSummary', e.target.value)}
+                            placeholder="Résumé exécutif de la réunion..."
+                            rows="4"
+                        ></textarea>
+                        <span class="char-count">${(this.editedFields.executiveSummary || '').length} caractères</span>
+                    </div>
+                ` : html`
+                    <div class="summary-text">${data.executiveSummary || 'Aucun résumé disponible'}</div>
+                `}
             </div>
 
             ${data.objectives && data.objectives.length > 0 ? html`
@@ -1452,6 +1907,26 @@ export class PostMeetingPanel extends LitElement {
                     <button class="close-button" @click=${this.handleClose}>✕</button>
                 </div>
 
+                <!-- Phase 2.1: Session History Selector -->
+                ${this.allSessions.length > 1 ? html`
+                    <div class="session-selector">
+                        <label>📂 Session:</label>
+                        <select class="session-dropdown" @change=${this.handleSessionChange}>
+                            ${this.allSessions.map(session => html`
+                                <option
+                                    value=${session.session_id}
+                                    ?selected=${session.session_id === this.sessionId}
+                                >
+                                    ${this._formatSessionDate(session.created_at)}
+                                    ${session.meeting_type && session.meeting_type !== 'general'
+                                        ? ` - ${this._getMeetingTypeLabel(session.meeting_type)}`
+                                        : ''}
+                                </option>
+                            `)}
+                        </select>
+                    </div>
+                ` : ''}
+
                 <div class="tabs">
                     <button
                         class="tab ${this.activeTab === 'summary' ? 'active' : ''}"
@@ -1480,16 +1955,57 @@ export class PostMeetingPanel extends LitElement {
                         </div>
                     ` : ''}
 
-                    ${this.isLoading ? html`
+                    <!-- Phase 2.2: Progress Indicator during generation -->
+                    ${this.isGenerating && this.generationProgress ? html`
+                        <div class="progress-container">
+                            <div class="progress-spinner"></div>
+                            <div class="progress-steps">
+                                ${[1, 2, 3, 4].map(step => html`
+                                    <div class="progress-step ${
+                                        step < this.generationProgress.step ? 'completed' :
+                                        step === this.generationProgress.step ? 'active' : ''
+                                    }"></div>
+                                `)}
+                            </div>
+                            <div class="progress-message">
+                                ${this.generationProgress.message}
+                            </div>
+                            <div style="font-size: 10px; color: var(--color-white-40); margin-top: 8px;">
+                                Étape ${this.generationProgress.step} / ${this.generationProgress.total}
+                            </div>
+                        </div>
+                    ` : ''}
+
+                    <!-- Phase 2.3: Error State with Retry -->
+                    ${this.lastError ? html`
+                        <div class="error-container">
+                            <div class="error-icon">❌</div>
+                            <div class="error-title">Échec de la génération</div>
+                            <div class="error-message">${this.lastError.message}</div>
+                            ${this.lastError.canRetry ? html`
+                                <button class="retry-button" @click=${this.handleRetry}>
+                                    🔄 Réessayer
+                                </button>
+                            ` : html`
+                                <button class="retry-button" @click=${this.handleClose} style="background: var(--color-white-20);">
+                                    Fermer
+                                </button>
+                            `}
+                        </div>
+                    ` : ''}
+
+                    ${this.isLoading && !this.isGenerating ? html`
                         <div class="loading-state">
                             <div class="spinner"></div>
                             <p>Chargement...</p>
                         </div>
-                    ` : html`
+                    ` : ''}
+
+                    ${!this.isLoading && !this.isGenerating && !this.lastError ? html`
                         ${this.activeTab === 'summary' ? this.renderSummaryTab() : ''}
                         ${this.activeTab === 'tasks' ? this.renderTasksTab() : ''}
                         ${this.activeTab === 'export' ? this.renderExportTab() : ''}
-                    `}
+                    ` : ''}
                 </div>
             </div>
 
