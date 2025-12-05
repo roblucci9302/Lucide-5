@@ -119,8 +119,9 @@ class SQLiteClient {
         for (let i = 0; i < words.length; i++) {
             const word = words[i];
             // Allow parentheses and values for DEFAULT, but validate them
-            if (word.includes('(') || word.includes(')') || /^['"].*['"]$/.test(word) || /^\d+$/.test(word)) {
-                continue; // Allow values in parentheses, quoted strings, and numbers
+            // Fix: Accept decimal numbers like 0.5, 1.0, etc. (was only accepting integers)
+            if (word.includes('(') || word.includes(')') || /^['"].*['"]$/.test(word) || /^-?\d+\.?\d*$/.test(word)) {
+                continue; // Allow values in parentheses, quoted strings, and numbers (including decimals)
             }
             // Check if word is part of an allowed constraint
             const isAllowed = allowedConstraints.some(constraint =>
