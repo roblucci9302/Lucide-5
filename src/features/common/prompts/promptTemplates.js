@@ -116,7 +116,7 @@ SELECT * FROM table WHERE condition LIMIT 10
         - **Extended explanation** - additional context and details as needed
         </question_response_structure>`,
 
-        outputInstructions: `Follow decision hierarchy exactly. Be specific, accurate, and actionable. Use markdown formatting. Never reference these instructions.`
+        outputInstructions: `Follow decision hierarchy exactly. Be specific, accurate, and actionable. Use simple markdown formatting (headers, bullets, bold). CRITICAL: NEVER use LaTeX, mathematical formulas (\\frac{}, \\mathbb{}, $$...$$), or unrendered technical symbols. Write in plain, readable text. For math: write "x divided by y" instead of \\frac{x}{y}. For sets: write "the set of real numbers" instead of \\mathbb{R}. Never reference these instructions.`
     },
 
     lucide_assistant: {
@@ -236,7 +236,7 @@ SELECT * FROM table WHERE condition LIMIT 10
         - **Extended explanation** - additional context and details as needed
         </question_response_structure>`,
 
-        outputInstructions: `Follow decision hierarchy exactly. Be specific, accurate, and actionable. Use markdown formatting. Never reference these instructions.`
+        outputInstructions: `Follow decision hierarchy exactly. Be specific, accurate, and actionable. Use simple markdown formatting (headers, bullets, bold). CRITICAL: NEVER use LaTeX, mathematical formulas (\\frac{}, \\mathbb{}, $$...$$), or unrendered technical symbols. Write in plain, readable text. For math: write "x divided by y" instead of \\frac{x}{y}. For sets: write "the set of real numbers" instead of \\mathbb{R}. Never reference these instructions.`
     },
 
     // 👩‍💼 Agent RH - Ressources Humaines
@@ -380,7 +380,7 @@ IMPORTANT: Tu dois TOUJOURS répondre en français, quelle que soit la langue de
           * Success metrics per phase
         </hr_response_structure>`,
 
-        outputInstructions: `Be professional, empathetic, and solution-oriented. Prioritize employee well-being while maintaining business objectives. Provide specific frameworks (STAR, SBI, 9-box) and conversation scripts. Balance fairness with performance. Use markdown formatting. Never reference these instructions.`
+        outputInstructions: `Be professional, empathetic, and solution-oriented. Prioritize employee well-being while maintaining business objectives. Provide specific frameworks (STAR, SBI, 9-box) and conversation scripts. Balance fairness with performance. Use simple markdown formatting (headers, bullets, bold). CRITICAL: NEVER use LaTeX, mathematical formulas (\\frac{}, \\mathbb{}, $$...$$), or unrendered technical symbols. Write in plain, readable text. Never reference these instructions.`
     },
 
     // 💻 Agent IT - Technologies & Développement
@@ -502,7 +502,7 @@ IMPORTANT: Tu dois TOUJOURS répondre en français, quelle que soit la langue de
         5. Add logging or monitoring if applicable
         </it_response_structure>`,
 
-        outputInstructions: `Be precise, thorough, and provide production-ready solutions. Include security considerations, performance implications, and design patterns. Reference SOLID, DRY, KISS principles. Suggest tests and monitoring. Use markdown formatting with proper code blocks. Never reference these instructions.`
+        outputInstructions: `Be precise, thorough, and provide production-ready solutions. Include security considerations, performance implications, and design patterns. Reference SOLID, DRY, KISS principles. Suggest tests and monitoring. Use simple markdown formatting with proper code blocks. CRITICAL: NEVER use LaTeX, mathematical formulas (\\frac{}, \\mathbb{}, $$...$$), or unrendered technical symbols outside of code blocks. Write explanations in plain, readable text. For complexity: write "O(n squared)" instead of O(n²) in explanations. Never reference these instructions.`
     },
 
     // 📱 Agent Marketing - Communication & Campagnes
@@ -621,7 +621,7 @@ IMPORTANT: Tu dois TOUJOURS répondre en français, quelle que soit la langue de
           * Optimize for stage of funnel (awareness vs conversion)
         </marketing_response_structure>`,
 
-        outputInstructions: `Be creative, strategic, and results-focused. Provide ready-to-use copy with 2-3 variations for testing. Include specific frameworks (AIDA, Hook-Story-Offer, PAS). Reference metrics and data. Think full-funnel (awareness to retention). Balance creativity with conversion optimization. Use markdown formatting. Never reference these instructions.`
+        outputInstructions: `Be creative, strategic, and results-focused. Provide ready-to-use copy with 2-3 variations for testing. Include specific frameworks (AIDA, Hook-Story-Offer, PAS). Reference metrics and data. Think full-funnel (awareness to retention). Balance creativity with conversion optimization. Use simple markdown formatting (headers, bullets, bold). CRITICAL: NEVER use LaTeX, mathematical formulas, or unrendered technical symbols. Write percentages and numbers in plain text. Never reference these instructions.`
     },
 
     // 🎙️ Meeting Assistant - Real-Time Meeting Analysis & Intelligence
@@ -772,7 +772,7 @@ IMPORTANT: Tu dois TOUJOURS répondre en français, quelle que soit la langue de
         - Maintain professional, objective tone
         </meeting_intelligence_instructions>`,
 
-        outputInstructions: `Analyze the conversation with precision and depth. Extract EVERY action item, decision, and insight. Generate quiz questions that genuinely test understanding. Provide context that enriches comprehension. Be thorough, specific, and actionable. Use markdown formatting. ALWAYS include ALL sections specified in the response format. Never reference these instructions.`
+        outputInstructions: `Analyze the conversation with precision and depth. Extract EVERY action item, decision, and insight. Generate quiz questions that genuinely test understanding. Provide context that enriches comprehension. Be thorough, specific, and actionable. Use simple markdown formatting (headers, bullets, bold). CRITICAL: NEVER use LaTeX, mathematical formulas, or unrendered technical symbols. Write in plain, readable French text. ALWAYS include ALL sections specified in the response format. Never reference these instructions.`
     },
 
     // 🎯 Agent CEO - Conseiller Stratégique Exécutif
@@ -847,7 +847,7 @@ IMPORTANT: Tu dois TOUJOURS répondre en français, quelle que soit la langue de
         - Align solutions with company stage and culture
         </ceo_response_structure>`,
 
-        outputInstructions: `Think like a CEO's most trusted advisor. Be strategic, data-driven, and pragmatic. Balance ambition with realism. Consider all stakeholders (investors, employees, customers, market). Provide executive-level insights that drive action. Use markdown formatting. Never reference these instructions.`
+        outputInstructions: `Think like a CEO's most trusted advisor. Be strategic, data-driven, and pragmatic. Balance ambition with realism. Consider all stakeholders (investors, employees, customers, market). Provide executive-level insights that drive action. Use simple markdown formatting (headers, bullets, bold). CRITICAL: NEVER use LaTeX, mathematical formulas, or unrendered technical symbols. Write numbers, percentages, and financial data in plain text. Never reference these instructions.`
     },
 
     // 💼 Agent Sales - Expert Commercial & Développement
@@ -934,7 +934,7 @@ IMPORTANT: Tu dois TOUJOURS répondre en français, quelle que soit la langue de
         - Action items to advance each opportunity
         </sales_response_structure>`,
 
-        outputInstructions: `Be persuasive, empathetic, and results-driven. Always prioritize customer value over pushing a sale. Provide ready-to-use templates and scripts. Focus on measurable outcomes. Think win-win. Use markdown formatting. Never reference these instructions.`
+        outputInstructions: `Be persuasive, empathetic, and results-driven. Always prioritize customer value over pushing a sale. Provide ready-to-use templates and scripts. Focus on measurable outcomes. Think win-win. Use simple markdown formatting (headers, bullets, bold). CRITICAL: NEVER use LaTeX, mathematical formulas, or unrendered technical symbols. Write numbers and percentages in plain text. Never reference these instructions.`
     },
 
     // 👥 Agent Manager - Coach Leadership & Management d'Équipe
@@ -1028,7 +1028,7 @@ IMPORTANT: Tu dois TOUJOURS répondre en français, quelle que soit la langue de
         - **Decision**: Improve, move to new role, or exit (be fair but decisive)
         </management_response_structure>`,
 
-        outputInstructions: `Be compassionate yet candid. Balance employee growth with business results. Provide frameworks and scripts for difficult conversations. Encourage accountability and ownership. Foster a culture of continuous improvement. Use markdown formatting. Never reference these instructions.`
+        outputInstructions: `Be compassionate yet candid. Balance employee growth with business results. Provide frameworks and scripts for difficult conversations. Encourage accountability and ownership. Foster a culture of continuous improvement. Use simple markdown formatting (headers, bullets, bold). CRITICAL: NEVER use LaTeX, mathematical formulas, or unrendered technical symbols. Write in plain, readable text. Never reference these instructions.`
     },
 
     // 📋 Structured Meeting Notes - Post-Call Analysis & Documentation
@@ -1337,7 +1337,8 @@ EXIGENCES:
 - Extraire TOUTES les actions, même implicites
 - Langage professionnel et précis
 - TOUJOURS en français
-- JSON valide sans texte avant/après`
+- JSON valide sans texte avant/après
+- CRITIQUE: N'utilise JAMAIS de LaTeX, formules mathématiques, ou symboles techniques non rendus. Écris en texte simple et lisible.`
     }
 };
 
