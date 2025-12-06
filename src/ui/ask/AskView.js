@@ -1,5 +1,6 @@
 import { html, css, LitElement } from '../../ui/assets/lit-core-2.7.4.min.js';
 import { parser, parser_write, parser_end, default_renderer } from '../../ui/assets/smd.js';
+import { parseDocuments as parseDocumentsES } from '../../ui/assets/documentParserES.js'; // Phase 3: Shared parsing
 import './QuickActionsPanel.js';
 import './CitationView.js';
 import './AttachmentBubble.js';
@@ -1059,71 +1060,10 @@ export class AskView extends LitElement {
     /**
      * Phase 4: Parse AI response for generated documents
      * Detects document markers like <<DOCUMENT:type>> and extracts them
+     * Phase 3: Now uses shared ES module documentParserES.js
      */
     parseDocuments(text) {
-        if (!text || typeof text !== 'string') {
-            return { documents: [], cleanText: text || '' };
-        }
-
-        const documents = [];
-        let cleanText = text;
-
-        // Regex for full format: <<DOCUMENT:type>>title: Title---Content<</DOCUMENT>>
-        const fullRegex = /<<DOCUMENT:(\w+)>>\s*title:\s*(.+?)\s*---\s*([\s\S]+?)<<\/DOCUMENT>>/gi;
-
-        // Regex for simple format: <<DOC:type:title>>Content<</DOC>>
-        const simpleRegex = /<<DOC:(\w+):(.+?)>>\s*([\s\S]+?)<<\/DOC>>/gi;
-
-        // Parse full format
-        let match;
-        while ((match = fullRegex.exec(text)) !== null) {
-            const [fullMatch, type, title, content] = match;
-
-            documents.push({
-                id: `doc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                type: type.toLowerCase(),
-                title: title.trim(),
-                content: content.trim(),
-                metadata: {
-                    source: 'ai_generated',
-                    timestamp: new Date().toISOString(),
-                    format: 'markdown'
-                }
-            });
-
-            // Replace with placeholder in clean text
-            cleanText = cleanText.replace(
-                fullMatch,
-                `\n\n📄 **Document généré**: ${title.trim()} (${type})\n\n`
-            );
-        }
-
-        // Parse simple format
-        while ((match = simpleRegex.exec(text)) !== null) {
-            const [fullMatch, type, title, content] = match;
-
-            documents.push({
-                id: `doc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                type: type.toLowerCase(),
-                title: title.trim(),
-                content: content.trim(),
-                metadata: {
-                    source: 'ai_generated',
-                    timestamp: new Date().toISOString(),
-                    format: 'markdown'
-                }
-            });
-
-            cleanText = cleanText.replace(
-                fullMatch,
-                `\n\n📄 **Document généré**: ${title.trim()} (${type})\n\n`
-            );
-        }
-
-        return {
-            documents,
-            cleanText: cleanText.trim()
-        };
+        return parseDocumentsES(text);
     }
 
     renderContent() {
