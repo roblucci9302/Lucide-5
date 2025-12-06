@@ -270,6 +270,36 @@ class PromptEngineeringService {
             parts.push(`- Niveau technique: ${userContext.technical_level}`);
         }
 
+        // Phase 2 Audit: Adding missing context fields
+        if (userContext.seniority) {
+            parts.push(`- Séniorité: ${userContext.seniority}`);
+        }
+
+        if (userContext.has_managed_team === 1) {
+            const teamInfo = userContext.team_size
+                ? `équipe de ${userContext.team_size} personnes`
+                : 'équipe';
+            parts.push(`- Responsabilité: manage une ${teamInfo}`);
+        } else if (userContext.team_size) {
+            parts.push(`- Taille équipe: ${userContext.team_size} personnes`);
+        }
+
+        if (userContext.current_goals && Array.isArray(userContext.current_goals)) {
+            if (userContext.current_goals.length > 0) {
+                parts.push(`- Objectifs actuels: ${userContext.current_goals.join(', ')}`);
+            }
+        }
+
+        if (userContext.domain_knowledge && typeof userContext.domain_knowledge === 'object') {
+            const domains = Object.entries(userContext.domain_knowledge)
+                .filter(([_, level]) => level && level !== 'none')
+                .map(([domain, level]) => `${domain} (${level})`)
+                .slice(0, 5); // Limit to 5 domains to avoid prompt bloat
+            if (domains.length > 0) {
+                parts.push(`- Expertise domaine: ${domains.join(', ')}`);
+            }
+        }
+
         // Communication preferences (preferred_tone and preferred_format)
         if (userContext.preferred_tone && userContext.preferred_tone !== 'balanced') {
             const toneMap = {
