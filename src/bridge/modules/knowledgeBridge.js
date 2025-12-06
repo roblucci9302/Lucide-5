@@ -151,7 +151,10 @@ module.exports = {
                     const indexResult = await indexingService.indexDocument(
                         document.id,
                         document.content,
-                        { generateEmbeddings: true }
+                        {
+                            generateEmbeddings: true,
+                            pageBreaks: document.pageBreaks || null // Pass page breaks for PDF citations
+                        }
                     );
 
                     // Update document indexed status
@@ -392,10 +395,40 @@ module.exports = {
                         // Get full document with content
                         const fullDoc = await documentService.getDocument(doc.id, true);
                         if (fullDoc && fullDoc.content) {
+                            // For PDFs, re-extract to get page info for citations
+                            let pageBreaks = null;
+                            if (fullDoc.file_type === 'pdf' && fullDoc.file_path) {
+                                try {
+                                    const pdfParse = loaders.loadPdfParse();
+                                    if (pdfParse) {
+                                        const buffer = await fs.readFile(fullDoc.file_path);
+                                        const data = await pdfParse(buffer);
+                                        const pageCount = data.numpages || 1;
+
+                                        // Estimate page boundaries
+                                        const avgCharsPerPage = Math.ceil(fullDoc.content.length / pageCount);
+                                        pageBreaks = [];
+                                        for (let i = 0; i < pageCount; i++) {
+                                            pageBreaks.push({
+                                                pageNumber: i + 1,
+                                                charStart: i * avgCharsPerPage,
+                                                charEnd: Math.min((i + 1) * avgCharsPerPage, fullDoc.content.length)
+                                            });
+                                        }
+                                        console.log(`[KnowledgeBridge] PDF ${doc.title}: ${pageCount} pages detected`);
+                                    }
+                                } catch (pdfError) {
+                                    console.warn(`[KnowledgeBridge] Could not extract page info for ${doc.title}:`, pdfError.message);
+                                }
+                            }
+
                             const result = await indexingService.indexDocument(
                                 doc.id,
                                 fullDoc.content,
-                                { generateEmbeddings: true }
+                                {
+                                    generateEmbeddings: true,
+                                    pageBreaks
+                                }
                             );
 
                             // Update document indexed status

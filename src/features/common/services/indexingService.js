@@ -38,13 +38,15 @@ class IndexingService {
      * @param {string} documentId - Document ID
      * @param {string} content - Document text content
      * @param {Object} options - Chunking options
+     * @param {Array} options.pageBreaks - Page boundaries for PDFs [{pageNumber, charStart, charEnd}]
      * @returns {Promise<Object>} Indexing result
      */
     async indexDocument(documentId, content, options = {}) {
         const {
             chunkSize = this.CHUNK_SIZE,
             chunkOverlap = this.CHUNK_OVERLAP,
-            generateEmbeddings = true
+            generateEmbeddings = true,
+            pageBreaks = null
         } = options;
 
         console.log(`[IndexingService] Indexing document: ${documentId}`);
@@ -57,6 +59,9 @@ class IndexingService {
             const chunks = this._chunkText(content, chunkSize, chunkOverlap);
 
             console.log(`[IndexingService] Created ${chunks.length} chunks`);
+            if (pageBreaks && pageBreaks.length > 0) {
+                console.log(`[IndexingService] Document has ${pageBreaks.length} pages for citation tracking`);
+            }
 
             // Fix MEDIUM BUG-M26: Generate embeddings in parallel instead of sequential
             // Fix MEDIUM BUG-M31: Add rate limiting to prevent API quota exhaustion
@@ -80,6 +85,9 @@ class IndexingService {
                         const chunk = batch[i];
                         const globalIndex = batchStart + i;
 
+                        // Calculate page number from character position
+                        const pageNumber = this._getPageNumber(chunk.start, pageBreaks);
+
                         chunkObjects.push({
                             id: uuidv4(),
                             document_id: documentId,
@@ -87,6 +95,7 @@ class IndexingService {
                             content: chunk.content,
                             char_start: chunk.start,
                             char_end: chunk.end,
+                            page_number: pageNumber,
                             token_count: estimateTokens(chunk.content),
                             embedding: embeddings[i] ? JSON.stringify(embeddings[i]) : null,
                             created_at: Date.now(),
@@ -108,6 +117,7 @@ class IndexingService {
                     content: chunk.content,
                     char_start: chunk.start,
                     char_end: chunk.end,
+                    page_number: this._getPageNumber(chunk.start, pageBreaks),
                     token_count: estimateTokens(chunk.content),
                     embedding: null,
                     created_at: Date.now(),
@@ -340,6 +350,33 @@ class IndexingService {
         }
 
         return chunks;
+    }
+
+    /**
+     * Get page number for a character position
+     * @private
+     * @param {number} charPosition - Character position in document
+     * @param {Array|null} pageBreaks - Page boundaries [{pageNumber, charStart, charEnd}]
+     * @returns {number|null} Page number (1-indexed) or null if no page info
+     */
+    _getPageNumber(charPosition, pageBreaks) {
+        if (!pageBreaks || pageBreaks.length === 0) {
+            return null;
+        }
+
+        // Find the page that contains this character position
+        for (const page of pageBreaks) {
+            if (charPosition >= page.charStart && charPosition < page.charEnd) {
+                return page.pageNumber;
+            }
+        }
+
+        // If position is at the very end, return last page
+        if (charPosition >= pageBreaks[pageBreaks.length - 1].charStart) {
+            return pageBreaks[pageBreaks.length - 1].pageNumber;
+        }
+
+        return null;
     }
 
     /**

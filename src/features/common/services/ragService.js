@@ -102,7 +102,7 @@ class RAGService {
                 }
             }
 
-            // Build sources list
+            // Build sources list with page numbers for citations
             const sources = chunks.map(chunk => {
                 const doc = documentMap.get(chunk.document_id);
                 return {
@@ -110,9 +110,11 @@ class RAGService {
                     document_id: chunk.document_id,
                     document_title: doc ? doc.title : 'Unknown',
                     document_filename: doc ? doc.filename : 'Unknown',
+                    document_file_type: doc ? doc.file_type : 'Unknown',
                     content: chunk.content,
                     relevance_score: chunk.relevance_score,
-                    chunk_index: chunk.chunk_index
+                    chunk_index: chunk.chunk_index,
+                    page_number: chunk.page_number || null // Include page number for PDFs
                 };
             });
 
@@ -420,10 +422,15 @@ ${kbSection}`;
      */
     _formatContext(sources) {
         return sources.map((source, index) => {
+            // Build page info string if available
+            const pageInfo = source.page_number
+                ? `│  Page: ${source.page_number}\n`
+                : '';
+
             return `
 ┌─ Source ${index + 1}: ${source.document_title}
 │  File: ${source.document_filename}
-│  Relevance: ${(source.relevance_score * 100).toFixed(1)}%
+${pageInfo}│  Relevance: ${(source.relevance_score * 100).toFixed(1)}%
 │
 │  ${source.content}
 └─────────────────────────────────────────────────────
