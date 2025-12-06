@@ -223,7 +223,9 @@ class ShortcutsService {
                     callback = () => {
                         const listenService = require('../listen/listenService');
                         const lastTranscription = listenService.getLastTranscription();
-                        const recentContext = listenService.getRecentTranscriptions(3);
+                        // Fix: Increased from 3 to 30 for better context in long conversations
+                        // This allows the AI to have more history for accurate responses
+                        const recentContext = listenService.getRecentTranscriptions(30);
                         if (lastTranscription) {
                             askService.sendMessage(lastTranscription, recentContext);
                         }
