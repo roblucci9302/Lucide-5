@@ -251,7 +251,26 @@ class DocumentService {
             }
 
             // Extract text content (use pre-extracted if provided to avoid double extraction)
-            const content = preExtractedContent || await this._extractText(filepath || buffer, fileType);
+            // For PDFs, extract with page info for proper citation support
+            let content;
+            let pageCount = 0;
+            let pageBreaks = null;
+
+            if (preExtractedContent) {
+                content = preExtractedContent;
+            } else if (fileType === 'pdf') {
+                const extractResult = await this._extractText(filepath || buffer, fileType, { withPageInfo: true });
+                if (typeof extractResult === 'object') {
+                    content = extractResult.text;
+                    pageCount = extractResult.pageCount || 0;
+                    pageBreaks = extractResult.pageBreaks || null;
+                    console.log(`[DocumentService] PDF extracted with ${pageCount} pages`);
+                } else {
+                    content = extractResult;
+                }
+            } else {
+                content = await this._extractText(filepath || buffer, fileType);
+            }
 
             // Generate document ID
             const documentId = uuidv4();
@@ -270,21 +289,30 @@ class DocumentService {
                 tags: JSON.stringify(metadata.tags || []),
                 description: metadata.description || null,
                 chunk_count: 0,
+                page_count: pageCount,
                 indexed: 0,
                 created_at: now,
                 updated_at: now,
                 sync_state: 'clean'
             };
 
+            // Store page breaks for indexing (temporary, not in DB)
+            document._pageBreaks = pageBreaks;
+
             // Insert into database
             await this.documentsRepository.create(document);
 
             console.log(`[DocumentService] Document uploaded: ${documentId}`);
 
-            return {
+            // Return document with parsed tags and page breaks for indexing
+            const result = {
                 ...document,
-                tags: metadata.tags || []
+                tags: metadata.tags || [],
+                pageBreaks // Include for indexing step
             };
+            delete result._pageBreaks; // Clean up internal property
+
+            return result;
         } catch (error) {
             console.error('[DocumentService] Error uploading document:', error);
             throw error;
@@ -394,9 +422,11 @@ class DocumentService {
      * @private
      * @param {string|Buffer} source - File path or buffer
      * @param {string} fileType - File type
-     * @returns {Promise<string>} Extracted text
+     * @param {Object} options - Extraction options
+     * @param {boolean} options.withPageInfo - Include page info for PDFs
+     * @returns {Promise<string|Object>} Extracted text or object with text and page info
      */
-    async _extractText(source, fileType) {
+    async _extractText(source, fileType, options = {}) {
         try {
             switch (fileType) {
                 case 'txt':
@@ -404,7 +434,7 @@ class DocumentService {
                     return await this._extractTextFile(source);
 
                 case 'pdf':
-                    return await this._extractPDF(source);
+                    return await this._extractPDF(source, { withPageInfo: options.withPageInfo });
 
                 case 'docx':
                     return await this._extractDOCX(source);
@@ -439,8 +469,12 @@ class DocumentService {
      * Extract text from PDF
      * @private
      * Uses pdf-parse library to extract text content from PDF files
+     * @param {Buffer|string} source - File buffer or path
+     * @param {Object} options - Extraction options
+     * @param {boolean} options.withPageInfo - Include page boundaries info
+     * @returns {Promise<string|Object>} Text or object with text and page info
      */
-    async _extractPDF(source) {
+    async _extractPDF(source, options = {}) {
         if (!pdfParseModule) {
             throw new Error(
                 'PDF extraction library not available. ' +
@@ -457,7 +491,40 @@ class DocumentService {
                 dataBuffer = await fs.readFile(source);
             }
 
-            const data = await pdfParse(dataBuffer);
+            // Track page boundaries if requested
+            const pageTexts = [];
+            let currentPage = 0;
+
+            // Custom page render function to track page boundaries
+            const parseOptions = options.withPageInfo ? {
+                pagerender: function(pageData) {
+                    return pageData.getTextContent().then(function(textContent) {
+                        let pageText = '';
+                        let lastY = null;
+
+                        for (const item of textContent.items) {
+                            // Add newline when Y position changes significantly
+                            if (lastY !== null && Math.abs(lastY - item.transform[5]) > 5) {
+                                pageText += '\n';
+                            }
+                            pageText += item.str;
+                            lastY = item.transform[5];
+                        }
+
+                        currentPage++;
+                        pageTexts.push({
+                            pageNumber: currentPage,
+                            text: pageText,
+                            charStart: 0, // Will be calculated after
+                            charEnd: 0
+                        });
+
+                        return pageText;
+                    });
+                }
+            } : {};
+
+            const data = await pdfParse(dataBuffer, parseOptions);
 
             // Fix MEDIUM BUG-M29: Don't log document structure details that could be sensitive
             // Only log in debug/development mode, not production
@@ -470,7 +537,79 @@ class DocumentService {
             // Check if extraction produced meaningful content
             if (!data.text || data.text.trim().length === 0) {
                 console.warn('[DocumentService] PDF extraction produced no text - file may be image-only or protected');
-                return '[Document contains no extractable text - may be image-based or protected]';
+                const emptyText = '[Document contains no extractable text - may be image-based or protected]';
+                if (options.withPageInfo) {
+                    return {
+                        text: emptyText,
+                        pageCount: data.numpages || 0,
+                        pageBreaks: []
+                    };
+                }
+                return emptyText;
+            }
+
+            // Return with page info if requested
+            if (options.withPageInfo) {
+                // Calculate character positions for each page
+                const pageBreaks = [];
+                let charPosition = 0;
+
+                // If we have page texts from custom render, use them
+                if (pageTexts.length > 0) {
+                    for (let i = 0; i < pageTexts.length; i++) {
+                        const pageLen = pageTexts[i].text.length;
+                        pageBreaks.push({
+                            pageNumber: i + 1,
+                            charStart: charPosition,
+                            charEnd: charPosition + pageLen
+                        });
+                        charPosition += pageLen + 1; // +1 for separator
+                    }
+                } else {
+                    // Fallback: Try to detect page breaks using form feed characters
+                    // or split evenly if no markers found
+                    const ffPositions = [];
+                    let idx = data.text.indexOf('\f');
+                    while (idx !== -1) {
+                        ffPositions.push(idx);
+                        idx = data.text.indexOf('\f', idx + 1);
+                    }
+
+                    if (ffPositions.length > 0 && ffPositions.length >= data.numpages - 1) {
+                        // Use form feed positions as page boundaries
+                        let start = 0;
+                        for (let i = 0; i < ffPositions.length; i++) {
+                            pageBreaks.push({
+                                pageNumber: i + 1,
+                                charStart: start,
+                                charEnd: ffPositions[i]
+                            });
+                            start = ffPositions[i] + 1;
+                        }
+                        // Last page
+                        pageBreaks.push({
+                            pageNumber: ffPositions.length + 1,
+                            charStart: start,
+                            charEnd: data.text.length
+                        });
+                    } else {
+                        // Estimate page boundaries by dividing evenly
+                        const avgCharsPerPage = Math.ceil(data.text.length / data.numpages);
+                        for (let i = 0; i < data.numpages; i++) {
+                            pageBreaks.push({
+                                pageNumber: i + 1,
+                                charStart: i * avgCharsPerPage,
+                                charEnd: Math.min((i + 1) * avgCharsPerPage, data.text.length)
+                            });
+                        }
+                    }
+                }
+
+                return {
+                    text: data.text,
+                    pageCount: data.numpages || pageBreaks.length,
+                    pageBreaks
+                };
             }
 
             return data.text;

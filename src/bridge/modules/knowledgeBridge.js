@@ -151,7 +151,10 @@ module.exports = {
                     const indexResult = await indexingService.indexDocument(
                         document.id,
                         document.content,
-                        { generateEmbeddings: true }
+                        {
+                            generateEmbeddings: true,
+                            pageBreaks: document.pageBreaks || null // Pass page breaks for PDF citations
+                        }
                     );
 
                     // Update document indexed status
@@ -166,12 +169,21 @@ module.exports = {
                     // Continue even if indexing fails
                 }
 
+                // Return detailed success info for better UI feedback
                 return {
                     success: true,
                     document: {
                         id: document.id,
                         title: document.title,
-                        filename: document.filename
+                        filename: document.filename,
+                        file_type: document.file_type,
+                        page_count: document.page_count || 0
+                    },
+                    indexing: {
+                        indexed: true,
+                        message: document.page_count > 0
+                            ? `Document indexé (${document.page_count} pages)`
+                            : 'Document indexé avec succès'
                     }
                 };
             } catch (error) {
@@ -350,6 +362,113 @@ module.exports = {
         });
         ipcMain.handle('rag:get-session-citations', async (event, sessionId) => {
             return await ragService.getSessionCitations(sessionId);
+        });
+
+        // Embedding Provider Info (Phase 4 Enhancement)
+        ipcMain.handle('rag:get-provider-info', async () => {
+            try {
+                return indexingService.getProviderInfo();
+            } catch (error) {
+                console.error('[KnowledgeBridge] Error getting provider info:', error);
+                return {
+                    name: 'error',
+                    displayName: 'Erreur',
+                    quality: 'none',
+                    isConfigured: false,
+                    error: error.message
+                };
+            }
+        });
+
+        // Reindex all documents (Phase 4 Enhancement)
+        ipcMain.handle('rag:reindex-all', async () => {
+            try {
+                const userId = authService.getCurrentUserId();
+                if (!userId) {
+                    throw new Error('User not authenticated');
+                }
+
+                console.log('[KnowledgeBridge] Starting reindex of all documents');
+
+                // Get all documents
+                const documents = await documentService.getAllDocuments(userId);
+                if (!documents || documents.length === 0) {
+                    return { success: true, reindexed: 0, message: 'Aucun document à réindexer' };
+                }
+
+                let reindexed = 0;
+                let errors = [];
+
+                for (const doc of documents) {
+                    try {
+                        // Get full document with content
+                        const fullDoc = await documentService.getDocument(doc.id, true);
+                        if (fullDoc && fullDoc.content) {
+                            // For PDFs, re-extract to get page info for citations
+                            let pageBreaks = null;
+                            if (fullDoc.file_type === 'pdf' && fullDoc.file_path) {
+                                try {
+                                    const pdfParse = loaders.loadPdfParse();
+                                    if (pdfParse) {
+                                        const buffer = await fs.readFile(fullDoc.file_path);
+                                        const data = await pdfParse(buffer);
+                                        const pageCount = data.numpages || 1;
+
+                                        // Estimate page boundaries
+                                        const avgCharsPerPage = Math.ceil(fullDoc.content.length / pageCount);
+                                        pageBreaks = [];
+                                        for (let i = 0; i < pageCount; i++) {
+                                            pageBreaks.push({
+                                                pageNumber: i + 1,
+                                                charStart: i * avgCharsPerPage,
+                                                charEnd: Math.min((i + 1) * avgCharsPerPage, fullDoc.content.length)
+                                            });
+                                        }
+                                        console.log(`[KnowledgeBridge] PDF ${doc.title}: ${pageCount} pages detected`);
+                                    }
+                                } catch (pdfError) {
+                                    console.warn(`[KnowledgeBridge] Could not extract page info for ${doc.title}:`, pdfError.message);
+                                }
+                            }
+
+                            const result = await indexingService.indexDocument(
+                                doc.id,
+                                fullDoc.content,
+                                {
+                                    generateEmbeddings: true,
+                                    pageBreaks
+                                }
+                            );
+
+                            // Update document indexed status
+                            await documentService.updateDocument(doc.id, {
+                                chunk_count: result.chunk_count,
+                                indexed: 1
+                            });
+
+                            reindexed++;
+                            console.log(`[KnowledgeBridge] Reindexed: ${doc.title} (${result.chunk_count} chunks)`);
+                        }
+                    } catch (docError) {
+                        console.error(`[KnowledgeBridge] Error reindexing ${doc.title}:`, docError);
+                        errors.push({ id: doc.id, title: doc.title, error: docError.message });
+                    }
+                }
+
+                return {
+                    success: true,
+                    reindexed,
+                    total: documents.length,
+                    errors: errors.length > 0 ? errors : undefined,
+                    message: `${reindexed}/${documents.length} documents réindexés`
+                };
+            } catch (error) {
+                console.error('[KnowledgeBridge] Error reindexing all documents:', error);
+                return {
+                    success: false,
+                    error: error.message
+                };
+            }
         });
 
         // Knowledge Base Sync (Firebase or Local)

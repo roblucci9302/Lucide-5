@@ -102,7 +102,7 @@ class RAGService {
                 }
             }
 
-            // Build sources list
+            // Build sources list with page numbers for citations
             const sources = chunks.map(chunk => {
                 const doc = documentMap.get(chunk.document_id);
                 return {
@@ -110,16 +110,25 @@ class RAGService {
                     document_id: chunk.document_id,
                     document_title: doc ? doc.title : 'Unknown',
                     document_filename: doc ? doc.filename : 'Unknown',
+                    document_file_type: doc ? doc.file_type : 'Unknown',
                     content: chunk.content,
                     relevance_score: chunk.relevance_score,
-                    chunk_index: chunk.chunk_index
+                    chunk_index: chunk.chunk_index,
+                    page_number: chunk.page_number || null // Include page number for PDFs
                 };
             });
 
             // Calculate total tokens
             const totalTokens = chunks.reduce((sum, c) => sum + (c.token_count || 0), 0);
 
-            console.log(`[RAGService] Retrieved ${chunks.length} chunks (${totalTokens} tokens)`);
+            // Log detailed retrieval info
+            console.log(`[RAGService] ✅ Retrieved ${chunks.length} chunks (${totalTokens} tokens)`);
+            if (chunks.length > 0) {
+                const bestScore = Math.max(...sources.map(s => s.relevance_score));
+                const avgScore = sources.reduce((sum, s) => sum + s.relevance_score, 0) / sources.length;
+                console.log(`[RAGService]    Best relevance: ${(bestScore * 100).toFixed(1)}%, Average: ${(avgScore * 100).toFixed(1)}%`);
+                console.log(`[RAGService]    Sources: ${sources.map(s => s.document_title).slice(0, 3).join(', ')}${sources.length > 3 ? '...' : ''}`);
+            }
 
             return {
                 hasContext: true,
@@ -420,10 +429,15 @@ ${kbSection}`;
      */
     _formatContext(sources) {
         return sources.map((source, index) => {
+            // Build page info string if available
+            const pageInfo = source.page_number
+                ? `│  Page: ${source.page_number}\n`
+                : '';
+
             return `
 ┌─ Source ${index + 1}: ${source.document_title}
 │  File: ${source.document_filename}
-│  Relevance: ${(source.relevance_score * 100).toFixed(1)}%
+${pageInfo}│  Relevance: ${(source.relevance_score * 100).toFixed(1)}%
 │
 │  ${source.content}
 └─────────────────────────────────────────────────────

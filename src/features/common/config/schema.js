@@ -144,6 +144,7 @@ const LATEST_SCHEMA = {
             { name: 'tags', type: 'TEXT' }, // JSON array of tags
             { name: 'description', type: 'TEXT' }, // Optional description
             { name: 'chunk_count', type: 'INTEGER DEFAULT 0' }, // Number of chunks
+            { name: 'page_count', type: 'INTEGER DEFAULT 0' }, // Number of pages (PDF only)
             { name: 'indexed', type: 'INTEGER DEFAULT 0' }, // 1 if indexed with embeddings
             { name: 'created_at', type: 'INTEGER' },
             { name: 'updated_at', type: 'INTEGER' },
@@ -159,6 +160,7 @@ const LATEST_SCHEMA = {
             { name: 'content', type: 'TEXT NOT NULL' }, // Chunk text
             { name: 'char_start', type: 'INTEGER' }, // Start position in original
             { name: 'char_end', type: 'INTEGER' }, // End position in original
+            { name: 'page_number', type: 'INTEGER' }, // Page number in PDF (1-indexed, null for non-PDF)
             { name: 'token_count', type: 'INTEGER' }, // Estimated tokens
             { name: 'embedding', type: 'TEXT' }, // JSON array of vector floats
             { name: 'created_at', type: 'INTEGER' },
