@@ -2,11 +2,15 @@
  * Live Insights Service - Phase 3.1 + 3.4 + 3.3
  * Real-time analysis of conversation to detect patterns, decisions, actions, and key moments
  * Enhanced with AI-powered contextual analysis and intelligent notifications
+ * Now integrated with Knowledge Base for blocker resolution suggestions
  */
 
 const EventEmitter = require('events');
 const contextualAnalysisService = require('./contextualAnalysisService');
 const notificationService = require('./notificationService');
+const ragService = require('../../common/services/ragService'); // KB integration
+const authService = require('../../common/services/authService'); // For user ID
+const LRUCache = require('../../common/utils/lruCache'); // Solution cache
 
 /**
  * Insight Types
@@ -72,7 +76,63 @@ class LiveInsightsService extends EventEmitter {
         // Pattern detection configuration
         this.patterns = this._initializePatterns();
 
-        console.log('[LiveInsightsService] Initialized');
+        // KB Integration: Cache for blocker solutions (5 min TTL)
+        this.solutionCache = new LRUCache({
+            max: 30,
+            ttl: 5 * 60 * 1000 // 5 minutes
+        });
+
+        console.log('[LiveInsightsService] Initialized with KB integration');
+    }
+
+    /**
+     * Search Knowledge Base for potential solutions to a blocker
+     * @private
+     * @param {string} blockerText - The blocker description
+     * @returns {Promise<Object>} Suggested solutions from KB
+     */
+    async _searchKBForSolutions(blockerText) {
+        // Check cache first
+        const cacheKey = blockerText.substring(0, 50).toLowerCase();
+        if (this.solutionCache.has(cacheKey)) {
+            console.log('[LiveInsights] KB solution cache hit');
+            return this.solutionCache.get(cacheKey);
+        }
+
+        try {
+            const userId = authService.getCurrentUserId();
+            if (!userId) {
+                return { hasSolutions: false, suggestions: [] };
+            }
+
+            // Search KB for related content
+            const ragContext = await ragService.retrieveContext(blockerText, {
+                maxChunks: 3,
+                minScore: 0.4 // Lower threshold for blockers
+            });
+
+            if (ragContext && ragContext.hasContext && ragContext.sources.length > 0) {
+                const solutions = {
+                    hasSolutions: true,
+                    suggestions: ragContext.sources.slice(0, 2).map(s => ({
+                        source: s.document_title,
+                        excerpt: s.content.substring(0, 200) + '...',
+                        relevance: s.relevance_score
+                    }))
+                };
+
+                // Cache the result
+                this.solutionCache.set(cacheKey, solutions);
+                console.log(`[LiveInsights] 📚 Found ${solutions.suggestions.length} KB solutions for blocker`);
+
+                return solutions;
+            }
+
+            return { hasSolutions: false, suggestions: [] };
+        } catch (error) {
+            console.warn('[LiveInsights] KB solution search failed:', error.message);
+            return { hasSolutions: false, suggestions: [], error: error.message };
+        }
     }
 
     /**
@@ -383,6 +443,21 @@ class LiveInsightsService extends EventEmitter {
                 }
             } else {
                 console.log(`[LiveInsights] ${insight.type}: ${insight.title}`);
+            }
+
+            // NEW: For blockers, search KB for potential solutions
+            if (finalInsight.type === InsightType.BLOCKER) {
+                try {
+                    const kbSolutions = await this._searchKBForSolutions(finalInsight.context);
+                    if (kbSolutions.hasSolutions) {
+                        finalInsight.suggestedSolutions = kbSolutions.suggestions;
+                        finalInsight.hasKBSolutions = true;
+                        console.log(`[LiveInsights] 📚 Blocker enriched with ${kbSolutions.suggestions.length} KB solutions`);
+                    }
+                } catch (kbError) {
+                    console.warn('[LiveInsights] KB solution search failed:', kbError.message);
+                    // Continue without KB solutions
+                }
             }
 
             // Fix MEDIUM BUG #10: Consolidate duplicate notification calls

@@ -5,12 +5,26 @@
  * helping them engage effectively in conversations and meetings.
  *
  * Enhanced with context-aware, phase-sensitive, and type-aware suggestions.
+ * Now integrated with Knowledge Base (RAG) for intelligent, fact-based responses.
  */
 
 const { getSystemPrompt } = require('../../common/prompts/promptBuilder.js');
 const { createLLM } = require('../../common/ai/factory');
 const modelStateService = require('../../common/services/modelStateService');
 const tokenTrackingService = require('../../common/services/tokenTrackingService');
+const ragService = require('../../common/services/ragService'); // KB integration
+const authService = require('../../common/services/authService'); // For user ID
+const documentService = require('../../common/services/documentService'); // KB stats
+const LRUCache = require('../../common/utils/lruCache'); // Context cache
+
+/**
+ * Suggestion Mode - Determines the type of suggestions to generate
+ */
+const SuggestionMode = {
+    ANSWER: 'answer',       // Provide factual answers from KB
+    RELAUNCH: 'relaunch',   // Conversation prompts/follow-ups
+    HYBRID: 'hybrid'        // Mix of both
+};
 
 /**
  * Conversation Phases
@@ -47,7 +61,16 @@ class ResponseService {
         this.onSuggestionsReady = null;
         this.onSuggestionsError = null;
 
-        console.log('[ResponseService] Service initialized with enhanced context awareness');
+        // KB Integration: Context cache to avoid repeated RAG lookups (1 min TTL)
+        this.kbContextCache = new LRUCache({
+            max: 50,
+            ttl: 60 * 1000  // 1 minute cache
+        });
+
+        // KB Integration: Track last topic to detect changes
+        this.lastSearchedTopic = null;
+
+        console.log('[ResponseService] Service initialized with KB integration and context awareness');
     }
 
     /**
@@ -391,10 +414,151 @@ class ResponseService {
     }
 
     /**
-     * Build intelligent, context-aware prompt
+     * Detect the appropriate suggestion mode based on conversation context
      * @private
+     * @param {Object} messageAnalysis - Analysis of the last message
+     * @param {string} conversationType - Type of conversation
+     * @returns {string} Suggestion mode (ANSWER, RELAUNCH, or HYBRID)
      */
-    _buildSmartPrompt(enrichedContext) {
+    _detectSuggestionMode(messageAnalysis, conversationType) {
+        // If a direct question was asked, prioritize answers
+        if (messageAnalysis.isQuestion) {
+            // Factual questions need KB answers
+            if (messageAnalysis.questionType === 'what' ||
+                messageAnalysis.questionType === 'how' ||
+                messageAnalysis.questionType === 'why') {
+                return SuggestionMode.ANSWER;
+            }
+            // Yes/No and other questions can be hybrid
+            return SuggestionMode.HYBRID;
+        }
+
+        // Problem-solving conversations need answers from KB
+        if (conversationType === ConversationType.PROBLEM_SOLVING) {
+            return SuggestionMode.ANSWER;
+        }
+
+        // Sales and decision-making benefit from KB insights
+        if (conversationType === ConversationType.SALES ||
+            conversationType === ConversationType.DECISION_MAKING) {
+            return SuggestionMode.HYBRID;
+        }
+
+        // Brainstorming and status updates are more about relaunches
+        if (conversationType === ConversationType.BRAINSTORMING ||
+            conversationType === ConversationType.STATUS_UPDATE) {
+            return SuggestionMode.RELAUNCH;
+        }
+
+        // Default to hybrid for balanced suggestions
+        return SuggestionMode.HYBRID;
+    }
+
+    /**
+     * Extract the main topic from conversation for KB search
+     * @private
+     * @returns {string} Main topic for search
+     */
+    _extractMainTopic() {
+        const allText = this.conversationHistory
+            .slice(-5) // Focus on recent turns
+            .map(turn => turn.text)
+            .join(' ');
+
+        // Get meeting context topic if available
+        if (this.summaryService) {
+            const analysis = this.summaryService.getCurrentAnalysisData();
+            if (analysis?.previousResult?.topic?.header) {
+                return analysis.previousResult.topic.header;
+            }
+        }
+
+        // Extract key nouns and technical terms (simple heuristic)
+        // Remove common words and keep substantive terms
+        const commonWords = /\b(le|la|les|un|une|des|de|du|et|ou|en|à|pour|avec|sur|dans|que|qui|quoi|est|sont|a|ont|fait|faire|être|avoir|ce|cette|ces|mon|ma|mes|ton|ta|tes|son|sa|ses|notre|nos|votre|vos|leur|leurs|je|tu|il|elle|nous|vous|ils|elles|on|the|a|an|and|or|in|to|for|with|on|that|which|is|are|has|have|do|does|this|these|my|your|his|her|our|their|i|you|he|she|we|they|it)\b/gi;
+
+        const cleanedText = allText
+            .replace(commonWords, '')
+            .replace(/[?!.,;:]/g, '')
+            .trim();
+
+        // Return first 100 chars as search topic
+        return cleanedText.substring(0, 100) || allText.substring(0, 100);
+    }
+
+    /**
+     * Retrieve relevant context from Knowledge Base
+     * @private
+     * @param {string} topic - Topic to search for
+     * @returns {Promise<Object>} KB context with sources
+     */
+    async _retrieveKBContext(topic) {
+        // Check cache first
+        const cacheKey = topic.substring(0, 50).toLowerCase();
+        if (this.kbContextCache.has(cacheKey)) {
+            console.log('[ResponseService] KB context cache hit');
+            return this.kbContextCache.get(cacheKey);
+        }
+
+        try {
+            const userId = authService.getCurrentUserId();
+            if (!userId) {
+                console.log('[ResponseService] No user ID, skipping KB lookup');
+                return { hasContext: false, sources: [] };
+            }
+
+            // Check if user has indexed documents
+            const stats = await documentService.getDocumentStats(userId);
+            if (!stats || stats.indexed_documents === 0) {
+                console.log('[ResponseService] No indexed documents for KB lookup');
+                return { hasContext: false, sources: [] };
+            }
+
+            console.log(`[ResponseService] Searching KB for: "${topic.substring(0, 50)}..."`);
+
+            // Retrieve relevant context
+            const ragContext = await ragService.retrieveContext(topic, {
+                maxChunks: 5,  // Keep it small for real-time performance
+                minScore: 0.5 // Lower threshold for more results
+            });
+
+            if (ragContext && ragContext.hasContext) {
+                console.log(`[ResponseService] KB: Found ${ragContext.sources.length} relevant chunks`);
+
+                // Format KB context for prompt injection
+                const formattedContext = {
+                    hasContext: true,
+                    sources: ragContext.sources.slice(0, 3), // Top 3 most relevant
+                    formattedText: ragContext.sources.slice(0, 3).map((s, i) =>
+                        `[Source ${i + 1}: ${s.document_title}]\n${s.content.substring(0, 300)}...`
+                    ).join('\n\n'),
+                    totalTokens: ragContext.totalTokens
+                };
+
+                // Cache the result
+                this.kbContextCache.set(cacheKey, formattedContext);
+                this.lastSearchedTopic = topic;
+
+                return formattedContext;
+            }
+
+            console.log('[ResponseService] KB: No relevant context found');
+            return { hasContext: false, sources: [] };
+
+        } catch (error) {
+            console.warn('[ResponseService] KB lookup failed:', error.message);
+            return { hasContext: false, sources: [], error: error.message };
+        }
+    }
+
+    /**
+     * Build intelligent, context-aware prompt with KB integration
+     * @private
+     * @param {Object} enrichedContext - Context from _buildEnrichedContext
+     * @param {Object} kbContext - Knowledge base context from _retrieveKBContext
+     * @param {string} suggestionMode - Mode from _detectSuggestionMode
+     */
+    _buildSmartPrompt(enrichedContext, kbContext = null, suggestionMode = SuggestionMode.HYBRID) {
         const {
             recentTurns,
             meetingContext,
@@ -450,6 +614,43 @@ Your suggestions MUST acknowledge and respond to this request. Provide actionabl
             }
         }
 
+        // NEW: Build Knowledge Base context section
+        let kbContextPrompt = '';
+        if (kbContext && kbContext.hasContext && kbContext.formattedText) {
+            kbContextPrompt = `\n\n📚 **BASE DE CONNAISSANCES - Informations Pertinentes:**
+${kbContext.formattedText}
+
+⚠️ **INSTRUCTION CRITIQUE:** Utilise ces informations de la base de connaissances pour formuler des réponses FACTUELLES et PRÉCISES. Cite les sources quand pertinent.`;
+        }
+
+        // NEW: Mode-specific instructions
+        let modeInstructions = '';
+        switch (suggestionMode) {
+            case SuggestionMode.ANSWER:
+                modeInstructions = `
+**MODE RÉPONSE ACTIVÉ:** Génère des réponses FACTUELLES et INFORMATIVES basées sur:
+- La base de connaissances ci-dessus (si disponible)
+- Ton expertise sur le sujet
+- Des faits concrets et vérifiables
+NE génère PAS de questions de relance. L'utilisateur a besoin de RÉPONSES.`;
+                break;
+            case SuggestionMode.RELAUNCH:
+                modeInstructions = `
+**MODE RELANCE:** Génère des questions et propositions pour:
+- Approfondir la discussion
+- Explorer de nouveaux angles
+- Faire avancer la conversation`;
+                break;
+            case SuggestionMode.HYBRID:
+            default:
+                modeInstructions = `
+**MODE HYBRIDE:** Génère un MIX de:
+1. Une RÉPONSE factuelle basée sur tes connaissances${kbContext?.hasContext ? ' et la base de données' : ''}
+2. Une PROPOSITION concrète ou action
+3. Une QUESTION pertinente pour approfondir`;
+                break;
+        }
+
         // Format recent conversation
         const recentConversation = recentTurns
             .map(turn => `${turn.speaker}: ${turn.text}`)
@@ -462,26 +663,28 @@ ${typeInstructions}
 **Phase actuelle:** ${conversationPhase}
 ${phaseInstructions}
 ${meetingContextPrompt}
+${kbContextPrompt}
 ${questionRequestPrompt}
+${modeInstructions}
 
 **Conversation récente:**
 ${recentConversation}
 
-**Tâche:** Génère 3 suggestions de réponse contextuelles pour l'utilisateur.
+**Tâche:** Génère 3 suggestions de réponse INTELLIGENTES et UTILES pour l'utilisateur.
 
 **Exigences:**
-1. Chaque suggestion doit être SPÉCIFIQUE au contexte de la conversation ci-dessus
-2. Varie les approches: une question, une affirmation/accord, une proposition orientée action
-3. Garde chaque suggestion sous 25 mots
-4. Reste naturel et conversationnel
+1. Chaque suggestion doit être SPÉCIFIQUE au contexte et apporter de la VALEUR
+2. ${suggestionMode === SuggestionMode.ANSWER ? 'Privilégie les RÉPONSES FACTUELLES aux questions de relance' : 'Varie les approches selon le mode indiqué'}
+3. Garde chaque suggestion sous 30 mots mais INFORMATIVE
+4. Si la base de connaissances contient des infos pertinentes, UTILISE-LES
 5. Fais avancer la conversation vers ${this._getPhaseGoal(conversationPhase)}
 6. N'utilise JAMAIS de phrases génériques comme "c'est intéressant", "dis-m'en plus", "je vois"
 7. RÉPONDS TOUJOURS EN FRANÇAIS
 
 **Format:**
-1. [Première suggestion]
-2. [Deuxième suggestion]
-3. [Troisième suggestion]
+1. [Première suggestion - ${suggestionMode === SuggestionMode.ANSWER ? 'Réponse factuelle' : 'Proposition'}]
+2. [Deuxième suggestion - ${suggestionMode === SuggestionMode.ANSWER ? 'Information clé' : 'Action concrète'}]
+3. [Troisième suggestion - ${suggestionMode === SuggestionMode.RELAUNCH ? 'Question de relance' : 'Insight basé sur KB ou expertise'}]
 
 Génère UNIQUEMENT les suggestions numérotées. Pas d'explications ni de commentaires.`;
     }
@@ -596,8 +799,31 @@ Génère UNIQUEMENT les suggestions numérotées. Pas d'explications ni de comme
             const enrichedContext = this._buildEnrichedContext();
             console.log(`[ResponseService] Context: ${enrichedContext.conversationType} conversation, ${enrichedContext.conversationPhase} phase`);
 
-            // Build intelligent, context-aware prompt
-            const smartPrompt = this._buildSmartPrompt(enrichedContext);
+            // NEW: Detect suggestion mode (ANSWER vs RELAUNCH vs HYBRID)
+            const suggestionMode = this._detectSuggestionMode(
+                enrichedContext.messageAnalysis,
+                enrichedContext.conversationType
+            );
+            console.log(`[ResponseService] Suggestion mode: ${suggestionMode}`);
+
+            // NEW: Extract main topic and retrieve KB context
+            let kbContext = { hasContext: false, sources: [] };
+            if (suggestionMode !== SuggestionMode.RELAUNCH) {
+                try {
+                    const mainTopic = this._extractMainTopic();
+                    console.log(`[ResponseService] Searching KB for topic: "${mainTopic.substring(0, 50)}..."`);
+                    kbContext = await this._retrieveKBContext(mainTopic);
+
+                    if (kbContext.hasContext) {
+                        console.log(`[ResponseService] 📚 KB context found: ${kbContext.sources.length} sources`);
+                    }
+                } catch (kbError) {
+                    console.warn('[ResponseService] KB retrieval failed, continuing without KB context:', kbError.message);
+                }
+            }
+
+            // Build intelligent, context-aware prompt with KB integration
+            const smartPrompt = this._buildSmartPrompt(enrichedContext, kbContext, suggestionMode);
 
             const messages = [
                 {
