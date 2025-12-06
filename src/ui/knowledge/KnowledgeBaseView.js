@@ -1145,6 +1145,318 @@ export class KnowledgeBaseView extends LitElement {
             height: 24px;
             border-radius: 4px;
         }
+
+        /* Phase 4: Selection & Batch Actions */
+        .doc-checkbox {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border: 2px solid var(--color-white-30);
+            border-radius: 4px;
+            background: transparent;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            flex-shrink: 0;
+        }
+
+        .doc-checkbox:hover {
+            border-color: rgba(0, 122, 255, 0.6);
+        }
+
+        .doc-checkbox:checked {
+            background: rgba(0, 122, 255, 0.8);
+            border-color: rgba(0, 122, 255, 0.9);
+        }
+
+        .doc-checkbox:checked::after {
+            content: '';
+            display: block;
+            width: 5px;
+            height: 9px;
+            border: solid white;
+            border-width: 0 2px 2px 0;
+            transform: rotate(45deg) translate(-1px, -1px);
+            margin: 1px 0 0 5px;
+        }
+
+        .doc-checkbox:focus-visible {
+            outline: 2px solid rgba(0, 122, 255, 0.5);
+            outline-offset: 2px;
+        }
+
+        .batch-actions-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: rgba(0, 122, 255, 0.1);
+            border: 1px solid rgba(0, 122, 255, 0.3);
+            border-radius: 10px;
+            margin-bottom: 16px;
+            animation: slideDown 0.2s ease;
+        }
+
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .batch-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 13px;
+            color: rgba(0, 122, 255, 0.9);
+        }
+
+        .batch-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .batch-btn {
+            background: var(--color-white-10);
+            border: 1px solid var(--color-white-20);
+            border-radius: 6px;
+            color: white;
+            padding: 6px 14px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .batch-btn:hover {
+            background: var(--color-white-15);
+        }
+
+        .batch-btn.danger {
+            background: rgba(255, 59, 48, 0.15);
+            border-color: rgba(255, 59, 48, 0.3);
+            color: rgba(255, 59, 48, 0.9);
+        }
+
+        .batch-btn.danger:hover {
+            background: rgba(255, 59, 48, 0.25);
+            border-color: rgba(255, 59, 48, 0.5);
+        }
+
+        .select-all-btn {
+            background: transparent;
+            border: none;
+            color: rgba(0, 122, 255, 0.9);
+            font-size: 12px;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: all 0.15s ease;
+        }
+
+        .select-all-btn:hover {
+            background: rgba(0, 122, 255, 0.1);
+        }
+
+        /* Phase 4: Focus States & Accessibility */
+        .document-item:focus-visible {
+            outline: 2px solid rgba(0, 122, 255, 0.6);
+            outline-offset: 2px;
+        }
+
+        .document-item.focused {
+            background: var(--color-white-05);
+            border-color: rgba(0, 122, 255, 0.4);
+        }
+
+        .document-item.selected {
+            background: rgba(0, 122, 255, 0.08);
+            border-color: rgba(0, 122, 255, 0.3);
+        }
+
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+
+        /* Phase 4: Animations */
+        .document-item {
+            animation: fadeInUp 0.3s ease;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .document-list .document-item:nth-child(1) { animation-delay: 0ms; }
+        .document-list .document-item:nth-child(2) { animation-delay: 30ms; }
+        .document-list .document-item:nth-child(3) { animation-delay: 60ms; }
+        .document-list .document-item:nth-child(4) { animation-delay: 90ms; }
+        .document-list .document-item:nth-child(5) { animation-delay: 120ms; }
+
+        .modal-overlay {
+            animation: fadeIn 0.2s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal-container {
+            animation: scaleIn 0.2s ease;
+        }
+
+        @keyframes scaleIn {
+            from {
+                opacity: 0;
+                transform: scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        /* Phase 4: Responsive Design */
+        @media (max-width: 768px) {
+            .kb-container {
+                padding: 16px;
+            }
+
+            .kb-header {
+                flex-direction: column;
+                gap: 12px;
+                align-items: flex-start;
+            }
+
+            .kb-close-btn {
+                position: absolute;
+                top: 16px;
+                right: 16px;
+            }
+
+            .stats-section {
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
+
+            .search-section {
+                flex-direction: column;
+            }
+
+            .upload-btn {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .toolbar-section {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+            }
+
+            .document-item {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+            }
+
+            .doc-actions {
+                width: 100%;
+                justify-content: flex-end;
+            }
+
+            .doc-meta {
+                flex-direction: column;
+                gap: 4px;
+            }
+
+            .pagination {
+                flex-wrap: wrap;
+                gap: 4px;
+            }
+
+            .pagination-btn {
+                padding: 6px 10px;
+                font-size: 11px;
+            }
+
+            .modal-container {
+                max-height: 100vh;
+                border-radius: 0;
+            }
+
+            .batch-actions-bar {
+                flex-direction: column;
+                gap: 12px;
+                align-items: flex-start;
+            }
+
+            .batch-actions {
+                width: 100%;
+            }
+
+            .batch-btn {
+                flex: 1;
+                justify-content: center;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .kb-title {
+                font-size: 20px;
+            }
+
+            .stat-card {
+                padding: 12px;
+            }
+
+            .stat-value {
+                font-size: 20px;
+            }
+
+            .filter-section {
+                flex-wrap: nowrap;
+                overflow-x: auto;
+                padding-bottom: 8px;
+            }
+
+            .filter-btn {
+                flex-shrink: 0;
+            }
+
+            .empty-features {
+                flex-direction: column;
+                gap: 16px;
+            }
+        }
+
+        /* Keyboard shortcut hints */
+        .shortcut-hint {
+            font-size: 10px;
+            color: var(--color-white-30);
+            background: var(--color-white-05);
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-left: 8px;
+            font-family: monospace;
+        }
     `;
 
     static properties = {
@@ -1174,7 +1486,10 @@ export class KnowledgeBaseView extends LitElement {
         // Form validation
         formErrors: { type: Object, state: true },
         // Viewer mode
-        viewerMode: { type: String, state: true }
+        viewerMode: { type: String, state: true },
+        // Phase 4: Selection
+        selectedDocuments: { type: Set, state: true },
+        focusedIndex: { type: Number, state: true }
     };
 
     // Validation limits
@@ -1211,7 +1526,13 @@ export class KnowledgeBaseView extends LitElement {
         tag: '<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>',
         clock: '<circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/>',
         loader: '<line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/>',
-        book: '<path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/>'
+        book: '<path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/>',
+        // Phase 4: Additional icons
+        checkSquare: '<polyline points="9,11 12,14 22,4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
+        square: '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>',
+        xCircle: '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>',
+        chevronUp: '<polyline points="18,15 12,9 6,15"/>',
+        chevronDown: '<polyline points="6,9 12,15 18,9"/>'
     };
 
     // Render SVG icon
@@ -1262,6 +1583,9 @@ export class KnowledgeBaseView extends LitElement {
         this.formErrors = {};
         // Viewer mode
         this.viewerMode = 'rendered'; // 'rendered' or 'raw'
+        // Phase 4: Selection
+        this.selectedDocuments = new Set();
+        this.focusedIndex = -1;
         // Bind drag handlers
         this._handleDragEnter = this._handleDragEnter.bind(this);
         this._handleDragLeave = this._handleDragLeave.bind(this);
@@ -1284,19 +1608,92 @@ export class KnowledgeBaseView extends LitElement {
     }
 
     _handleKeyDown(e) {
-        // Escape to close modals
+        // Escape to close modals or clear selection
         if (e.key === 'Escape') {
             if (this.viewerOpen) {
                 this.closeViewer();
             } else if (this.editorOpen) {
                 this.closeEditor();
+            } else if (this.selectedDocuments.size > 0) {
+                this.clearSelection();
             }
+            return;
         }
+
         // Ctrl+S to save in editor
         if (e.key === 's' && (e.ctrlKey || e.metaKey) && this.editorOpen) {
             e.preventDefault();
             this.saveDocumentEdits();
+            return;
         }
+
+        // Skip if in modal or typing in input
+        if (this.viewerOpen || this.editorOpen) return;
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+        // "/" to focus search
+        if (e.key === '/') {
+            e.preventDefault();
+            const searchInput = this.shadowRoot.querySelector('.search-input');
+            searchInput?.focus();
+            return;
+        }
+
+        // Ctrl+A to select all
+        if (e.key === 'a' && (e.ctrlKey || e.metaKey)) {
+            e.preventDefault();
+            this.selectAll();
+            return;
+        }
+
+        // Delete key to delete selected
+        if ((e.key === 'Delete' || e.key === 'Backspace') && this.selectedDocuments.size > 0) {
+            e.preventDefault();
+            this.handleBatchDelete();
+            return;
+        }
+
+        // Arrow navigation
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            const maxIndex = this.paginatedDocuments.length - 1;
+            if (e.key === 'ArrowDown') {
+                this.focusedIndex = Math.min(this.focusedIndex + 1, maxIndex);
+            } else {
+                this.focusedIndex = Math.max(this.focusedIndex - 1, 0);
+            }
+            // Scroll focused item into view
+            this._scrollToFocusedItem();
+            return;
+        }
+
+        // Space to toggle selection of focused item
+        if (e.key === ' ' && this.focusedIndex >= 0) {
+            e.preventDefault();
+            const doc = this.paginatedDocuments[this.focusedIndex];
+            if (doc) {
+                this.toggleDocumentSelection(doc.id);
+            }
+            return;
+        }
+
+        // Enter to view focused item
+        if (e.key === 'Enter' && this.focusedIndex >= 0) {
+            e.preventDefault();
+            const doc = this.paginatedDocuments[this.focusedIndex];
+            if (doc) {
+                this.handleViewDocument(doc.id);
+            }
+            return;
+        }
+    }
+
+    _scrollToFocusedItem() {
+        requestAnimationFrame(() => {
+            const items = this.shadowRoot.querySelectorAll('.document-item');
+            const focusedItem = items[this.focusedIndex];
+            focusedItem?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        });
     }
 
     // Drag & Drop handlers
@@ -1893,6 +2290,82 @@ export class KnowledgeBaseView extends LitElement {
         return Array.from(types);
     }
 
+    // Phase 4: Selection methods
+    toggleDocumentSelection(docId) {
+        const newSelection = new Set(this.selectedDocuments);
+        if (newSelection.has(docId)) {
+            newSelection.delete(docId);
+        } else {
+            newSelection.add(docId);
+        }
+        this.selectedDocuments = newSelection;
+    }
+
+    selectAll() {
+        if (this.selectedDocuments.size === this.paginatedDocuments.length) {
+            // If all selected, deselect all
+            this.selectedDocuments = new Set();
+        } else {
+            // Select all paginated documents
+            this.selectedDocuments = new Set(this.paginatedDocuments.map(doc => doc.id));
+        }
+    }
+
+    clearSelection() {
+        this.selectedDocuments = new Set();
+        this.focusedIndex = -1;
+    }
+
+    isDocumentSelected(docId) {
+        return this.selectedDocuments.has(docId);
+    }
+
+    async handleBatchDelete() {
+        const count = this.selectedDocuments.size;
+        if (count === 0) return;
+
+        const confirmed = await window.showConfirm?.(
+            `Supprimer ${count} document${count > 1 ? 's' : ''} ?`,
+            'Cette action est irréversible. Les documents et leurs données d\'indexation seront supprimés.',
+            { confirmText: 'Supprimer', cancelText: 'Annuler', type: 'danger' }
+        );
+
+        if (!confirmed) return;
+
+        try {
+            const idsToDelete = Array.from(this.selectedDocuments);
+            let successCount = 0;
+            let errorCount = 0;
+
+            for (const docId of idsToDelete) {
+                try {
+                    await window.api.documents.deleteDocument(docId);
+                    successCount++;
+                } catch (err) {
+                    console.error(`Failed to delete document ${docId}:`, err);
+                    errorCount++;
+                }
+            }
+
+            // Clear selection
+            this.clearSelection();
+
+            // Reload documents
+            await this.loadDocuments();
+            await this.loadStats();
+
+            // Show result
+            if (errorCount === 0) {
+                window.showToast?.(`${successCount} document${successCount > 1 ? 's' : ''} supprimé${successCount > 1 ? 's' : ''}`, 'success');
+            } else {
+                window.showToast?.(`${successCount} supprimé${successCount > 1 ? 's' : ''}, ${errorCount} échec${errorCount > 1 ? 's' : ''}`, 'warning');
+            }
+        } catch (error) {
+            console.error('[KnowledgeBaseView] Batch delete error:', error);
+            window.showToast?.(`Erreur lors de la suppression : ${error.message}`, 'error');
+        }
+    }
+
     _renderSkeletonStats() {
         return html`
             <div class="stats-section">
@@ -1936,21 +2409,35 @@ export class KnowledgeBaseView extends LitElement {
         return html`
             <toast-notification></toast-notification>
             <div class="kb-container"
+                role="main"
+                aria-label="Gestion de la base de connaissances"
                 @dragenter=${this._handleDragEnter}
                 @dragleave=${this._handleDragLeave}
                 @dragover=${this._handleDragOver}
                 @drop=${this._handleDrop}
             >
+                <!-- Screen reader announcements -->
+                <div class="sr-only" role="status" aria-live="polite" aria-atomic="true">
+                    ${this.selectedDocuments.size > 0
+                        ? `${this.selectedDocuments.size} document${this.selectedDocuments.size > 1 ? 's' : ''} sélectionné${this.selectedDocuments.size > 1 ? 's' : ''}`
+                        : ''}
+                </div>
+
                 <!-- Header -->
-                <div class="kb-header">
+                <header class="kb-header">
                     <div class="kb-header-content">
                         <h1 class="kb-title">${this._icon('book', 'icon-lg')} Base de Connaissances</h1>
                         <p class="kb-subtitle">Gérez vos documents pour enrichir les réponses de l'IA</p>
                     </div>
-                    <button class="kb-close-btn" @click=${this.handleClose} title="Fermer">
+                    <button
+                        class="kb-close-btn"
+                        @click=${this.handleClose}
+                        title="Fermer (Échap)"
+                        aria-label="Fermer la fenêtre"
+                    >
                         ${this._icon('x')}
                     </button>
-                </div>
+                </header>
 
                 <!-- Stats -->
                 <div class="stats-section">
@@ -1972,11 +2459,12 @@ export class KnowledgeBaseView extends LitElement {
                 </div>
 
                 <!-- Search Bar -->
-                <div class="search-section">
+                <div class="search-section" role="search">
                     <input
                         type="text"
                         class="search-input"
-                        placeholder="Rechercher dans vos documents..."
+                        placeholder="Rechercher dans vos documents... (appuyez / pour focus)"
+                        aria-label="Rechercher dans les documents"
                         @input=${this.handleSearch}
                         .value=${this.searchQuery}
                     />
@@ -1984,6 +2472,7 @@ export class KnowledgeBaseView extends LitElement {
                         class="upload-btn"
                         @click=${this.handleUpload}
                         ?disabled=${this.uploading}
+                        aria-label="Ajouter un nouveau document"
                     >
                         ${this.uploading
                             ? html`${this._icon('loader')} Upload en cours...`
@@ -2030,10 +2519,44 @@ export class KnowledgeBaseView extends LitElement {
                     </span>
                 </div>
 
+                <!-- Batch Actions Bar -->
+                ${this.selectedDocuments.size > 0 ? html`
+                    <div class="batch-actions-bar" role="toolbar" aria-label="Actions sur les documents sélectionnés">
+                        <div class="batch-info">
+                            <span>${this._icon('checkSquare')} ${this.selectedDocuments.size} sélectionné${this.selectedDocuments.size > 1 ? 's' : ''}</span>
+                            <button class="select-all-btn" @click=${this.selectAll}>
+                                ${this.selectedDocuments.size === this.paginatedDocuments.length ? 'Tout désélectionner' : 'Tout sélectionner'}
+                            </button>
+                        </div>
+                        <div class="batch-actions">
+                            <button
+                                class="batch-btn danger"
+                                @click=${this.handleBatchDelete}
+                                aria-label="Supprimer les documents sélectionnés"
+                            >
+                                ${this._icon('trash')} Supprimer
+                                <span class="shortcut-hint">Suppr</span>
+                            </button>
+                            <button
+                                class="batch-btn"
+                                @click=${this.clearSelection}
+                                aria-label="Annuler la sélection"
+                            >
+                                ${this._icon('xCircle')} Annuler
+                                <span class="shortcut-hint">Échap</span>
+                            </button>
+                        </div>
+                    </div>
+                ` : ''}
+
                 <!-- Document List -->
-                <div class="document-list-container drop-zone ${this.isDragOver ? 'drag-over' : ''}">
+                <div
+                    class="document-list-container drop-zone ${this.isDragOver ? 'drag-over' : ''}"
+                    role="region"
+                    aria-label="Liste des documents"
+                >
                     ${this.isDragOver ? html`
-                        <div class="drop-overlay">
+                        <div class="drop-overlay" role="presentation">
                             <span class="drop-icon-wrapper">${this._icon('download', 'icon-2xl')}</span>
                             <span class="drop-overlay-text">Déposez votre fichier ici</span>
                         </div>
@@ -2075,9 +2598,28 @@ export class KnowledgeBaseView extends LitElement {
                             ` : ''}
                         </div>
                     ` : html`
-                        <div class="document-list">
-                            ${this.paginatedDocuments.map(doc => html`
-                                <div class="document-item">
+                        <div class="document-list" role="list" aria-label="Documents">
+                            ${this.paginatedDocuments.map((doc, index) => html`
+                                <div
+                                    class="document-item ${this.isDocumentSelected(doc.id) ? 'selected' : ''} ${this.focusedIndex === index ? 'focused' : ''}"
+                                    role="listitem"
+                                    tabindex="0"
+                                    aria-selected="${this.isDocumentSelected(doc.id)}"
+                                    @click=${(e) => {
+                                        if (e.target.type !== 'checkbox') {
+                                            this.focusedIndex = index;
+                                        }
+                                    }}
+                                    @dblclick=${() => this.handleViewDocument(doc.id)}
+                                >
+                                    <input
+                                        type="checkbox"
+                                        class="doc-checkbox"
+                                        .checked=${this.isDocumentSelected(doc.id)}
+                                        @change=${() => this.toggleDocumentSelection(doc.id)}
+                                        @click=${(e) => e.stopPropagation()}
+                                        aria-label="Sélectionner ${doc.title || doc.filename}"
+                                    />
                                     ${this.getFileIcon(doc.file_type)}
                                     <div class="doc-info">
                                         <h3 class="doc-title">${doc.title || doc.filename}</h3>
@@ -2106,32 +2648,35 @@ export class KnowledgeBaseView extends LitElement {
                                             ` : ''}
                                         </div>
                                         ${doc.tags && doc.tags.length > 0 ? html`
-                                            <div class="doc-tags">
+                                            <div class="doc-tags" role="list" aria-label="Tags">
                                                 ${doc.tags.map(tag => html`
-                                                    <span class="tag">${tag}</span>
+                                                    <span class="tag" role="listitem">${tag}</span>
                                                 `)}
                                             </div>
                                         ` : ''}
                                     </div>
-                                    <div class="doc-actions">
+                                    <div class="doc-actions" role="group" aria-label="Actions">
                                         <button
                                             class="doc-action-btn"
-                                            @click=${() => this.handleViewDocument(doc.id)}
-                                            title="Voir le document"
+                                            @click=${(e) => { e.stopPropagation(); this.handleViewDocument(doc.id); }}
+                                            title="Voir le document (Entrée)"
+                                            aria-label="Voir ${doc.title || doc.filename}"
                                         >
                                             ${this._icon('eye')}
                                         </button>
                                         <button
                                             class="doc-action-btn"
-                                            @click=${() => this.handleEditDocument(doc.id)}
+                                            @click=${(e) => { e.stopPropagation(); this.handleEditDocument(doc.id); }}
                                             title="Éditer les métadonnées"
+                                            aria-label="Modifier ${doc.title || doc.filename}"
                                         >
                                             ${this._icon('edit')}
                                         </button>
                                         <button
                                             class="doc-action-btn danger"
-                                            @click=${() => this.handleDeleteDocument(doc.id, doc.title || doc.filename)}
+                                            @click=${(e) => { e.stopPropagation(); this.handleDeleteDocument(doc.id, doc.title || doc.filename); }}
                                             title="Supprimer"
+                                            aria-label="Supprimer ${doc.title || doc.filename}"
                                         >
                                             ${this._icon('trash')}
                                         </button>
@@ -2200,14 +2745,20 @@ export class KnowledgeBaseView extends LitElement {
 
             <!-- Document Viewer Modal -->
             ${this.viewerOpen ? html`
-                <div class="modal-overlay" @click=${(e) => e.target === e.currentTarget && this.closeViewer()}>
-                    <div class="modal-container">
+                <div
+                    class="modal-overlay"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="viewer-modal-title"
+                    @click=${(e) => e.target === e.currentTarget && this.closeViewer()}
+                >
+                    <div class="modal-container" role="document">
                         <div class="modal-header">
-                            <h2 class="modal-title">
+                            <h2 class="modal-title" id="viewer-modal-title">
                                 ${this._icon('file', 'icon-lg')}
                                 ${this.selectedDocument?.title || this.selectedDocument?.filename || 'Document'}
                             </h2>
-                            <button class="modal-close-btn" @click=${this.closeViewer}>${this._icon('x')} Fermer</button>
+                            <button class="modal-close-btn" @click=${this.closeViewer} aria-label="Fermer">${this._icon('x')} Fermer</button>
                         </div>
                         <div class="modal-body">
                             ${this.documentLoading ? html`
@@ -2277,13 +2828,19 @@ export class KnowledgeBaseView extends LitElement {
 
             <!-- Document Editor Modal -->
             ${this.editorOpen ? html`
-                <div class="modal-overlay" @click=${(e) => e.target === e.currentTarget && this.closeEditor()}>
+                <div
+                    class="modal-overlay"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="editor-modal-title"
+                    @click=${(e) => e.target === e.currentTarget && this.closeEditor()}
+                >
                     <div class="modal-container">
                         <div class="modal-header">
-                            <h2 class="modal-title">
+                            <h2 class="modal-title" id="editor-modal-title">
                                 ${this._icon('edit', 'icon-lg')} Modifier le document
                             </h2>
-                            <button class="modal-close-btn" @click=${this.closeEditor}>${this._icon('x')} Annuler</button>
+                            <button class="modal-close-btn" @click=${this.closeEditor} aria-label="Annuler">${this._icon('x')} Annuler</button>
                         </div>
                         <div class="modal-body">
                             ${this.documentLoading ? html`
