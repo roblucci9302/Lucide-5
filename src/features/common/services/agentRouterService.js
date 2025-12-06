@@ -1,20 +1,24 @@
 /**
  * Agent Router Service - Intelligent routing to specialized agents
  *
- * Implements a 4-level decision system for automatic agent selection:
+ * Implements a 5-level decision system for automatic agent selection:
  *  - Level 1: Fast keyword matching (80% of cases, <50ms)
  *  - Level 2a: Session history context enrichment (~10% of cases, ~100ms)
  *  - Level 2b: User profile context enrichment (job role, industry, function) (~5% of cases, ~50ms)
- *  - Level 3: LLM classification (5% edge cases, ~500ms)
+ *  - Level 2c: Conversation content analysis (thematic continuity) (~3% of cases, ~80ms)
+ *  - Level 3: LLM classification (2% edge cases, ~500ms)
  *
  * Phase Audit Enhancement (2024):
- *  - Added user profile context: job_role, job_function, industry
- *  - Role-based agent boosting (CEO → ceo_advisor, CTO → it_expert, etc.)
- *  - Industry-specific keyword matching (SaaS: ARR, MRR, churn; E-commerce: AOV, cart abandonment)
- *  - Expanded LLM classification to all 9 agent profiles
+ *  - Phase 1: Added user profile context: job_role, job_function, industry
+ *  - Phase 1: Role-based agent boosting (CEO → ceo_advisor, CTO → it_expert, etc.)
+ *  - Phase 1: Industry-specific keyword matching (SaaS: ARR, MRR, churn; E-commerce: AOV, cart abandonment)
+ *  - Phase 1: Expanded LLM classification to all 9 agent profiles
+ *  - Phase 3: Thematic continuity analysis from recent conversation content
+ *  - Phase 3: Recency-weighted theme scoring (newer messages count more)
+ *  - Phase 3: Automatic agent switching based on dominant conversation themes
  *
  * This enables automatic redirection to the most appropriate specialist agent
- * based on the user's question AND their professional context.
+ * based on the user's question, their professional context, AND conversation history themes.
  */
 
 const agentProfileService = require('./agentProfileService');
@@ -170,6 +174,7 @@ class AgentRouterService {
             byLevel: {
                 keywords: 0,
                 context: 0,
+                thematic: 0,
                 llm: 0
             },
             byAgent: {
@@ -311,6 +316,12 @@ class AgentRouterService {
         this.FUNCTION_BOOST = 0.08;       // Boost when job function matches
         this.INDUSTRY_KEYWORD_BOOST = 0.06; // Boost per industry-specific keyword match
         this.MAX_INDUSTRY_BOOST = 0.15;   // Maximum total boost from industry keywords
+
+        // Phase 3: Thematic continuity boost values
+        this.THEME_CONTINUITY_BOOST = 0.10;     // Base boost for thematic continuity
+        this.THEME_FREQUENCY_MULTIPLIER = 0.02; // Additional boost per theme occurrence (capped)
+        this.MAX_THEME_BOOST = 0.18;            // Maximum total boost from thematic analysis
+        this.THEME_RECENCY_WEIGHT = 0.7;        // Weight for recent messages (vs older)
     }
 
     /**
@@ -368,6 +379,21 @@ class AgentRouterService {
             }
         } catch (error) {
             console.error('[AgentRouter] Profile enrichment failed:', error);
+            // Continue to Level 2c
+        }
+
+        // LEVEL 2c: Enrich with conversation content analysis (Phase 3 - thematic continuity)
+        try {
+            const thematicEnriched = await this.enrichWithConversationContent(keywordMatch, question, userId);
+
+            if (thematicEnriched.confidence > 0.8) {
+                this.stats.byLevel.thematic++; // Count as thematic analysis
+                this.stats.byAgent[thematicEnriched.agent]++;
+                console.log(`[AgentRouter] 📚 Thematic route: ${thematicEnriched.agent} (confidence: ${thematicEnriched.confidence.toFixed(2)})`);
+                return thematicEnriched;
+            }
+        } catch (error) {
+            console.error('[AgentRouter] Thematic enrichment failed:', error);
             // Continue to Level 3
         }
 
@@ -612,6 +638,256 @@ class AgentRouterService {
     }
 
     /**
+     * Level 2c: Enrich with conversation content analysis (Phase 3)
+     * Analyzes the actual content of recent messages for thematic continuity
+     * @param {Object} detection - Current detection from Level 1/2
+     * @param {string} question - Original question
+     * @param {string} userId - User ID
+     * @returns {Promise<Object>} Enhanced detection with thematic analysis
+     */
+    async enrichWithConversationContent(detection, question, userId) {
+        try {
+            // Get recent messages across sessions (user messages only for thematic analysis)
+            const recentMessages = await conversationHistoryService.getRecentMessagesAcrossSessions(userId, {
+                limit: 20,
+                sessionLimit: 5,
+                role: 'user' // Only analyze user questions for themes
+            });
+
+            if (!recentMessages || recentMessages.length === 0) {
+                console.log('[AgentRouter] No recent messages for thematic analysis');
+                return detection;
+            }
+
+            // Analyze themes in recent messages
+            const themeAnalysis = this._analyzeThemes(recentMessages);
+
+            if (!themeAnalysis || Object.keys(themeAnalysis.agentThemeScores).length === 0) {
+                return detection;
+            }
+
+            // Calculate thematic continuity boost
+            const currentAgent = detection.agent;
+            const agentThemeScore = themeAnalysis.agentThemeScores[currentAgent] || 0;
+            const totalThemeScore = themeAnalysis.totalScore;
+
+            // Check if current question continues a theme
+            const questionThemes = this._detectThemesInText(question);
+            let thematicContinuity = 0;
+
+            // Count how many of the question's themes match recent conversation themes
+            for (const theme of questionThemes) {
+                if (themeAnalysis.dominantThemes.includes(theme)) {
+                    thematicContinuity++;
+                }
+            }
+
+            // Calculate boost
+            let themeBoost = 0;
+            const boostReasons = [];
+
+            // 1. Boost if detected agent matches dominant theme agent
+            if (agentThemeScore > 0 && totalThemeScore > 0) {
+                const agentThemeRatio = agentThemeScore / totalThemeScore;
+
+                if (agentThemeRatio > 0.3) {
+                    // Agent has been dominant in recent conversations
+                    themeBoost += this.THEME_CONTINUITY_BOOST * agentThemeRatio;
+                    boostReasons.push(`theme_dominant:${currentAgent}(${(agentThemeRatio * 100).toFixed(0)}%)`);
+                }
+            }
+
+            // 2. Boost for thematic continuity (question continues recent themes)
+            if (thematicContinuity > 0) {
+                const continuityBoost = Math.min(
+                    thematicContinuity * this.THEME_FREQUENCY_MULTIPLIER,
+                    this.MAX_THEME_BOOST - themeBoost
+                );
+                themeBoost += continuityBoost;
+                boostReasons.push(`theme_continuity:${thematicContinuity}_matches`);
+            }
+
+            // 3. Consider switching to dominant theme agent if confidence is low
+            if (detection.confidence < 0.70 && themeAnalysis.dominantAgent !== detection.agent) {
+                const dominantAgentScore = themeAnalysis.agentThemeScores[themeAnalysis.dominantAgent] || 0;
+                const dominantRatio = totalThemeScore > 0 ? dominantAgentScore / totalThemeScore : 0;
+
+                // If dominant agent is clearly preferred (>50% of recent themes), suggest switching
+                if (dominantRatio > 0.5) {
+                    const oldAgent = detection.agent;
+                    detection.agent = themeAnalysis.dominantAgent;
+                    themeBoost += this.THEME_CONTINUITY_BOOST * 0.5;
+                    boostReasons.push(`theme_switch:${oldAgent}→${detection.agent}(${(dominantRatio * 100).toFixed(0)}%)`);
+                    console.log(`[AgentRouter] 📚 Theme switch: ${oldAgent} → ${detection.agent} (dominant theme: ${(dominantRatio * 100).toFixed(0)}%)`);
+                }
+            }
+
+            // Apply boost
+            if (themeBoost > 0) {
+                // Cap the boost
+                themeBoost = Math.min(themeBoost, this.MAX_THEME_BOOST);
+
+                const oldConfidence = detection.confidence;
+                detection.confidence = Math.min(0.98, detection.confidence + themeBoost);
+                detection.thematicAnalysis = {
+                    boost: themeBoost.toFixed(3),
+                    reasons: boostReasons,
+                    dominantThemes: themeAnalysis.dominantThemes.slice(0, 5),
+                    dominantAgent: themeAnalysis.dominantAgent,
+                    messagesAnalyzed: recentMessages.length,
+                    thematicContinuity
+                };
+
+                // Update reason
+                if (themeBoost >= 0.05) {
+                    detection.reason = detection.reason.includes('_boost')
+                        ? detection.reason + '+thematic'
+                        : detection.reason + '+thematic_boost';
+                }
+
+                console.log(`[AgentRouter] 📚 Thematic enrichment: ${oldConfidence.toFixed(2)} → ${detection.confidence.toFixed(2)} (boost: +${themeBoost.toFixed(2)})`);
+                console.log(`[AgentRouter] 📚 Dominant themes: [${themeAnalysis.dominantThemes.slice(0, 3).join(', ')}]`);
+            }
+
+            return detection;
+        } catch (error) {
+            console.error('[AgentRouter] Error in thematic analysis:', error);
+            return detection;
+        }
+    }
+
+    /**
+     * Analyze themes in a set of messages
+     * @param {Array} messages - Messages to analyze
+     * @returns {Object} Theme analysis results
+     * @private
+     */
+    _analyzeThemes(messages) {
+        if (!messages || messages.length === 0) {
+            return null;
+        }
+
+        const agentThemeScores = {};
+        const themeFrequency = {};
+        let totalScore = 0;
+
+        // Weight recent messages more heavily
+        const totalMessages = messages.length;
+
+        for (let i = 0; i < messages.length; i++) {
+            const msg = messages[i];
+            const content = msg.content || '';
+
+            // Calculate recency weight (newer = higher weight)
+            // First message (i=0) is most recent
+            const recencyWeight = 1 - (i / totalMessages) * (1 - this.THEME_RECENCY_WEIGHT);
+
+            // Detect themes in this message
+            const detectedThemes = this._detectThemesInText(content);
+
+            for (const theme of detectedThemes) {
+                // Find which agent this theme belongs to
+                const themeAgent = this._getAgentForTheme(theme);
+
+                if (themeAgent) {
+                    // Score with recency weight
+                    const score = recencyWeight;
+                    agentThemeScores[themeAgent] = (agentThemeScores[themeAgent] || 0) + score;
+                    totalScore += score;
+                }
+
+                // Track theme frequency
+                themeFrequency[theme] = (themeFrequency[theme] || 0) + recencyWeight;
+            }
+        }
+
+        // Get dominant themes (sorted by frequency)
+        const dominantThemes = Object.entries(themeFrequency)
+            .sort(([, a], [, b]) => b - a)
+            .slice(0, 10)
+            .map(([theme]) => theme);
+
+        // Get dominant agent
+        const dominantAgent = Object.entries(agentThemeScores)
+            .sort(([, a], [, b]) => b - a)[0]?.[0] || 'lucide_assistant';
+
+        return {
+            agentThemeScores,
+            totalScore,
+            dominantThemes,
+            dominantAgent,
+            themeFrequency
+        };
+    }
+
+    /**
+     * Detect themes in a text using routing keywords
+     * @param {string} text - Text to analyze
+     * @returns {Array<string>} Detected theme keywords
+     * @private
+     */
+    _detectThemesInText(text) {
+        if (!text || typeof text !== 'string') {
+            return [];
+        }
+
+        const lower = text.toLowerCase();
+        const detectedThemes = [];
+
+        // Check each routing rule for keywords
+        for (const rule of this.routingRules) {
+            for (const keyword of rule.keywords) {
+                const regex = new RegExp(`\\b${this.escapeRegex(keyword)}\\b`, 'i');
+                if (regex.test(lower)) {
+                    detectedThemes.push(keyword);
+                }
+            }
+        }
+
+        // Also check industry-specific keywords
+        for (const [industry, agentKeywords] of Object.entries(this.industryKeywords)) {
+            for (const [agent, keywords] of Object.entries(agentKeywords)) {
+                for (const keyword of keywords) {
+                    const regex = new RegExp(`\\b${this.escapeRegex(keyword)}\\b`, 'i');
+                    if (regex.test(lower)) {
+                        detectedThemes.push(keyword);
+                    }
+                }
+            }
+        }
+
+        return [...new Set(detectedThemes)]; // Remove duplicates
+    }
+
+    /**
+     * Get the agent that a theme keyword belongs to
+     * @param {string} theme - Theme keyword
+     * @returns {string|null} Agent ID or null
+     * @private
+     */
+    _getAgentForTheme(theme) {
+        const lower = theme.toLowerCase();
+
+        // Check routing rules
+        for (const rule of this.routingRules) {
+            if (rule.keywords.some(k => k.toLowerCase() === lower)) {
+                return rule.agent;
+            }
+        }
+
+        // Check industry keywords
+        for (const [industry, agentKeywords] of Object.entries(this.industryKeywords)) {
+            for (const [agent, keywords] of Object.entries(agentKeywords)) {
+                if (keywords.some(k => k.toLowerCase() === lower)) {
+                    return agent;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Find matching agent from a role/function mapping
      * Supports partial matching for roles like "Head of Engineering"
      * @param {string} value - The role or function to match
@@ -822,7 +1098,7 @@ Reply with ONLY the category ID.`;
     resetStats() {
         this.stats = {
             totalRoutings: 0,
-            byLevel: { keywords: 0, context: 0, llm: 0 },
+            byLevel: { keywords: 0, context: 0, thematic: 0, llm: 0 },
             byAgent: {
                 lucide_assistant: 0,
                 ceo_advisor: 0,
