@@ -103,9 +103,9 @@ export class WelcomeHeader extends LitElement {
             font-weight: 400;
             line-height: 18px;
             letter-spacing: 0.12px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            /* Phase UI/UX: Remove truncation to show full text */
+            white-space: normal;
+            word-wrap: break-word;
         }
         .action-button {
             -webkit-app-region: no-drag;

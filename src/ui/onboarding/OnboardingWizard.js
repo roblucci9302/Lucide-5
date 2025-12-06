@@ -445,7 +445,10 @@ export class OnboardingWizard extends LitElement {
             }));
         } catch (error) {
             console.error('[OnboardingWizard] Error completing onboarding:', error);
-            alert('Erreur lors de la finalisation. Veuillez réessayer.');
+            // Use Toast notification instead of alert()
+            if (window.showToast) {
+                window.showToast('Erreur lors de la finalisation. Veuillez réessayer.', 'error', 5000);
+            }
         } finally {
             this.isCompleting = false;
         }

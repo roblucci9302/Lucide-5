@@ -6,6 +6,7 @@ export class MainHeader extends TranslationMixin(LitElement) {
         isTogglingSession: { type: Boolean, state: true },
         shortcuts: { type: Object, state: true },
         listenSessionStatus: { type: String, state: true },
+        currentView: { type: String, state: true }, // Phase UI/UX: Track active view
     };
 
     static styles = css`
@@ -130,6 +131,11 @@ export class MainHeader extends TranslationMixin(LitElement) {
             background-color: #f0f0f0;
         }
 
+        /* Phase UI/UX: Active view indicator for listen button */
+        .listen-button.active-view::before {
+            background: var(--color-white-20);
+        }
+
         .listen-button:hover::before {
             background: var(--color-white-20);
         }
@@ -206,6 +212,24 @@ export class MainHeader extends TranslationMixin(LitElement) {
 
         .header-actions:hover {
             background: var(--color-white-10);
+        }
+
+        /* Phase UI/UX: Active view indicator */
+        .header-actions.active-view {
+            background: var(--color-white-15);
+            position: relative;
+        }
+
+        .header-actions.active-view::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 16px;
+            height: 2px;
+            background: var(--color-primary, #6366f1);
+            border-radius: 1px;
         }
 
         .ask-action {
@@ -354,6 +378,7 @@ export class MainHeader extends TranslationMixin(LitElement) {
         this.settingsHideTimer = null;
         this.isTogglingSession = false;
         this.listenSessionStatus = 'beforeSession';
+        this.currentView = 'listen'; // Phase UI/UX: Default view
         this.animationEndTimer = null;
         this.handleAnimationEnd = this.handleAnimationEnd.bind(this);
         this.handleMouseMove = this.handleMouseMove.bind(this);
@@ -549,6 +574,8 @@ export class MainHeader extends TranslationMixin(LitElement) {
         }
 
         this.isTogglingSession = true;
+        // Phase UI/UX: Update current view indicator
+        this.currentView = 'listen';
 
         try {
             const listenButtonText = this._getListenButtonText(this.listenSessionStatus);
@@ -576,6 +603,8 @@ export class MainHeader extends TranslationMixin(LitElement) {
                 console.log('[MainHeader] Calling sendAskButtonClick()...');
                 await window.api.mainHeader.sendAskButtonClick();
                 console.log('[MainHeader] sendAskButtonClick() succeeded');
+                // Phase UI/UX: Update current view indicator
+                this.currentView = 'ask';
             } else {
                 console.error('[MainHeader] window.api is undefined!');
             }
@@ -630,6 +659,7 @@ export class MainHeader extends TranslationMixin(LitElement) {
         const buttonClasses = {
             active: this.listenSessionStatus === 'inSession',
             done: this.listenSessionStatus === 'afterSession',
+            'active-view': this.currentView === 'listen', // Phase UI/UX: Show when Listen is active view
         };
 
         // Icon logic: stop icon when in session, done icon when afterSession
@@ -681,7 +711,7 @@ export class MainHeader extends TranslationMixin(LitElement) {
                 </button>
 
                 <div class="middle-actions">
-                    <div class="header-actions ask-action" @click=${() => this._handleAskClick()}>
+                    <div class="header-actions ask-action ${this.currentView === 'ask' ? 'active-view' : ''}" @click=${() => this._handleAskClick()}>
                         <div class="action-text">
                             <div class="action-text-content">${this.t('header.question')}</div>
                         </div>

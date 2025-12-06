@@ -7,6 +7,7 @@ import { ShortcutSettingsView } from '../settings/ShortCutSettingsView.js';
 import { PostMeetingPanel } from '../listen/PostMeetingPanel.js'; // Phase 1 - Meeting Assistant
 import { i18n } from '../i18n/index.js';
 import { OnboardingWizard } from '../onboarding/OnboardingWizard.js'; // Phase WOW 1: Onboarding
+import { LoadingState } from '../components/LoadingState.js'; // Phase UI/UX: Loading component
 
 import '../listen/audioCore/renderer.js';
 
@@ -39,6 +40,13 @@ export class LucideApp extends LitElement {
             width: 100%;
             height: 100%;
             min-height: 500px;
+        }
+
+        /* Phase UI/UX: Loading state styles */
+        loading-state {
+            display: block;
+            width: 100%;
+            height: 100%;
         }
     `;
 
@@ -209,10 +217,9 @@ export class LucideApp extends LitElement {
 
     render() {
         // Phase WOW 1: Show loading while checking onboarding status
+        // Phase UI/UX: Use proper LoadingState component
         if (!this.onboardingChecked) {
-            return html`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#888;">
-                Chargement...
-            </div>`;
+            return html`<loading-state message="Chargement de Lucide..."></loading-state>`;
         }
 
         // Phase WOW 1: Show onboarding wizard if needed
