@@ -23,6 +23,11 @@ module.exports = {
         ipcMain.handle('profile:needs-onboarding', async () => {
             try {
                 const needs = userProfileService.needsOnboarding();
+                console.log('[ProfileBridge] Checking onboarding status:', {
+                    needsOnboarding: needs,
+                    hasCurrentProfile: !!userProfileService.currentProfile,
+                    onboardingCompleted: userProfileService.currentProfile?.onboarding_completed
+                });
                 return { success: true, needsOnboarding: needs };
             } catch (error) {
                 console.error('[ProfileBridge] Error checking onboarding:', error);

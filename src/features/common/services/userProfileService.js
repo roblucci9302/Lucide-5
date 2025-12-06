@@ -187,6 +187,10 @@ class UserProfileService extends EventEmitter {
                     if (preferences.strategic_focus) {
                         contextData.current_challenges = preferences.strategic_focus;
                     }
+                    // Phase 3 Audit: Handle is_first_time_founder
+                    if (preferences.is_first_time_founder) {
+                        contextData.is_first_time_founder = preferences.is_first_time_founder.includes('Oui') ? 1 : 0;
+                    }
                     contextData.job_role = 'CEO';
                     contextData.job_function = 'Executive';
                     break;
@@ -195,7 +199,12 @@ class UserProfileService extends EventEmitter {
                     if (preferences.hr_focus) {
                         contextData.current_challenges = preferences.hr_focus;
                     }
+                    // Phase 3 Audit: Set has_managed_team if team_size is not Solo
+                    if (preferences.team_size && preferences.team_size !== 'Solo') {
+                        contextData.has_managed_team = 1;
+                    }
                     contextData.job_function = 'HR';
+                    contextData.job_role = 'DRH';
                     break;
 
                 case 'it_expert':
@@ -392,6 +401,18 @@ class UserProfileService extends EventEmitter {
                     options: ['Travail', 'Études', 'Personnel', 'Autre']
                 },
                 {
+                    id: 'industry',
+                    question: 'Dans quel secteur travaillez-vous ?',
+                    type: 'text',
+                    placeholder: 'Ex: Tech, Finance, Santé, Éducation...'
+                },
+                {
+                    id: 'experience_level',
+                    question: 'Votre niveau d\'expérience ?',
+                    type: 'select',
+                    options: ['Débutant (0-2 ans)', 'Intermédiaire (3-5 ans)', 'Confirmé (6-10 ans)', 'Expert (10+ ans)']
+                },
+                {
                     id: 'goals',
                     question: 'Quels sont vos objectifs principaux ?',
                     type: 'multiselect',
@@ -404,6 +425,18 @@ class UserProfileService extends EventEmitter {
                     question: 'Taille de votre entreprise ?',
                     type: 'select',
                     options: ['1-10', '11-50', '51-200', '201-1000', '1000+']
+                },
+                {
+                    id: 'team_size',
+                    question: 'Taille de votre équipe RH ?',
+                    type: 'select',
+                    options: ['Solo', '2-5', '6-10', '10+']
+                },
+                {
+                    id: 'experience_level',
+                    question: 'Votre expérience en RH ?',
+                    type: 'select',
+                    options: ['Junior (0-2 ans)', 'Intermédiaire (3-5 ans)', 'Senior (6-10 ans)', 'Expert (10+ ans)']
                 },
                 {
                     id: 'hr_focus',
@@ -436,6 +469,12 @@ class UserProfileService extends EventEmitter {
                     question: 'Niveau d\'expérience ?',
                     type: 'select',
                     options: ['Junior (0-2 ans)', 'Intermédiaire (3-5 ans)', 'Senior (6-10 ans)', 'Expert (10+ ans)']
+                },
+                {
+                    id: 'industry',
+                    question: 'Secteur d\'activité ?',
+                    type: 'text',
+                    placeholder: 'Ex: SaaS, FinTech, E-commerce, Agence...'
                 }
             ],
             marketing_expert: [
@@ -456,6 +495,18 @@ class UserProfileService extends EventEmitter {
                     question: 'Taille de l\'entreprise ?',
                     type: 'select',
                     options: ['Startup', 'PME', 'Grande entreprise', 'Agence']
+                },
+                {
+                    id: 'experience_level',
+                    question: 'Votre expérience en marketing ?',
+                    type: 'select',
+                    options: ['Junior (0-2 ans)', 'Intermédiaire (3-5 ans)', 'Senior (6-10 ans)', 'Expert (10+ ans)']
+                },
+                {
+                    id: 'industry',
+                    question: 'Secteur d\'activité ?',
+                    type: 'text',
+                    placeholder: 'Ex: Tech, E-commerce, Mode, B2B SaaS...'
                 }
             ],
             ceo_advisor: [
@@ -470,6 +521,12 @@ class UserProfileService extends EventEmitter {
                     question: 'Nombre d\'employés ?',
                     type: 'select',
                     options: ['1-10', '11-50', '51-200', '201-500', '500+']
+                },
+                {
+                    id: 'is_first_time_founder',
+                    question: 'Est-ce votre première entreprise ?',
+                    type: 'select',
+                    options: ['Oui, première fois', 'Non, serial entrepreneur']
                 },
                 {
                     id: 'strategic_focus',
@@ -508,6 +565,18 @@ class UserProfileService extends EventEmitter {
                     question: 'Taille de l\'équipe commerciale ?',
                     type: 'select',
                     options: ['Solo', '2-5', '6-15', '16-50', '50+']
+                },
+                {
+                    id: 'experience_level',
+                    question: 'Votre expérience commerciale ?',
+                    type: 'select',
+                    options: ['Junior (0-2 ans)', 'Intermédiaire (3-5 ans)', 'Senior (6-10 ans)', 'Expert (10+ ans)']
+                },
+                {
+                    id: 'industry',
+                    question: 'Secteur d\'activité ?',
+                    type: 'text',
+                    placeholder: 'Ex: SaaS, Immobilier, Services B2B...'
                 }
             ],
             manager_coach: [
@@ -534,6 +603,12 @@ class UserProfileService extends EventEmitter {
                     question: 'Type d\'équipe ?',
                     type: 'select',
                     options: ['Remote', 'Hybride', 'Sur site', 'Mixte']
+                },
+                {
+                    id: 'industry',
+                    question: 'Secteur d\'activité ?',
+                    type: 'text',
+                    placeholder: 'Ex: Tech, Conseil, Finance, Retail...'
                 }
             ]
         };

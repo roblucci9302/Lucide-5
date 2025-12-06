@@ -6,6 +6,7 @@ import { BrowserView } from '../browser/BrowserView.js';
 import { ShortcutSettingsView } from '../settings/ShortCutSettingsView.js';
 import { PostMeetingPanel } from '../listen/PostMeetingPanel.js'; // Phase 1 - Meeting Assistant
 import { i18n } from '../i18n/index.js';
+import { OnboardingWizard } from '../onboarding/OnboardingWizard.js'; // Phase WOW 1: Onboarding
 
 import '../listen/audioCore/renderer.js';
 
@@ -32,6 +33,13 @@ export class LucideApp extends LitElement {
             height: 100%;
         }
 
+        /* Phase WOW 1: Onboarding wizard styles */
+        onboarding-wizard {
+            display: block;
+            width: 100%;
+            height: 100%;
+            min-height: 500px;
+        }
     `;
 
     static properties = {
@@ -48,7 +56,10 @@ export class LucideApp extends LitElement {
         layoutMode: { type: String },
         _viewInstances: { type: Object, state: true },
         _isClickThrough: { state: true },
-        structuredData: { type: Object }, 
+        structuredData: { type: Object },
+        // Phase WOW 1: Onboarding state
+        showOnboarding: { type: Boolean, state: true },
+        onboardingChecked: { type: Boolean, state: true }
     };
 
     constructor() {
@@ -82,22 +93,79 @@ export class LucideApp extends LitElement {
         this.selectedImageQuality = localStorage.getItem('selectedImageQuality') || 'medium';
         this._isClickThrough = false;
 
+        // Phase WOW 1: Onboarding state initialization
+        this.showOnboarding = false;
+        this.onboardingChecked = false;
     }
 
     connectedCallback() {
         super.connectedCallback();
-        
+
         if (window.api) {
             window.api.lucideApp.onClickThroughToggled((_, isEnabled) => {
                 this._isClickThrough = isEnabled;
             });
         }
+
+        // Phase WOW 1: Check if onboarding is needed
+        this.checkOnboardingStatus();
+
+        // Listen for onboarding completion
+        this.addEventListener('onboarding-completed', this.handleOnboardingCompleted.bind(this));
     }
 
     disconnectedCallback() {
         super.disconnectedCallback();
         if (window.api) {
             window.api.lucideApp.removeAllClickThroughListeners();
+        }
+        // Cleanup onboarding listener
+        this.removeEventListener('onboarding-completed', this.handleOnboardingCompleted);
+    }
+
+    /**
+     * Phase WOW 1: Check if user needs onboarding
+     * Called on app startup to determine if onboarding wizard should be shown
+     */
+    async checkOnboardingStatus() {
+        try {
+            if (!window.api || !window.api.profile) {
+                console.log('[LucideApp] No API available, skipping onboarding check');
+                this.onboardingChecked = true;
+                return;
+            }
+
+            console.log('[LucideApp] Checking onboarding status...');
+            const result = await window.api.profile.needsOnboarding();
+
+            if (result.success && result.needsOnboarding) {
+                console.log('[LucideApp] User needs onboarding - showing wizard');
+                this.showOnboarding = true;
+            } else {
+                console.log('[LucideApp] User already completed onboarding');
+                this.showOnboarding = false;
+            }
+        } catch (error) {
+            console.error('[LucideApp] Error checking onboarding status:', error);
+            // On error, don't block the app - proceed without onboarding
+            this.showOnboarding = false;
+        } finally {
+            this.onboardingChecked = true;
+        }
+    }
+
+    /**
+     * Phase WOW 1: Handle onboarding completion event
+     * Transitions from onboarding wizard to main app
+     */
+    handleOnboardingCompleted(event) {
+        console.log('[LucideApp] Onboarding completed:', event.detail);
+        this.showOnboarding = false;
+
+        // Update selected profile if provided
+        if (event.detail?.active_profile) {
+            this.selectedProfile = event.detail.active_profile;
+            localStorage.setItem('selectedProfile', this.selectedProfile);
         }
     }
 
@@ -140,6 +208,19 @@ export class LucideApp extends LitElement {
 
 
     render() {
+        // Phase WOW 1: Show loading while checking onboarding status
+        if (!this.onboardingChecked) {
+            return html`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#888;">
+                Chargement...
+            </div>`;
+        }
+
+        // Phase WOW 1: Show onboarding wizard if needed
+        if (this.showOnboarding) {
+            return html`<onboarding-wizard></onboarding-wizard>`;
+        }
+
+        // Normal app rendering
         switch (this.currentView) {
             case 'listen':
                 return html`<listen-view
