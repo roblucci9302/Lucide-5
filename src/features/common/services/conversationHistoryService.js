@@ -418,6 +418,71 @@ class ConversationHistoryService {
     }
 
     /**
+     * Get recent messages across all sessions for a user
+     * Used for thematic continuity analysis in routing
+     * @param {string} uid - User ID
+     * @param {Object} options - Options
+     * @param {number} options.limit - Max messages to retrieve (default: 30)
+     * @param {number} options.sessionLimit - Max sessions to consider (default: 5)
+     * @param {string} options.role - Filter by role ('user', 'assistant', or null for all)
+     * @returns {Array} Recent messages with session context
+     */
+    async getRecentMessagesAcrossSessions(uid, options = {}) {
+        const {
+            limit = 30,
+            sessionLimit = 5,
+            role = null
+        } = options;
+
+        try {
+            const db = sqliteClient.getDatabase();
+
+            // Build role filter
+            let roleFilter = '';
+            const params = [uid, sessionLimit, limit];
+            if (role) {
+                roleFilter = 'AND m.role = ?';
+                params.splice(2, 0, role); // Insert role before limit
+            }
+
+            const query = `
+                SELECT
+                    m.id,
+                    m.role,
+                    m.content,
+                    m.created_at,
+                    m.session_id,
+                    s.agent_profile,
+                    s.title as session_title
+                FROM ai_messages m
+                INNER JOIN sessions s ON m.session_id = s.id
+                WHERE s.uid = ?
+                    AND s.id IN (
+                        SELECT id FROM sessions
+                        WHERE uid = ?
+                        ORDER BY updated_at DESC
+                        LIMIT ?
+                    )
+                    ${roleFilter}
+                ORDER BY m.created_at DESC
+                LIMIT ?
+            `;
+
+            // Adjust params for the two uid placeholders
+            const finalParams = role
+                ? [uid, uid, sessionLimit, role, limit]
+                : [uid, uid, sessionLimit, limit];
+
+            const messages = db.prepare(query).all(...finalParams);
+
+            return messages;
+        } catch (error) {
+            console.error('[ConversationHistoryService] Error getting recent messages:', error);
+            return [];
+        }
+    }
+
+    /**
      * Delete a session and all its messages
      * @param {string} sessionId - Session ID
      * @returns {boolean} Success status

@@ -1,17 +1,29 @@
 /**
  * Agent Router Service - Intelligent routing to specialized agents
  *
- * Implements a 3-level decision system for automatic agent selection:
+ * Implements a 5-level decision system for automatic agent selection:
  *  - Level 1: Fast keyword matching (80% of cases, <50ms)
- *  - Level 2: User context enrichment (15% of cases, ~100ms)
- *  - Level 3: LLM classification (5% edge cases, ~500ms)
+ *  - Level 2a: Session history context enrichment (~10% of cases, ~100ms)
+ *  - Level 2b: User profile context enrichment (job role, industry, function) (~5% of cases, ~50ms)
+ *  - Level 2c: Conversation content analysis (thematic continuity) (~3% of cases, ~80ms)
+ *  - Level 3: LLM classification (2% edge cases, ~500ms)
+ *
+ * Phase Audit Enhancement (2024):
+ *  - Phase 1: Added user profile context: job_role, job_function, industry
+ *  - Phase 1: Role-based agent boosting (CEO → ceo_advisor, CTO → it_expert, etc.)
+ *  - Phase 1: Industry-specific keyword matching (SaaS: ARR, MRR, churn; E-commerce: AOV, cart abandonment)
+ *  - Phase 1: Expanded LLM classification to all 9 agent profiles
+ *  - Phase 3: Thematic continuity analysis from recent conversation content
+ *  - Phase 3: Recency-weighted theme scoring (newer messages count more)
+ *  - Phase 3: Automatic agent switching based on dominant conversation themes
  *
  * This enables automatic redirection to the most appropriate specialist agent
- * based on the user's question, improving response quality and user experience.
+ * based on the user's question, their professional context, AND conversation history themes.
  */
 
 const agentProfileService = require('./agentProfileService');
 const conversationHistoryService = require('./conversationHistoryService');
+const userContextService = require('./userContextService');
 
 class AgentRouterService {
     constructor() {
@@ -162,6 +174,7 @@ class AgentRouterService {
             byLevel: {
                 keywords: 0,
                 context: 0,
+                thematic: 0,
                 llm: 0
             },
             byAgent: {
@@ -171,7 +184,9 @@ class AgentRouterService {
                 manager_coach: 0,
                 hr_specialist: 0,
                 it_expert: 0,
-                marketing_expert: 0
+                marketing_expert: 0,
+                student_assistant: 0,
+                researcher_assistant: 0
             },
             userOverrides: 0
         };
@@ -181,6 +196,132 @@ class AgentRouterService {
         this.suggestionHistory = [];
         this.maxHistorySize = 50;
         this.suggestionEnabled = true; // Can be toggled by user
+
+        // Phase Audit: Role-based agent boost mapping
+        // Maps job roles to their most relevant agent profiles
+        this.roleToAgentMapping = {
+            // Executive roles
+            'CEO': 'ceo_advisor',
+            'Founder': 'ceo_advisor',
+            'Co-founder': 'ceo_advisor',
+            'Fondateur': 'ceo_advisor',
+            'Co-fondateur': 'ceo_advisor',
+            'Président': 'ceo_advisor',
+            'President': 'ceo_advisor',
+            'DG': 'ceo_advisor',
+            'Directeur Général': 'ceo_advisor',
+            'General Manager': 'ceo_advisor',
+            'COO': 'ceo_advisor',
+            // Tech roles
+            'CTO': 'it_expert',
+            'VP Engineering': 'it_expert',
+            'Tech Lead': 'it_expert',
+            'Lead Developer': 'it_expert',
+            'Développeur': 'it_expert',
+            'Developer': 'it_expert',
+            'Engineer': 'it_expert',
+            'Ingénieur': 'it_expert',
+            // Sales roles
+            'VP Sales': 'sales_expert',
+            'Sales Director': 'sales_expert',
+            'Directeur Commercial': 'sales_expert',
+            'Account Executive': 'sales_expert',
+            'Business Developer': 'sales_expert',
+            'Commercial': 'sales_expert',
+            'SDR': 'sales_expert',
+            'BDR': 'sales_expert',
+            // Marketing roles
+            'CMO': 'marketing_expert',
+            'VP Marketing': 'marketing_expert',
+            'Marketing Director': 'marketing_expert',
+            'Directeur Marketing': 'marketing_expert',
+            'Growth Manager': 'marketing_expert',
+            'Marketing Manager': 'marketing_expert',
+            // HR roles
+            'CHRO': 'hr_specialist',
+            'VP HR': 'hr_specialist',
+            'HR Director': 'hr_specialist',
+            'DRH': 'hr_specialist',
+            'Directeur RH': 'hr_specialist',
+            'HR Manager': 'hr_specialist',
+            'Talent Acquisition': 'hr_specialist',
+            'Recruiter': 'hr_specialist',
+            'Recruteur': 'hr_specialist',
+            // Management roles
+            'Manager': 'manager_coach',
+            'Team Lead': 'manager_coach',
+            'Head of': 'manager_coach',
+            'Responsable': 'manager_coach',
+            'Chef d\'équipe': 'manager_coach',
+            // Academic roles
+            'Student': 'student_assistant',
+            'Étudiant': 'student_assistant',
+            'Researcher': 'researcher_assistant',
+            'Chercheur': 'researcher_assistant',
+            'PhD': 'researcher_assistant',
+            'Doctorant': 'researcher_assistant'
+        };
+
+        // Phase Audit: Job function to agent mapping
+        this.functionToAgentMapping = {
+            'Executive': 'ceo_advisor',
+            'Engineering': 'it_expert',
+            'Development': 'it_expert',
+            'Sales': 'sales_expert',
+            'Marketing': 'marketing_expert',
+            'HR': 'hr_specialist',
+            'Human Resources': 'hr_specialist',
+            'Management': 'manager_coach',
+            'Operations': 'manager_coach',
+            'Research': 'researcher_assistant',
+            'Education': 'student_assistant'
+        };
+
+        // Phase Audit: Industry-specific keywords that boost certain agents
+        this.industryKeywords = {
+            'SaaS': {
+                ceo_advisor: ['arr', 'mrr', 'churn', 'ndr', 'net revenue retention', 'cac', 'ltv', 'product-led', 'plg', 'series', 'runway', 'burn rate'],
+                sales_expert: ['enterprise sales', 'smb', 'mid-market', 'land and expand', 'upsell', 'expansion revenue'],
+                marketing_expert: ['plg', 'freemium', 'trial conversion', 'activation', 'product qualified lead', 'pql']
+            },
+            'E-commerce': {
+                marketing_expert: ['cart abandonment', 'aov', 'average order value', 'repeat purchase', 'retention', 'customer lifetime'],
+                sales_expert: ['b2b', 'wholesale', 'dropshipping', 'marketplace', 'fulfillment'],
+                ceo_advisor: ['gmv', 'gross merchandise value', 'take rate', 'unit economics']
+            },
+            'Fintech': {
+                ceo_advisor: ['compliance', 'regulation', 'license', 'aml', 'kyc', 'psd2'],
+                it_expert: ['api banking', 'open banking', 'payment gateway', 'blockchain', 'smart contract'],
+                sales_expert: ['b2b fintech', 'enterprise', 'financial services']
+            },
+            'Marketplace': {
+                ceo_advisor: ['liquidity', 'network effects', 'take rate', 'gmv', 'supply demand'],
+                marketing_expert: ['demand generation', 'supply acquisition', 'viral loop'],
+                sales_expert: ['merchant acquisition', 'seller onboarding']
+            },
+            'Healthcare': {
+                ceo_advisor: ['hipaa', 'compliance', 'fda', 'clinical', 'regulatory'],
+                it_expert: ['ehr', 'electronic health record', 'interoperability', 'hl7', 'fhir'],
+                hr_specialist: ['medical staff', 'healthcare recruitment', 'credentialing']
+            },
+            'Agency': {
+                sales_expert: ['pitch', 'proposal', 'retainer', 'scope', 'deliverable'],
+                manager_coach: ['client management', 'project management', 'resource allocation'],
+                marketing_expert: ['campaign management', 'creative brief', 'media buying']
+            }
+        };
+
+        // Confidence boost values
+        this.ROLE_BOOST = 0.12;           // Boost when user role matches agent domain
+        this.FUNCTION_BOOST = 0.08;       // Boost when job function matches
+        this.INDUSTRY_KEYWORD_BOOST = 0.06; // Boost per industry-specific keyword match
+        this.MAX_INDUSTRY_BOOST = 0.15;   // Maximum total boost from industry keywords
+
+        // Phase 3: Thematic continuity boost values
+        this.THEME_CONTINUITY_BOOST = 0.10;     // Base boost for thematic continuity
+        this.THEME_FREQUENCY_MULTIPLIER = 0.02; // Additional boost per theme occurrence (capped)
+        this.MAX_THEME_BOOST = 0.18;            // Maximum total boost from thematic analysis
+        this.THEME_RECENCY_WEIGHT = 0.7;        // Weight for recent messages (vs older)
     }
 
     /**
@@ -211,7 +352,7 @@ class AgentRouterService {
             return keywordMatch;
         }
 
-        // LEVEL 2: Enrich with user context
+        // LEVEL 2a: Enrich with session history context
         try {
             const contextEnriched = await this.enrichWithContext(keywordMatch, userId);
 
@@ -223,6 +364,36 @@ class AgentRouterService {
             }
         } catch (error) {
             console.error('[AgentRouter] Context enrichment failed:', error);
+            // Continue to Level 2b
+        }
+
+        // LEVEL 2b: Enrich with user profile (Phase Audit - job role, industry, function)
+        try {
+            const profileEnriched = await this.enrichWithUserProfile(keywordMatch, question, userId);
+
+            if (profileEnriched.confidence > 0.8) {
+                this.stats.byLevel.context++; // Count as context enrichment
+                this.stats.byAgent[profileEnriched.agent]++;
+                console.log(`[AgentRouter] 👤 Profile route: ${profileEnriched.agent} (confidence: ${profileEnriched.confidence.toFixed(2)})`);
+                return profileEnriched;
+            }
+        } catch (error) {
+            console.error('[AgentRouter] Profile enrichment failed:', error);
+            // Continue to Level 2c
+        }
+
+        // LEVEL 2c: Enrich with conversation content analysis (Phase 3 - thematic continuity)
+        try {
+            const thematicEnriched = await this.enrichWithConversationContent(keywordMatch, question, userId);
+
+            if (thematicEnriched.confidence > 0.8) {
+                this.stats.byLevel.thematic++; // Count as thematic analysis
+                this.stats.byAgent[thematicEnriched.agent]++;
+                console.log(`[AgentRouter] 📚 Thematic route: ${thematicEnriched.agent} (confidence: ${thematicEnriched.confidence.toFixed(2)})`);
+                return thematicEnriched;
+            }
+        } catch (error) {
+            console.error('[AgentRouter] Thematic enrichment failed:', error);
             // Continue to Level 3
         }
 
@@ -351,6 +522,401 @@ class AgentRouterService {
     }
 
     /**
+     * Level 2b: Enrich with user profile context (Phase Audit)
+     * Uses user's job role, function, and industry to improve routing
+     * @param {Object} detection - Current detection from Level 1/2
+     * @param {string} question - Original question (for industry keyword matching)
+     * @param {string} userId - User ID
+     * @returns {Promise<Object>} Enhanced detection with profile context
+     */
+    async enrichWithUserProfile(detection, question, userId) {
+        try {
+            const userContext = userContextService.getContext(userId);
+
+            if (!userContext) {
+                console.log('[AgentRouter] No user context available for profile enrichment');
+                return detection;
+            }
+
+            const lower = question.toLowerCase();
+            let totalBoost = 0;
+            const boostReasons = [];
+
+            // 1. Check job role match
+            if (userContext.job_role) {
+                const roleAgent = this._findMatchingAgent(userContext.job_role, this.roleToAgentMapping);
+
+                if (roleAgent) {
+                    // If detected agent matches user's role domain, boost confidence
+                    if (detection.agent === roleAgent) {
+                        totalBoost += this.ROLE_BOOST;
+                        boostReasons.push(`role_match:${userContext.job_role}`);
+                        console.log(`[AgentRouter] 👤 Role boost: ${userContext.job_role} → ${roleAgent} (+${this.ROLE_BOOST})`);
+                    }
+                    // If confidence is low and role strongly suggests another agent, consider switching
+                    else if (detection.confidence < 0.75 && roleAgent !== 'lucide_assistant') {
+                        // Give partial boost towards role-preferred agent
+                        const partialBoost = this.ROLE_BOOST * 0.5;
+
+                        // If the question doesn't strongly match current detection, switch to role's agent
+                        if (detection.confidence < 0.65) {
+                            detection.agent = roleAgent;
+                            totalBoost += partialBoost;
+                            boostReasons.push(`role_preference:${userContext.job_role}→${roleAgent}`);
+                            console.log(`[AgentRouter] 👤 Role switch: low confidence (${detection.confidence.toFixed(2)}) + role ${userContext.job_role} → switching to ${roleAgent}`);
+                        }
+                    }
+                }
+            }
+
+            // 2. Check job function match
+            if (userContext.job_function && totalBoost === 0) {
+                const functionAgent = this.functionToAgentMapping[userContext.job_function];
+
+                if (functionAgent && detection.agent === functionAgent) {
+                    totalBoost += this.FUNCTION_BOOST;
+                    boostReasons.push(`function_match:${userContext.job_function}`);
+                    console.log(`[AgentRouter] 💼 Function boost: ${userContext.job_function} → ${functionAgent} (+${this.FUNCTION_BOOST})`);
+                }
+            }
+
+            // 3. Check industry-specific keywords
+            if (userContext.industry && this.industryKeywords[userContext.industry]) {
+                const industryConfig = this.industryKeywords[userContext.industry];
+                let industryBoost = 0;
+                const matchedIndustryKeywords = [];
+
+                for (const [agent, keywords] of Object.entries(industryConfig)) {
+                    if (agent === detection.agent) {
+                        for (const keyword of keywords) {
+                            const regex = new RegExp(`\\b${this.escapeRegex(keyword)}\\b`, 'i');
+                            if (regex.test(lower)) {
+                                industryBoost += this.INDUSTRY_KEYWORD_BOOST;
+                                matchedIndustryKeywords.push(keyword);
+                            }
+                        }
+                    }
+                }
+
+                if (industryBoost > 0) {
+                    // Cap industry boost
+                    industryBoost = Math.min(industryBoost, this.MAX_INDUSTRY_BOOST);
+                    totalBoost += industryBoost;
+                    boostReasons.push(`industry_keywords:${userContext.industry}[${matchedIndustryKeywords.join(',')}]`);
+                    console.log(`[AgentRouter] 🏭 Industry boost: ${userContext.industry} keywords [${matchedIndustryKeywords.join(', ')}] (+${industryBoost.toFixed(2)})`);
+                    detection.industryKeywords = matchedIndustryKeywords;
+                }
+            }
+
+            // 4. Apply total boost
+            if (totalBoost > 0) {
+                const oldConfidence = detection.confidence;
+                detection.confidence = Math.min(0.98, detection.confidence + totalBoost);
+                detection.profileBoost = {
+                    totalBoost: totalBoost.toFixed(3),
+                    reasons: boostReasons,
+                    userRole: userContext.job_role || null,
+                    userFunction: userContext.job_function || null,
+                    userIndustry: userContext.industry || null
+                };
+
+                // Update reason if profile significantly influenced the decision
+                if (totalBoost >= 0.1) {
+                    detection.reason = detection.reason === 'keyword_match'
+                        ? 'keyword_match+profile_boost'
+                        : 'profile_boost';
+                }
+
+                console.log(`[AgentRouter] 📊 Profile enrichment: ${oldConfidence.toFixed(2)} → ${detection.confidence.toFixed(2)} (boost: +${totalBoost.toFixed(2)})`);
+            }
+
+            return detection;
+        } catch (error) {
+            console.error('[AgentRouter] Error enriching with user profile:', error);
+            return detection;
+        }
+    }
+
+    /**
+     * Level 2c: Enrich with conversation content analysis (Phase 3)
+     * Analyzes the actual content of recent messages for thematic continuity
+     * @param {Object} detection - Current detection from Level 1/2
+     * @param {string} question - Original question
+     * @param {string} userId - User ID
+     * @returns {Promise<Object>} Enhanced detection with thematic analysis
+     */
+    async enrichWithConversationContent(detection, question, userId) {
+        try {
+            // Get recent messages across sessions (user messages only for thematic analysis)
+            const recentMessages = await conversationHistoryService.getRecentMessagesAcrossSessions(userId, {
+                limit: 20,
+                sessionLimit: 5,
+                role: 'user' // Only analyze user questions for themes
+            });
+
+            if (!recentMessages || recentMessages.length === 0) {
+                console.log('[AgentRouter] No recent messages for thematic analysis');
+                return detection;
+            }
+
+            // Analyze themes in recent messages
+            const themeAnalysis = this._analyzeThemes(recentMessages);
+
+            if (!themeAnalysis || Object.keys(themeAnalysis.agentThemeScores).length === 0) {
+                return detection;
+            }
+
+            // Calculate thematic continuity boost
+            const currentAgent = detection.agent;
+            const agentThemeScore = themeAnalysis.agentThemeScores[currentAgent] || 0;
+            const totalThemeScore = themeAnalysis.totalScore;
+
+            // Check if current question continues a theme
+            const questionThemes = this._detectThemesInText(question);
+            let thematicContinuity = 0;
+
+            // Count how many of the question's themes match recent conversation themes
+            for (const theme of questionThemes) {
+                if (themeAnalysis.dominantThemes.includes(theme)) {
+                    thematicContinuity++;
+                }
+            }
+
+            // Calculate boost
+            let themeBoost = 0;
+            const boostReasons = [];
+
+            // 1. Boost if detected agent matches dominant theme agent
+            if (agentThemeScore > 0 && totalThemeScore > 0) {
+                const agentThemeRatio = agentThemeScore / totalThemeScore;
+
+                if (agentThemeRatio > 0.3) {
+                    // Agent has been dominant in recent conversations
+                    themeBoost += this.THEME_CONTINUITY_BOOST * agentThemeRatio;
+                    boostReasons.push(`theme_dominant:${currentAgent}(${(agentThemeRatio * 100).toFixed(0)}%)`);
+                }
+            }
+
+            // 2. Boost for thematic continuity (question continues recent themes)
+            if (thematicContinuity > 0) {
+                const continuityBoost = Math.min(
+                    thematicContinuity * this.THEME_FREQUENCY_MULTIPLIER,
+                    this.MAX_THEME_BOOST - themeBoost
+                );
+                themeBoost += continuityBoost;
+                boostReasons.push(`theme_continuity:${thematicContinuity}_matches`);
+            }
+
+            // 3. Consider switching to dominant theme agent if confidence is low
+            if (detection.confidence < 0.70 && themeAnalysis.dominantAgent !== detection.agent) {
+                const dominantAgentScore = themeAnalysis.agentThemeScores[themeAnalysis.dominantAgent] || 0;
+                const dominantRatio = totalThemeScore > 0 ? dominantAgentScore / totalThemeScore : 0;
+
+                // If dominant agent is clearly preferred (>50% of recent themes), suggest switching
+                if (dominantRatio > 0.5) {
+                    const oldAgent = detection.agent;
+                    detection.agent = themeAnalysis.dominantAgent;
+                    themeBoost += this.THEME_CONTINUITY_BOOST * 0.5;
+                    boostReasons.push(`theme_switch:${oldAgent}→${detection.agent}(${(dominantRatio * 100).toFixed(0)}%)`);
+                    console.log(`[AgentRouter] 📚 Theme switch: ${oldAgent} → ${detection.agent} (dominant theme: ${(dominantRatio * 100).toFixed(0)}%)`);
+                }
+            }
+
+            // Apply boost
+            if (themeBoost > 0) {
+                // Cap the boost
+                themeBoost = Math.min(themeBoost, this.MAX_THEME_BOOST);
+
+                const oldConfidence = detection.confidence;
+                detection.confidence = Math.min(0.98, detection.confidence + themeBoost);
+                detection.thematicAnalysis = {
+                    boost: themeBoost.toFixed(3),
+                    reasons: boostReasons,
+                    dominantThemes: themeAnalysis.dominantThemes.slice(0, 5),
+                    dominantAgent: themeAnalysis.dominantAgent,
+                    messagesAnalyzed: recentMessages.length,
+                    thematicContinuity
+                };
+
+                // Update reason
+                if (themeBoost >= 0.05) {
+                    detection.reason = detection.reason.includes('_boost')
+                        ? detection.reason + '+thematic'
+                        : detection.reason + '+thematic_boost';
+                }
+
+                console.log(`[AgentRouter] 📚 Thematic enrichment: ${oldConfidence.toFixed(2)} → ${detection.confidence.toFixed(2)} (boost: +${themeBoost.toFixed(2)})`);
+                console.log(`[AgentRouter] 📚 Dominant themes: [${themeAnalysis.dominantThemes.slice(0, 3).join(', ')}]`);
+            }
+
+            return detection;
+        } catch (error) {
+            console.error('[AgentRouter] Error in thematic analysis:', error);
+            return detection;
+        }
+    }
+
+    /**
+     * Analyze themes in a set of messages
+     * @param {Array} messages - Messages to analyze
+     * @returns {Object} Theme analysis results
+     * @private
+     */
+    _analyzeThemes(messages) {
+        if (!messages || messages.length === 0) {
+            return null;
+        }
+
+        const agentThemeScores = {};
+        const themeFrequency = {};
+        let totalScore = 0;
+
+        // Weight recent messages more heavily
+        const totalMessages = messages.length;
+
+        for (let i = 0; i < messages.length; i++) {
+            const msg = messages[i];
+            const content = msg.content || '';
+
+            // Calculate recency weight (newer = higher weight)
+            // First message (i=0) is most recent
+            const recencyWeight = 1 - (i / totalMessages) * (1 - this.THEME_RECENCY_WEIGHT);
+
+            // Detect themes in this message
+            const detectedThemes = this._detectThemesInText(content);
+
+            for (const theme of detectedThemes) {
+                // Find which agent this theme belongs to
+                const themeAgent = this._getAgentForTheme(theme);
+
+                if (themeAgent) {
+                    // Score with recency weight
+                    const score = recencyWeight;
+                    agentThemeScores[themeAgent] = (agentThemeScores[themeAgent] || 0) + score;
+                    totalScore += score;
+                }
+
+                // Track theme frequency
+                themeFrequency[theme] = (themeFrequency[theme] || 0) + recencyWeight;
+            }
+        }
+
+        // Get dominant themes (sorted by frequency)
+        const dominantThemes = Object.entries(themeFrequency)
+            .sort(([, a], [, b]) => b - a)
+            .slice(0, 10)
+            .map(([theme]) => theme);
+
+        // Get dominant agent
+        const dominantAgent = Object.entries(agentThemeScores)
+            .sort(([, a], [, b]) => b - a)[0]?.[0] || 'lucide_assistant';
+
+        return {
+            agentThemeScores,
+            totalScore,
+            dominantThemes,
+            dominantAgent,
+            themeFrequency
+        };
+    }
+
+    /**
+     * Detect themes in a text using routing keywords
+     * @param {string} text - Text to analyze
+     * @returns {Array<string>} Detected theme keywords
+     * @private
+     */
+    _detectThemesInText(text) {
+        if (!text || typeof text !== 'string') {
+            return [];
+        }
+
+        const lower = text.toLowerCase();
+        const detectedThemes = [];
+
+        // Check each routing rule for keywords
+        for (const rule of this.routingRules) {
+            for (const keyword of rule.keywords) {
+                const regex = new RegExp(`\\b${this.escapeRegex(keyword)}\\b`, 'i');
+                if (regex.test(lower)) {
+                    detectedThemes.push(keyword);
+                }
+            }
+        }
+
+        // Also check industry-specific keywords
+        for (const [industry, agentKeywords] of Object.entries(this.industryKeywords)) {
+            for (const [agent, keywords] of Object.entries(agentKeywords)) {
+                for (const keyword of keywords) {
+                    const regex = new RegExp(`\\b${this.escapeRegex(keyword)}\\b`, 'i');
+                    if (regex.test(lower)) {
+                        detectedThemes.push(keyword);
+                    }
+                }
+            }
+        }
+
+        return [...new Set(detectedThemes)]; // Remove duplicates
+    }
+
+    /**
+     * Get the agent that a theme keyword belongs to
+     * @param {string} theme - Theme keyword
+     * @returns {string|null} Agent ID or null
+     * @private
+     */
+    _getAgentForTheme(theme) {
+        const lower = theme.toLowerCase();
+
+        // Check routing rules
+        for (const rule of this.routingRules) {
+            if (rule.keywords.some(k => k.toLowerCase() === lower)) {
+                return rule.agent;
+            }
+        }
+
+        // Check industry keywords
+        for (const [industry, agentKeywords] of Object.entries(this.industryKeywords)) {
+            for (const [agent, keywords] of Object.entries(agentKeywords)) {
+                if (keywords.some(k => k.toLowerCase() === lower)) {
+                    return agent;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Find matching agent from a role/function mapping
+     * Supports partial matching for roles like "Head of Engineering"
+     * @param {string} value - The role or function to match
+     * @param {Object} mapping - The mapping object
+     * @returns {string|null} Matched agent or null
+     */
+    _findMatchingAgent(value, mapping) {
+        if (!value) return null;
+
+        const valueLower = value.toLowerCase();
+
+        // Direct match first
+        for (const [key, agent] of Object.entries(mapping)) {
+            if (key.toLowerCase() === valueLower) {
+                return agent;
+            }
+        }
+
+        // Partial match (e.g., "Head of Engineering" contains "Engineering")
+        for (const [key, agent] of Object.entries(mapping)) {
+            if (valueLower.includes(key.toLowerCase()) || key.toLowerCase().includes(valueLower)) {
+                return agent;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Level 3: LLM classification for ambiguous cases
      * Uses a lightweight LLM to classify edge cases
      * @param {string} question - User question
@@ -363,14 +929,19 @@ class AgentRouterService {
             const prompt = `You are a question classifier. Classify this question into ONE category:
 
 Categories:
+- ceo_advisor: Questions about strategy, leadership, fundraising, board management, OKR, vision, M&A, crisis management
+- sales_expert: Questions about sales, prospecting, pipeline, CRM, closing, negotiation, BANT, MEDDIC
+- manager_coach: Questions about management, 1:1 meetings, feedback, team culture, coaching, performance management
 - hr_specialist: Questions about HR, recruitment, contracts, salaries, employees, hiring, onboarding
-- it_expert: Questions about code, bugs, development, tech, programming, databases, deployment
-- marketing_expert: Questions about campaigns, content, strategy, SEO, ads, social media, branding
+- it_expert: Questions about code, bugs, development, tech, programming, databases, deployment, DevOps
+- marketing_expert: Questions about campaigns, content, strategy, SEO, ads, social media, branding, growth
+- student_assistant: Questions about studies, exams, learning, courses, homework, academic research
+- researcher_assistant: Questions about research methodology, papers, analysis, scientific methods
 - lucide_assistant: General questions or anything that doesn't fit the above
 
 Question: "${question}"
 
-Reply with ONLY the category ID (one of: hr_specialist, it_expert, marketing_expert, lucide_assistant).`;
+Reply with ONLY the category ID.`;
 
             // Use the current active AI provider with minimal tokens
             const provider = aiFactory.createProvider();
@@ -381,8 +952,12 @@ Reply with ONLY the category ID (one of: hr_specialist, it_expert, marketing_exp
 
             const agent = response.trim().toLowerCase();
 
-            // Validate response is a valid agent ID
-            const validAgents = ['hr_specialist', 'it_expert', 'marketing_expert', 'lucide_assistant'];
+            // Validate response is a valid agent ID (all 9 profiles)
+            const validAgents = [
+                'ceo_advisor', 'sales_expert', 'manager_coach',
+                'hr_specialist', 'it_expert', 'marketing_expert',
+                'student_assistant', 'researcher_assistant', 'lucide_assistant'
+            ];
 
             if (validAgents.includes(agent)) {
                 return agent;
@@ -523,7 +1098,7 @@ Reply with ONLY the category ID (one of: hr_specialist, it_expert, marketing_exp
     resetStats() {
         this.stats = {
             totalRoutings: 0,
-            byLevel: { keywords: 0, context: 0, llm: 0 },
+            byLevel: { keywords: 0, context: 0, thematic: 0, llm: 0 },
             byAgent: {
                 lucide_assistant: 0,
                 ceo_advisor: 0,
@@ -531,7 +1106,9 @@ Reply with ONLY the category ID (one of: hr_specialist, it_expert, marketing_exp
                 manager_coach: 0,
                 hr_specialist: 0,
                 it_expert: 0,
-                marketing_expert: 0
+                marketing_expert: 0,
+                student_assistant: 0,
+                researcher_assistant: 0
             },
             userOverrides: 0
         };
