@@ -6,6 +6,7 @@ import './CitationView.js';
 import './AttachmentBubble.js';
 import './DocumentPreview.js';
 import './WorkflowFormDialog.js'; // Phase 1: Workflow Forms
+import '../components/ToastNotification.js'; // Phase 2: User Feedback
 
 export class AskView extends LitElement {
     static properties = {
@@ -1096,9 +1097,19 @@ export class AskView extends LitElement {
 
         // Store generated documents for display
         if (documents.length > 0 && !this.isStreaming) {
+            // Phase 2: Only notify if new documents were found (compare by count)
+            const isNewDocuments = this.generatedDocuments.length !== documents.length;
+
             console.log(`[AskView] Found ${documents.length} generated documents`);
             this.generatedDocuments = documents;
             this.requestUpdate(); // Trigger re-render to show DocumentPreview
+
+            // Phase 2: Show toast notification for newly generated documents
+            if (isNewDocuments && window.showToast) {
+                const docWord = documents.length > 1 ? 'documents générés' : 'document généré';
+                const titles = documents.map(d => d.title).join(', ');
+                window.showToast(`📄 ${documents.length} ${docWord} : ${titles}`, 'success', 5000);
+            }
         }
 
         // Render markdown (using cleanText if documents were found)
@@ -1576,13 +1587,30 @@ export class AskView extends LitElement {
     handleDocumentExportSuccess(e) {
         const { format, filePath } = e.detail;
         console.log(`[AskView] Document exported successfully to ${format}: ${filePath}`);
-        // Success - document was exported
+
+        // Phase 2: Show success toast with file path
+        const formatNames = { pdf: 'PDF', docx: 'Word', md: 'Markdown' };
+        const formatName = formatNames[format] || format.toUpperCase();
+
+        // Extract just the filename from path
+        const fileName = filePath.split(/[/\\]/).pop();
+
+        if (window.showToast) {
+            window.showToast(`Document exporté en ${formatName} : ${fileName}`, 'success', 5000);
+        }
     }
 
     handleDocumentExportError(e) {
         const { format, error } = e.detail;
         console.error(`[AskView] Document export error (${format}):`, error);
-        // Error - show to user if needed
+
+        // Phase 2: Show error toast
+        const formatNames = { pdf: 'PDF', docx: 'Word', md: 'Markdown' };
+        const formatName = formatNames[format] || format.toUpperCase();
+
+        if (window.showToast) {
+            window.showToast(`Erreur export ${formatName} : ${error}`, 'error', 6000);
+        }
     }
 
     updated(changedProperties) {
@@ -1712,6 +1740,9 @@ export class AskView extends LitElement {
 
                 <!-- Phase 1: Workflow Form Dialog -->
                 <workflow-form-dialog></workflow-form-dialog>
+
+                <!-- Phase 2: Toast Notifications -->
+                <toast-notification></toast-notification>
 
                 <!-- Text Input Container -->
                 <div class="text-input-container ${!hasResponse ? 'no-response' : ''} ${!this.showTextInput ? 'hidden' : ''}">
