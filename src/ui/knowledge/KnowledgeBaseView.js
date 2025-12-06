@@ -32,10 +32,16 @@ export class KnowledgeBaseView extends LitElement {
         .kb-header {
             display: flex;
             justify-content: space-between;
-            align-items: center;
+            align-items: flex-start;
             margin-bottom: 24px;
-            padding-bottom: 16px;
+            padding-bottom: 20px;
             border-bottom: 1px solid var(--color-white-10);
+        }
+
+        .kb-header-content {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
         }
 
         .kb-title {
@@ -43,23 +49,35 @@ export class KnowledgeBaseView extends LitElement {
             font-weight: 600;
             color: white;
             margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .kb-subtitle {
+            font-size: 13px;
+            color: var(--color-white-50);
+            margin: 0;
         }
 
         .kb-close-btn {
-            background: var(--color-white-10);
-            border: 1px solid var(--color-white-20);
-            border-radius: 6px;
-            color: white;
-            padding: 8px 16px;
-            font-size: 13px;
-            font-weight: 500;
+            background: transparent;
+            border: none;
+            border-radius: 8px;
+            color: var(--color-white-50);
+            width: 36px;
+            height: 36px;
+            font-size: 16px;
             cursor: pointer;
             transition: all 0.15s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .kb-close-btn:hover {
-            background: var(--color-white-15);
-            border-color: var(--scrollbar-thumb-hover);
+            background: var(--color-white-10);
+            color: white;
         }
 
         /* Search Bar */
@@ -228,6 +246,18 @@ export class KnowledgeBaseView extends LitElement {
             gap: 4px;
         }
 
+        .doc-description {
+            font-size: 12px;
+            color: var(--color-white-50);
+            line-height: 1.4;
+            margin-top: 6px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
         .doc-tags {
             display: flex;
             gap: 6px;
@@ -303,6 +333,77 @@ export class KnowledgeBaseView extends LitElement {
             font-size: 14px;
             color: var(--color-white-60);
             max-width: 400px;
+            margin-bottom: 24px;
+            line-height: 1.5;
+        }
+
+        .empty-cta {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .empty-cta-btn {
+            background: rgba(0, 122, 255, 0.2);
+            border: 1px solid rgba(0, 122, 255, 0.4);
+            border-radius: 10px;
+            color: rgba(0, 122, 255, 0.9);
+            padding: 14px 28px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .empty-cta-btn:hover {
+            background: rgba(0, 122, 255, 0.3);
+            border-color: rgba(0, 122, 255, 0.6);
+            transform: translateY(-1px);
+        }
+
+        .empty-cta-hint {
+            font-size: 12px;
+            color: var(--color-white-40);
+        }
+
+        .empty-features {
+            display: flex;
+            gap: 32px;
+            margin-top: 32px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .empty-feature {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            max-width: 140px;
+        }
+
+        .empty-feature-icon {
+            width: 40px;
+            height: 40px;
+            background: var(--color-white-05);
+            border: 1px solid var(--color-white-10);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            color: var(--color-white-50);
+        }
+
+        .empty-feature-text {
+            font-size: 11px;
+            color: var(--color-white-40);
+            text-align: center;
+            line-height: 1.4;
         }
 
         /* Loading State */
@@ -886,6 +987,164 @@ export class KnowledgeBaseView extends LitElement {
             border-color: rgba(0, 122, 255, 0.4);
             color: rgba(0, 122, 255, 0.9);
         }
+
+        /* SVG Icons */
+        .icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 1em;
+            height: 1em;
+            vertical-align: middle;
+        }
+
+        .icon svg {
+            width: 100%;
+            height: 100%;
+            fill: currentColor;
+        }
+
+        .icon-lg {
+            width: 1.5em;
+            height: 1.5em;
+        }
+
+        .icon-xl {
+            width: 2em;
+            height: 2em;
+        }
+
+        .icon-2xl {
+            width: 3em;
+            height: 3em;
+        }
+
+        .stat-icon-wrapper {
+            font-size: 24px;
+            color: rgba(0, 122, 255, 0.7);
+        }
+
+        .doc-icon-wrapper {
+            font-size: 28px;
+            min-width: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .doc-icon-wrapper.txt { color: rgba(156, 163, 175, 0.9); }
+        .doc-icon-wrapper.md { color: rgba(96, 165, 250, 0.9); }
+        .doc-icon-wrapper.pdf { color: rgba(239, 68, 68, 0.9); }
+        .doc-icon-wrapper.docx, .doc-icon-wrapper.doc { color: rgba(59, 130, 246, 0.9); }
+
+        .empty-icon-wrapper {
+            font-size: 64px;
+            color: rgba(255, 255, 255, 0.15);
+            margin-bottom: 16px;
+        }
+
+        .drop-icon-wrapper {
+            font-size: 48px;
+            color: rgba(0, 122, 255, 0.8);
+            animation: bounce 0.6s ease infinite;
+        }
+
+        /* Skeleton Loading */
+        .skeleton {
+            background: linear-gradient(
+                90deg,
+                rgba(255, 255, 255, 0.05) 0%,
+                rgba(255, 255, 255, 0.1) 50%,
+                rgba(255, 255, 255, 0.05) 100%
+            );
+            background-size: 200% 100%;
+            animation: skeleton-shimmer 1.5s ease-in-out infinite;
+            border-radius: 4px;
+        }
+
+        @keyframes skeleton-shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        .skeleton-document {
+            background: var(--color-black-20);
+            border: 1px solid var(--color-white-10);
+            border-radius: 10px;
+            padding: 16px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .skeleton-icon {
+            width: 32px;
+            height: 40px;
+            border-radius: 4px;
+        }
+
+        .skeleton-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .skeleton-title {
+            height: 16px;
+            width: 60%;
+            border-radius: 4px;
+        }
+
+        .skeleton-meta {
+            display: flex;
+            gap: 16px;
+        }
+
+        .skeleton-meta-item {
+            height: 12px;
+            width: 80px;
+            border-radius: 4px;
+        }
+
+        .skeleton-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .skeleton-btn {
+            width: 36px;
+            height: 32px;
+            border-radius: 6px;
+        }
+
+        .skeleton-stat-card {
+            background: var(--color-gray-800);
+            border: 1px solid var(--color-white-10);
+            border-radius: 12px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .skeleton-stat-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 6px;
+        }
+
+        .skeleton-stat-label {
+            width: 60px;
+            height: 10px;
+            border-radius: 4px;
+        }
+
+        .skeleton-stat-value {
+            width: 40px;
+            height: 24px;
+            border-radius: 4px;
+        }
     `;
 
     static properties = {
@@ -924,6 +1183,50 @@ export class KnowledgeBaseView extends LitElement {
     static MAX_TAGS = 20;
     static MAX_TAG_LENGTH = 50;
     static MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+
+    // SVG Icon paths (using Lucide icons style)
+    static icons = {
+        // Files & Documents
+        file: '<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14,2 14,8 20,8"/>',
+        fileText: '<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/>',
+        fileCode: '<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14,2 14,8 20,8"/><path d="m10 13-2 2 2 2"/><path d="m14 17 2-2-2-2"/>',
+        filePdf: '<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14,2 14,8 20,8"/><path d="M10 12v5"/><path d="M8 15h4"/><circle cx="14" cy="15" r="2"/>',
+        fileDoc: '<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>',
+        files: '<path d="M20 7h-3a2 2 0 0 1-2-2V2"/><path d="M9 18a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h7l4 4v10a2 2 0 0 1-2 2Z"/><path d="M3 7.6v12.8A1.6 1.6 0 0 0 4.6 22h9.8"/>',
+        folder: '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>',
+        // Actions
+        upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17,8 12,3 7,8"/><line x1="12" y1="3" x2="12" y2="15"/>',
+        download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/>',
+        trash: '<polyline points="3,6 5,6 21,6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>',
+        edit: '<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>',
+        eye: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>',
+        x: '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
+        check: '<polyline points="20,6 9,17 4,12"/>',
+        // UI Elements
+        search: '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
+        database: '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/>',
+        hardDrive: '<line x1="22" y1="12" x2="2" y2="12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/><line x1="6" y1="16" x2="6.01" y2="16"/><line x1="10" y1="16" x2="10.01" y2="16"/>',
+        calendar: '<rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
+        hash: '<line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/>',
+        tag: '<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>',
+        clock: '<circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/>',
+        loader: '<line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/>',
+        book: '<path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/>'
+    };
+
+    // Render SVG icon
+    _icon(name, className = '') {
+        const path = KnowledgeBaseView.icons[name];
+        if (!path) return '';
+        return html`<span class="icon ${className}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${this._unsafeHTML(path)}</svg></span>`;
+    }
+
+    // Helper to render unsafe HTML for SVG paths
+    _unsafeHTML(str) {
+        const template = document.createElement('template');
+        template.innerHTML = str;
+        return template.content;
+    }
 
     constructor() {
         super();
@@ -1556,14 +1859,15 @@ export class KnowledgeBaseView extends LitElement {
     }
 
     getFileIcon(fileType) {
-        const icons = {
-            'txt': '📄',
-            'md': '📝',
-            'pdf': '📕',
-            'docx': '📘',
-            'doc': '📘'
+        const iconMap = {
+            'txt': 'fileText',
+            'md': 'fileCode',
+            'pdf': 'file',
+            'docx': 'fileDoc',
+            'doc': 'fileDoc'
         };
-        return icons[fileType] || '📄';
+        const iconName = iconMap[fileType] || 'file';
+        return html`<span class="doc-icon-wrapper ${fileType || ''}">${this._icon(iconName, 'icon-xl')}</span>`;
     }
 
     formatSize(bytes) {
@@ -1589,6 +1893,45 @@ export class KnowledgeBaseView extends LitElement {
         return Array.from(types);
     }
 
+    _renderSkeletonStats() {
+        return html`
+            <div class="stats-section">
+                ${[1, 2, 3].map(() => html`
+                    <div class="skeleton-stat-card">
+                        <div class="skeleton skeleton-stat-icon"></div>
+                        <div class="skeleton skeleton-stat-label"></div>
+                        <div class="skeleton skeleton-stat-value"></div>
+                    </div>
+                `)}
+            </div>
+        `;
+    }
+
+    _renderSkeletonDocuments(count = 5) {
+        return html`
+            <div class="document-list">
+                ${Array(count).fill(0).map(() => html`
+                    <div class="skeleton-document">
+                        <div class="skeleton skeleton-icon"></div>
+                        <div class="skeleton-content">
+                            <div class="skeleton skeleton-title"></div>
+                            <div class="skeleton-meta">
+                                <div class="skeleton skeleton-meta-item"></div>
+                                <div class="skeleton skeleton-meta-item"></div>
+                                <div class="skeleton skeleton-meta-item"></div>
+                            </div>
+                        </div>
+                        <div class="skeleton-actions">
+                            <div class="skeleton skeleton-btn"></div>
+                            <div class="skeleton skeleton-btn"></div>
+                            <div class="skeleton skeleton-btn"></div>
+                        </div>
+                    </div>
+                `)}
+            </div>
+        `;
+    }
+
     render() {
         return html`
             <toast-notification></toast-notification>
@@ -1600,26 +1943,29 @@ export class KnowledgeBaseView extends LitElement {
             >
                 <!-- Header -->
                 <div class="kb-header">
-                    <h1 class="kb-title">📚 Base de Connaissances</h1>
-                    <button class="kb-close-btn" @click=${this.handleClose}>
-                        Fermer
+                    <div class="kb-header-content">
+                        <h1 class="kb-title">${this._icon('book', 'icon-lg')} Base de Connaissances</h1>
+                        <p class="kb-subtitle">Gérez vos documents pour enrichir les réponses de l'IA</p>
+                    </div>
+                    <button class="kb-close-btn" @click=${this.handleClose} title="Fermer">
+                        ${this._icon('x')}
                     </button>
                 </div>
 
                 <!-- Stats -->
                 <div class="stats-section">
                     <div class="stat-card">
-                        <span class="stat-icon">📄</span>
+                        <span class="stat-icon-wrapper">${this._icon('files', 'icon-lg')}</span>
                         <div class="stat-label">Documents</div>
                         <div class="stat-value">${this.stats.totalDocuments || 0}</div>
                     </div>
                     <div class="stat-card">
-                        <span class="stat-icon">💾</span>
+                        <span class="stat-icon-wrapper">${this._icon('hardDrive', 'icon-lg')}</span>
                         <div class="stat-label">Taille totale</div>
                         <div class="stat-value">${this.formatSize(this.stats.totalSize)}</div>
                     </div>
                     <div class="stat-card">
-                        <span class="stat-icon">🔍</span>
+                        <span class="stat-icon-wrapper">${this._icon('search', 'icon-lg')}</span>
                         <div class="stat-label">Indexés</div>
                         <div class="stat-value">${this.stats.indexed || 0}</div>
                     </div>
@@ -1639,7 +1985,9 @@ export class KnowledgeBaseView extends LitElement {
                         @click=${this.handleUpload}
                         ?disabled=${this.uploading}
                     >
-                        ${this.uploading ? '⏳ Upload en cours...' : '📤 Ajouter un Document'}
+                        ${this.uploading
+                            ? html`${this._icon('loader')} Upload en cours...`
+                            : html`${this._icon('upload')} Ajouter un Document`}
                     </button>
                 </div>
 
@@ -1686,52 +2034,74 @@ export class KnowledgeBaseView extends LitElement {
                 <div class="document-list-container drop-zone ${this.isDragOver ? 'drag-over' : ''}">
                     ${this.isDragOver ? html`
                         <div class="drop-overlay">
-                            <span class="drop-overlay-icon">📥</span>
+                            <span class="drop-icon-wrapper">${this._icon('download', 'icon-2xl')}</span>
                             <span class="drop-overlay-text">Déposez votre fichier ici</span>
                         </div>
                     ` : ''}
-                    ${this.isLoading ? html`
-                        <div class="loading-state">
-                            <div class="loading-spinner"></div>
-                            <span>Chargement des documents...</span>
-                        </div>
-                    ` : this.filteredDocuments.length === 0 ? html`
+                    ${this.isLoading
+                        ? this._renderSkeletonDocuments(5)
+                    : this.filteredDocuments.length === 0 ? html`
                         <div class="empty-state">
-                            <div class="empty-icon">📚</div>
+                            <div class="empty-icon-wrapper">${this._icon('files', 'icon-2xl')}</div>
                             <h2 class="empty-title">
                                 ${this.searchQuery ? 'Aucun résultat' : 'Aucun document'}
                             </h2>
                             <p class="empty-message">
                                 ${this.searchQuery
-                                    ? 'Essayez une autre recherche'
-                                    : 'Commencez par ajouter des documents à votre base de connaissances. Glissez-déposez un fichier ou cliquez sur "Ajouter".'}
+                                    ? 'Aucun document ne correspond à votre recherche. Essayez d\'autres mots-clés.'
+                                    : 'Ajoutez des documents pour enrichir les réponses de l\'IA avec vos propres données.'}
                             </p>
+                            ${!this.searchQuery ? html`
+                                <div class="empty-cta">
+                                    <button class="empty-cta-btn" @click=${this.handleUpload}>
+                                        ${this._icon('upload')} Ajouter un document
+                                    </button>
+                                    <span class="empty-cta-hint">ou glissez-déposez un fichier ici</span>
+                                </div>
+                                <div class="empty-features">
+                                    <div class="empty-feature">
+                                        <div class="empty-feature-icon">${this._icon('fileText')}</div>
+                                        <span class="empty-feature-text">TXT, MD, PDF, DOCX</span>
+                                    </div>
+                                    <div class="empty-feature">
+                                        <div class="empty-feature-icon">${this._icon('search')}</div>
+                                        <span class="empty-feature-text">Recherche sémantique</span>
+                                    </div>
+                                    <div class="empty-feature">
+                                        <div class="empty-feature-icon">${this._icon('tag')}</div>
+                                        <span class="empty-feature-text">Organisation par tags</span>
+                                    </div>
+                                </div>
+                            ` : ''}
                         </div>
                     ` : html`
                         <div class="document-list">
                             ${this.paginatedDocuments.map(doc => html`
                                 <div class="document-item">
-                                    <div class="doc-icon">${this.getFileIcon(doc.file_type)}</div>
+                                    ${this.getFileIcon(doc.file_type)}
                                     <div class="doc-info">
                                         <h3 class="doc-title">${doc.title || doc.filename}</h3>
+                                        ${doc.description ? html`
+                                            <p class="doc-description">${doc.description}</p>
+                                        ` : ''}
                                         <div class="doc-meta">
                                             <span class="doc-meta-item">
-                                                📁 ${doc.filename}
+                                                ${this._icon('folder')} ${doc.filename}
                                             </span>
                                             <span class="doc-meta-item">
-                                                💾 ${this.formatSize(doc.file_size)}
+                                                ${this._icon('hardDrive')} ${this.formatSize(doc.file_size)}
                                             </span>
                                             <span class="doc-meta-item">
-                                                📅 ${this.formatDate(doc.created_at)}
+                                                ${this._icon('calendar')} ${this.formatDate(doc.created_at)}
                                             </span>
                                             ${doc.chunk_count ? html`
                                                 <span class="doc-meta-item">
-                                                    🔢 ${doc.chunk_count} chunks
+                                                    ${this._icon('hash')} ${doc.chunk_count} chunks
                                                 </span>
                                             ` : ''}
                                             ${doc.indexed ? html`
-                                                <span class="doc-meta-item" style="color: rgba(0,255,0,0.7);">
-                                                    ✓ Indexé
+                                                <span class="doc-meta-item" style="color: rgba(52,199,89,0.9);">
+                                                    ${this._icon('check')} Indexé
                                                 </span>
                                             ` : ''}
                                         </div>
@@ -1749,21 +2119,21 @@ export class KnowledgeBaseView extends LitElement {
                                             @click=${() => this.handleViewDocument(doc.id)}
                                             title="Voir le document"
                                         >
-                                            👁️
+                                            ${this._icon('eye')}
                                         </button>
                                         <button
                                             class="doc-action-btn"
                                             @click=${() => this.handleEditDocument(doc.id)}
                                             title="Éditer les métadonnées"
                                         >
-                                            ✏️
+                                            ${this._icon('edit')}
                                         </button>
                                         <button
                                             class="doc-action-btn danger"
                                             @click=${() => this.handleDeleteDocument(doc.id, doc.title || doc.filename)}
                                             title="Supprimer"
                                         >
-                                            🗑️
+                                            ${this._icon('trash')}
                                         </button>
                                     </div>
                                 </div>
@@ -1834,10 +2204,10 @@ export class KnowledgeBaseView extends LitElement {
                     <div class="modal-container">
                         <div class="modal-header">
                             <h2 class="modal-title">
-                                ${this.getFileIcon(this.selectedDocument?.file_type)}
+                                ${this._icon('file', 'icon-lg')}
                                 ${this.selectedDocument?.title || this.selectedDocument?.filename || 'Document'}
                             </h2>
-                            <button class="modal-close-btn" @click=${this.closeViewer}>Fermer</button>
+                            <button class="modal-close-btn" @click=${this.closeViewer}>${this._icon('x')} Fermer</button>
                         </div>
                         <div class="modal-body">
                             ${this.documentLoading ? html`
@@ -1911,9 +2281,9 @@ export class KnowledgeBaseView extends LitElement {
                     <div class="modal-container">
                         <div class="modal-header">
                             <h2 class="modal-title">
-                                ✏️ Modifier le document
+                                ${this._icon('edit', 'icon-lg')} Modifier le document
                             </h2>
-                            <button class="modal-close-btn" @click=${this.closeEditor}>Annuler</button>
+                            <button class="modal-close-btn" @click=${this.closeEditor}>${this._icon('x')} Annuler</button>
                         </div>
                         <div class="modal-body">
                             ${this.documentLoading ? html`
