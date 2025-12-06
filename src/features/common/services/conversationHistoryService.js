@@ -187,6 +187,81 @@ class ConversationHistoryService {
     }
 
     /**
+     * Get conversation messages with token-based limit
+     * Optimized for context building - fetches only what's needed
+     * @param {string} sessionId - Session ID
+     * @param {Object} options - Filtering options
+     * @param {number} options.maxTokens - Maximum total tokens to retrieve
+     * @param {number} options.maxMessages - Maximum messages to retrieve (safety limit)
+     * @param {boolean} options.prioritizeRecent - Whether to get recent messages first
+     * @returns {Array} Messages within token budget
+     */
+    async getSessionMessagesWithLimit(sessionId, options = {}) {
+        const {
+            maxTokens = 50000,  // Default 50K tokens
+            maxMessages = 200,  // Safety limit
+            prioritizeRecent = true
+        } = options;
+
+        try {
+            const db = sqliteClient.getDatabase();
+
+            // First, get total count and token estimate
+            const countQuery = `
+                SELECT COUNT(*) as total, SUM(COALESCE(tokens, LENGTH(content) / 4)) as total_tokens
+                FROM ai_messages
+                WHERE session_id = ?
+            `;
+            const stats = db.prepare(countQuery).get(sessionId);
+
+            // If total is within limits, return all messages
+            if (stats.total <= maxMessages && (stats.total_tokens || 0) <= maxTokens) {
+                const allQuery = `
+                    SELECT id, role, content, created_at, tokens, model
+                    FROM ai_messages
+                    WHERE session_id = ?
+                    ORDER BY created_at ASC
+                `;
+                return db.prepare(allQuery).all(sessionId);
+            }
+
+            // Otherwise, fetch recent messages and accumulate until budget exhausted
+            // Using window function to calculate cumulative tokens
+            if (prioritizeRecent) {
+                const recentQuery = `
+                    WITH ranked_messages AS (
+                        SELECT
+                            id, role, content, created_at, tokens, model,
+                            ROW_NUMBER() OVER (ORDER BY created_at DESC) as rn,
+                            SUM(COALESCE(tokens, LENGTH(content) / 4)) OVER (ORDER BY created_at DESC) as cumulative_tokens
+                        FROM ai_messages
+                        WHERE session_id = ?
+                    )
+                    SELECT id, role, content, created_at, tokens, model
+                    FROM ranked_messages
+                    WHERE cumulative_tokens <= ? AND rn <= ?
+                    ORDER BY created_at ASC
+                `;
+                return db.prepare(recentQuery).all(sessionId, maxTokens, maxMessages);
+            } else {
+                // Oldest first (for chronological context)
+                const oldestQuery = `
+                    SELECT id, role, content, created_at, tokens, model
+                    FROM ai_messages
+                    WHERE session_id = ?
+                    ORDER BY created_at ASC
+                    LIMIT ?
+                `;
+                return db.prepare(oldestQuery).all(sessionId, maxMessages);
+            }
+        } catch (error) {
+            console.error('[ConversationHistoryService] Error getting messages with limit:', error);
+            // Fallback to basic query
+            return this.getSessionMessages(sessionId);
+        }
+    }
+
+    /**
      * Generate intelligent title from first user message
      * @param {string} sessionId - Session ID
      * @returns {string} Generated title

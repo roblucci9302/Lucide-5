@@ -35,6 +35,7 @@ const actionExecutor = require('../common/services/actionExecutor'); // Phase 2:
 const dataSourceInjector = require('../common/services/dataSourceInjector'); // Phase 3: External data sources
 const autoIndexingService = require('../common/services/autoIndexingService'); // Phase 2: Auto-indexing
 const authService = require('../common/services/authService'); // For user ID in auto-indexing
+const contextManager = require('../common/services/contextManager'); // Token-aware context management
 
 // Try to load sharp, but don't fail if it's not available
 let sharp;
@@ -635,13 +636,29 @@ class AskService {
                 { role: 'system', content: systemPrompt }
             ];
 
-            // Ajouter les messages précédents de la session (en excluant le tout dernier qui est la question actuelle)
-            // Limiter à 10 derniers échanges pour éviter de dépasser les limites de tokens
-            // On exclut le dernier message car c'est celui qu'on vient d'ajouter à la ligne 261
-            const messagesForContext = previousMessages.slice(0, -1); // Exclure le dernier message
-            const recentMessages = messagesForContext.slice(-20); // 20 messages = ~10 échanges user/assistant
+            // Token-aware context management: Use contextManager instead of hardcoded message limits
+            // This ensures we use the model's full context window and preserve important questions
+            const messagesForContext = previousMessages.slice(0, -1); // Exclure le dernier message (question actuelle)
 
-            for (const msg of recentMessages) {
+            // Estimate system prompt tokens for budget calculation
+            const systemPromptTokens = tokenTrackingService.estimateTokens(systemPrompt);
+
+            // Build optimized context using token-aware selection
+            const contextResult = contextManager.buildContext({
+                messages: messagesForContext,
+                model: modelInfo.model,
+                systemPromptTokens: systemPromptTokens,
+                options: {
+                    preserveQuestions: true,  // Keep questions even during truncation
+                    minRecent: 10             // Always include at least 10 recent messages
+                }
+            });
+
+            // Log context selection results
+            console.log(`[AskService] ${contextManager.getSummary(contextResult)}`);
+
+            // Add selected messages to the conversation
+            for (const msg of contextResult.messages) {
                 messages.push({
                     role: msg.role,
                     content: msg.content
