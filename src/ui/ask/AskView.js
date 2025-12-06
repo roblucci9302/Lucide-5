@@ -1,10 +1,12 @@
 import { html, css, LitElement } from '../../ui/assets/lit-core-2.7.4.min.js';
 import { parser, parser_write, parser_end, default_renderer } from '../../ui/assets/smd.js';
+import { parseDocuments as parseDocumentsES } from '../../ui/assets/documentParserES.js'; // Phase 3: Shared parsing
 import './QuickActionsPanel.js';
 import './CitationView.js';
 import './AttachmentBubble.js';
 import './DocumentPreview.js';
 import './WorkflowFormDialog.js'; // Phase 1: Workflow Forms
+import '../components/ToastNotification.js'; // Phase 2: User Feedback
 
 export class AskView extends LitElement {
     static properties = {
@@ -1059,71 +1061,10 @@ export class AskView extends LitElement {
     /**
      * Phase 4: Parse AI response for generated documents
      * Detects document markers like <<DOCUMENT:type>> and extracts them
+     * Phase 3: Now uses shared ES module documentParserES.js
      */
     parseDocuments(text) {
-        if (!text || typeof text !== 'string') {
-            return { documents: [], cleanText: text || '' };
-        }
-
-        const documents = [];
-        let cleanText = text;
-
-        // Regex for full format: <<DOCUMENT:type>>title: Title---Content<</DOCUMENT>>
-        const fullRegex = /<<DOCUMENT:(\w+)>>\s*title:\s*(.+?)\s*---\s*([\s\S]+?)<<\/DOCUMENT>>/gi;
-
-        // Regex for simple format: <<DOC:type:title>>Content<</DOC>>
-        const simpleRegex = /<<DOC:(\w+):(.+?)>>\s*([\s\S]+?)<<\/DOC>>/gi;
-
-        // Parse full format
-        let match;
-        while ((match = fullRegex.exec(text)) !== null) {
-            const [fullMatch, type, title, content] = match;
-
-            documents.push({
-                id: `doc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                type: type.toLowerCase(),
-                title: title.trim(),
-                content: content.trim(),
-                metadata: {
-                    source: 'ai_generated',
-                    timestamp: new Date().toISOString(),
-                    format: 'markdown'
-                }
-            });
-
-            // Replace with placeholder in clean text
-            cleanText = cleanText.replace(
-                fullMatch,
-                `\n\n📄 **Document généré**: ${title.trim()} (${type})\n\n`
-            );
-        }
-
-        // Parse simple format
-        while ((match = simpleRegex.exec(text)) !== null) {
-            const [fullMatch, type, title, content] = match;
-
-            documents.push({
-                id: `doc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                type: type.toLowerCase(),
-                title: title.trim(),
-                content: content.trim(),
-                metadata: {
-                    source: 'ai_generated',
-                    timestamp: new Date().toISOString(),
-                    format: 'markdown'
-                }
-            });
-
-            cleanText = cleanText.replace(
-                fullMatch,
-                `\n\n📄 **Document généré**: ${title.trim()} (${type})\n\n`
-            );
-        }
-
-        return {
-            documents,
-            cleanText: cleanText.trim()
-        };
+        return parseDocumentsES(text);
     }
 
     renderContent() {
@@ -1156,9 +1097,19 @@ export class AskView extends LitElement {
 
         // Store generated documents for display
         if (documents.length > 0 && !this.isStreaming) {
+            // Phase 2: Only notify if new documents were found (compare by count)
+            const isNewDocuments = this.generatedDocuments.length !== documents.length;
+
             console.log(`[AskView] Found ${documents.length} generated documents`);
             this.generatedDocuments = documents;
             this.requestUpdate(); // Trigger re-render to show DocumentPreview
+
+            // Phase 2: Show toast notification for newly generated documents
+            if (isNewDocuments && window.showToast) {
+                const docWord = documents.length > 1 ? 'documents générés' : 'document généré';
+                const titles = documents.map(d => d.title).join(', ');
+                window.showToast(`📄 ${documents.length} ${docWord} : ${titles}`, 'success', 5000);
+            }
         }
 
         // Render markdown (using cleanText if documents were found)
@@ -1636,13 +1587,30 @@ export class AskView extends LitElement {
     handleDocumentExportSuccess(e) {
         const { format, filePath } = e.detail;
         console.log(`[AskView] Document exported successfully to ${format}: ${filePath}`);
-        // Success - document was exported
+
+        // Phase 2: Show success toast with file path
+        const formatNames = { pdf: 'PDF', docx: 'Word', md: 'Markdown' };
+        const formatName = formatNames[format] || format.toUpperCase();
+
+        // Extract just the filename from path
+        const fileName = filePath.split(/[/\\]/).pop();
+
+        if (window.showToast) {
+            window.showToast(`Document exporté en ${formatName} : ${fileName}`, 'success', 5000);
+        }
     }
 
     handleDocumentExportError(e) {
         const { format, error } = e.detail;
         console.error(`[AskView] Document export error (${format}):`, error);
-        // Error - show to user if needed
+
+        // Phase 2: Show error toast
+        const formatNames = { pdf: 'PDF', docx: 'Word', md: 'Markdown' };
+        const formatName = formatNames[format] || format.toUpperCase();
+
+        if (window.showToast) {
+            window.showToast(`Erreur export ${formatName} : ${error}`, 'error', 6000);
+        }
     }
 
     updated(changedProperties) {
@@ -1753,8 +1721,12 @@ export class AskView extends LitElement {
                     </div>
                 ` : ''}
 
-                <!-- Quick Actions Panel (Phase 3: Workflows) - DÉSACTIVÉ -->
-                <!-- ${!hasResponse ? html`<quick-actions-panel></quick-actions-panel>` : ''} -->
+                <!-- Quick Actions Panel (Phase 3: Workflows) -->
+                ${!hasResponse ? html`
+                    <quick-actions-panel
+                        @workflow-selected=${this.handleWorkflowSelected}
+                    ></quick-actions-panel>
+                ` : ''}
 
                 <!-- Attachments Display -->
                 ${this.attachments && this.attachments.length > 0 ? html`
@@ -1768,6 +1740,9 @@ export class AskView extends LitElement {
 
                 <!-- Phase 1: Workflow Form Dialog -->
                 <workflow-form-dialog></workflow-form-dialog>
+
+                <!-- Phase 2: Toast Notifications -->
+                <toast-notification></toast-notification>
 
                 <!-- Text Input Container -->
                 <div class="text-input-container ${!hasResponse ? 'no-response' : ''} ${!this.showTextInput ? 'hidden' : ''}">
