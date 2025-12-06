@@ -169,12 +169,21 @@ module.exports = {
                     // Continue even if indexing fails
                 }
 
+                // Return detailed success info for better UI feedback
                 return {
                     success: true,
                     document: {
                         id: document.id,
                         title: document.title,
-                        filename: document.filename
+                        filename: document.filename,
+                        file_type: document.file_type,
+                        page_count: document.page_count || 0
+                    },
+                    indexing: {
+                        indexed: true,
+                        message: document.page_count > 0
+                            ? `Document indexé (${document.page_count} pages)`
+                            : 'Document indexé avec succès'
                     }
                 };
             } catch (error) {

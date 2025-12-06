@@ -1886,31 +1886,58 @@ export class KnowledgeBaseView extends LitElement {
     async handleReindexAll() {
         if (this.isReindexing) return;
 
-        // Show confirmation
-        const confirmed = confirm(
-            'Réindexer tous les documents ?\n\n' +
-            'Cette opération peut prendre plusieurs minutes selon le nombre de documents.\n' +
-            'Les embeddings seront régénérés avec le provider actuel.'
+        // Show confirmation with provider info
+        const providerInfo = this.embeddingProvider?.displayName || 'Non configuré';
+        const confirmed = await window.showConfirm?.(
+            'Réindexer tous les documents ?',
+            `Les embeddings seront régénérés avec le provider "${providerInfo}".\n\n` +
+            'Cette opération peut prendre plusieurs minutes selon le nombre de documents.',
+            { confirmText: 'Réindexer', cancelText: 'Annuler', type: 'primary' }
         );
 
         if (!confirmed) return;
 
         this.isReindexing = true;
 
+        // Show progress toast
+        const progressId = window.showProgress?.('Réindexation en cours...', 0);
+
         try {
+            // Log starting info
+            console.log('[KnowledgeBaseView] Starting reindex with provider:', this.embeddingProvider?.name);
+
             const result = await window.api.invoke('rag:reindex-all');
 
+            // Dismiss progress toast
+            if (progressId) window.dismissToast?.(progressId);
+
             if (result.success) {
-                this._showToast(result.message, 'success');
+                const msg = result.reindexed > 0
+                    ? `✅ ${result.reindexed}/${result.total} document(s) réindexé(s) avec ${providerInfo}`
+                    : 'Aucun document à réindexer';
+
+                window.showToast?.(msg, result.reindexed > 0 ? 'success' : 'info');
+
+                // Show warning if there were errors
+                if (result.errors && result.errors.length > 0) {
+                    window.showToast?.(
+                        `⚠️ ${result.errors.length} document(s) n'ont pas pu être réindexé(s)`,
+                        'warning',
+                        6000
+                    );
+                }
+
                 // Reload stats and documents
                 await this.loadStats();
                 await this.loadDocuments();
+                await this.loadProviderInfo();
             } else {
-                this._showToast(`Erreur: ${result.error}`, 'error');
+                window.showToast?.(`Erreur: ${result.error}`, 'error');
             }
         } catch (error) {
             console.error('[KnowledgeBaseView] Error reindexing:', error);
-            this._showToast(`Erreur lors de la réindexation: ${error.message}`, 'error');
+            if (progressId) window.dismissToast?.(progressId);
+            window.showToast?.(`Erreur lors de la réindexation: ${error.message}`, 'error');
         } finally {
             this.isReindexing = false;
         }
@@ -2054,7 +2081,17 @@ export class KnowledgeBaseView extends LitElement {
                 console.log('[KnowledgeBaseView] Document uploaded successfully');
                 // Dismiss progress and show success
                 if (progressId) window.dismissToast?.(progressId);
-                window.showToast?.(`Document "${result.document.title}" uploadé avec succès !`, 'success');
+
+                // Build detailed success message
+                let successMsg = `Document "${result.document.title}" uploadé avec succès`;
+                if (result.document.page_count > 0) {
+                    successMsg += ` (${result.document.page_count} pages)`;
+                }
+                if (result.indexing?.indexed) {
+                    successMsg += ' ✅';
+                }
+                window.showToast?.(successMsg, 'success');
+
                 // Reload documents
                 await this.loadDocuments();
                 await this.loadStats();

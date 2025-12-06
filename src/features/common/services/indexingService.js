@@ -128,13 +128,24 @@ class IndexingService {
             // Insert chunks into database
             await this._insertChunks(chunkObjects);
 
-            console.log(`[IndexingService] Document indexed: ${documentId} (${chunkObjects.length} chunks)`);
+            // Log detailed indexing info
+            const totalTokens = chunkObjects.reduce((sum, c) => sum + c.token_count, 0);
+            const pagesIndexed = pageBreaks ? pageBreaks.length : 0;
+            const providerName = this.embeddingProvider?.getName?.() || 'none';
+
+            console.log(`[IndexingService] ✅ Document indexed: ${documentId}`);
+            console.log(`[IndexingService]    Chunks: ${chunkObjects.length}, Tokens: ${totalTokens}`);
+            console.log(`[IndexingService]    Provider: ${providerName}, Embeddings: ${generateEmbeddings ? 'yes' : 'no'}`);
+            if (pagesIndexed > 0) {
+                console.log(`[IndexingService]    Pages indexed: ${pagesIndexed} (PDF)`);
+            }
 
             return {
                 document_id: documentId,
                 chunk_count: chunkObjects.length,
                 indexed: generateEmbeddings,
-                total_tokens: chunkObjects.reduce((sum, c) => sum + c.token_count, 0)
+                total_tokens: totalTokens,
+                pages_indexed: pagesIndexed
             };
         } catch (error) {
             console.error('[IndexingService] Error indexing document:', error);
