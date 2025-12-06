@@ -647,17 +647,263 @@ export class KnowledgeBaseView extends LitElement {
             opacity: 0.5;
             text-decoration: line-through;
         }
+
+        /* Sort & Filter Bar */
+        .toolbar-section {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+
+        .sort-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .sort-label {
+            font-size: 12px;
+            color: var(--color-white-50);
+        }
+
+        .sort-select {
+            background: var(--color-black-20);
+            border: 1px solid var(--color-white-15);
+            border-radius: 6px;
+            color: white;
+            padding: 6px 12px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .sort-select:hover {
+            border-color: var(--color-white-25);
+        }
+
+        .sort-select:focus {
+            outline: none;
+            border-color: rgba(0, 122, 255, 0.5);
+        }
+
+        .sort-order-btn {
+            background: var(--color-white-10);
+            border: 1px solid var(--color-white-15);
+            border-radius: 6px;
+            color: var(--color-white-70);
+            padding: 6px 10px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .sort-order-btn:hover {
+            background: var(--color-white-15);
+            color: white;
+        }
+
+        .results-count {
+            font-size: 12px;
+            color: var(--color-white-50);
+        }
+
+        /* Pagination */
+        .pagination {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 16px 0;
+            border-top: 1px solid var(--color-white-10);
+            margin-top: auto;
+        }
+
+        .pagination-btn {
+            background: var(--color-white-10);
+            border: 1px solid var(--color-white-15);
+            border-radius: 6px;
+            color: var(--color-white-70);
+            padding: 8px 14px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .pagination-btn:hover:not(:disabled) {
+            background: var(--color-white-15);
+            color: white;
+        }
+
+        .pagination-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .pagination-btn.active {
+            background: rgba(0, 122, 255, 0.2);
+            border-color: rgba(0, 122, 255, 0.4);
+            color: rgba(0, 122, 255, 0.9);
+        }
+
+        .pagination-info {
+            font-size: 12px;
+            color: var(--color-white-50);
+            padding: 0 12px;
+        }
+
+        .page-size-select {
+            background: var(--color-black-20);
+            border: 1px solid var(--color-white-15);
+            border-radius: 6px;
+            color: white;
+            padding: 6px 10px;
+            font-size: 12px;
+            cursor: pointer;
+            margin-left: 12px;
+        }
+
+        /* Markdown/Code Preview */
+        .document-content.markdown {
+            font-family: var(--font-family-primary);
+            line-height: 1.7;
+        }
+
+        .document-content.markdown h1,
+        .document-content.markdown h2,
+        .document-content.markdown h3 {
+            color: white;
+            margin: 1em 0 0.5em 0;
+        }
+
+        .document-content.markdown h1 { font-size: 1.5em; }
+        .document-content.markdown h2 { font-size: 1.3em; }
+        .document-content.markdown h3 { font-size: 1.1em; }
+
+        .document-content.markdown p {
+            margin: 0.8em 0;
+        }
+
+        .document-content.markdown code {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: var(--font-family-mono, monospace);
+            font-size: 0.9em;
+        }
+
+        .document-content.markdown pre {
+            background: rgba(0, 0, 0, 0.4);
+            padding: 16px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 1em 0;
+        }
+
+        .document-content.markdown pre code {
+            background: none;
+            padding: 0;
+        }
+
+        .document-content.markdown ul,
+        .document-content.markdown ol {
+            padding-left: 1.5em;
+            margin: 0.8em 0;
+        }
+
+        .document-content.markdown li {
+            margin: 0.3em 0;
+        }
+
+        .document-content.markdown blockquote {
+            border-left: 3px solid rgba(0, 122, 255, 0.5);
+            padding-left: 16px;
+            margin: 1em 0;
+            color: var(--color-white-70);
+        }
+
+        .document-content.markdown a {
+            color: rgba(0, 122, 255, 0.9);
+            text-decoration: none;
+        }
+
+        .document-content.markdown a:hover {
+            text-decoration: underline;
+        }
+
+        .document-content.markdown hr {
+            border: none;
+            border-top: 1px solid var(--color-white-15);
+            margin: 1.5em 0;
+        }
+
+        .document-content.markdown table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1em 0;
+        }
+
+        .document-content.markdown th,
+        .document-content.markdown td {
+            border: 1px solid var(--color-white-15);
+            padding: 8px 12px;
+            text-align: left;
+        }
+
+        .document-content.markdown th {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .view-mode-toggle {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 12px;
+        }
+
+        .view-mode-btn {
+            background: var(--color-white-10);
+            border: 1px solid var(--color-white-15);
+            border-radius: 6px;
+            color: var(--color-white-60);
+            padding: 6px 12px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .view-mode-btn:hover {
+            background: var(--color-white-15);
+            color: white;
+        }
+
+        .view-mode-btn.active {
+            background: rgba(0, 122, 255, 0.2);
+            border-color: rgba(0, 122, 255, 0.4);
+            color: rgba(0, 122, 255, 0.9);
+        }
     `;
 
     static properties = {
         documents: { type: Array, state: true },
         filteredDocuments: { type: Array, state: true },
+        paginatedDocuments: { type: Array, state: true },
         stats: { type: Object, state: true },
         isLoading: { type: Boolean, state: true },
         searchQuery: { type: String, state: true },
         selectedFilter: { type: String, state: true },
         uploading: { type: Boolean, state: true },
         uploadProgress: { type: Number, state: true },
+        // Sorting
+        sortBy: { type: String, state: true },
+        sortOrder: { type: String, state: true },
+        // Pagination
+        currentPage: { type: Number, state: true },
+        pageSize: { type: Number, state: true },
         // Drag & Drop
         isDragOver: { type: Boolean, state: true },
         // Modal states
@@ -667,7 +913,9 @@ export class KnowledgeBaseView extends LitElement {
         documentLoading: { type: Boolean, state: true },
         editForm: { type: Object, state: true },
         // Form validation
-        formErrors: { type: Object, state: true }
+        formErrors: { type: Object, state: true },
+        // Viewer mode
+        viewerMode: { type: String, state: true }
     };
 
     // Validation limits
@@ -681,6 +929,7 @@ export class KnowledgeBaseView extends LitElement {
         super();
         this.documents = [];
         this.filteredDocuments = [];
+        this.paginatedDocuments = [];
         this.stats = {
             totalDocuments: 0,
             totalSize: 0,
@@ -691,6 +940,12 @@ export class KnowledgeBaseView extends LitElement {
         this.selectedFilter = 'all';
         this.uploading = false;
         this.uploadProgress = 0;
+        // Sorting
+        this.sortBy = 'created_at';
+        this.sortOrder = 'desc';
+        // Pagination
+        this.currentPage = 1;
+        this.pageSize = 20;
         // Drag & Drop
         this.isDragOver = false;
         this._dragCounter = 0;
@@ -702,6 +957,8 @@ export class KnowledgeBaseView extends LitElement {
         this.editForm = { title: '', description: '', tags: '' };
         // Form validation
         this.formErrors = {};
+        // Viewer mode
+        this.viewerMode = 'rendered'; // 'rendered' or 'raw'
         // Bind drag handlers
         this._handleDragEnter = this._handleDragEnter.bind(this);
         this._handleDragLeave = this._handleDragLeave.bind(this);
@@ -812,23 +1069,47 @@ export class KnowledgeBaseView extends LitElement {
 
     handleSearch(e) {
         this.searchQuery = e.target.value.toLowerCase();
+        this.currentPage = 1; // Reset to first page on search
         this.filterDocuments();
     }
 
     handleFilterChange(filter) {
         this.selectedFilter = filter;
+        this.currentPage = 1; // Reset to first page on filter change
         this.filterDocuments();
     }
 
+    handleSortChange(e) {
+        this.sortBy = e.target.value;
+        this.filterDocuments();
+    }
+
+    toggleSortOrder() {
+        this.sortOrder = this.sortOrder === 'asc' ? 'desc' : 'asc';
+        this.filterDocuments();
+    }
+
+    handlePageChange(page) {
+        this.currentPage = page;
+        this._updatePaginatedDocuments();
+    }
+
+    handlePageSizeChange(e) {
+        this.pageSize = parseInt(e.target.value);
+        this.currentPage = 1;
+        this._updatePaginatedDocuments();
+    }
+
     filterDocuments() {
-        let filtered = this.documents;
+        let filtered = [...this.documents];
 
         // Apply search query
         if (this.searchQuery) {
             filtered = filtered.filter(doc =>
                 doc.title?.toLowerCase().includes(this.searchQuery) ||
                 doc.filename?.toLowerCase().includes(this.searchQuery) ||
-                doc.description?.toLowerCase().includes(this.searchQuery)
+                doc.description?.toLowerCase().includes(this.searchQuery) ||
+                (doc.tags && doc.tags.some(tag => tag.toLowerCase().includes(this.searchQuery)))
             );
         }
 
@@ -837,7 +1118,74 @@ export class KnowledgeBaseView extends LitElement {
             filtered = filtered.filter(doc => doc.file_type === this.selectedFilter);
         }
 
+        // Apply sorting
+        filtered = this._sortDocuments(filtered);
+
         this.filteredDocuments = filtered;
+        this._updatePaginatedDocuments();
+    }
+
+    _sortDocuments(docs) {
+        return [...docs].sort((a, b) => {
+            let valueA, valueB;
+
+            switch (this.sortBy) {
+                case 'title':
+                    valueA = (a.title || a.filename || '').toLowerCase();
+                    valueB = (b.title || b.filename || '').toLowerCase();
+                    break;
+                case 'file_size':
+                    valueA = a.file_size || 0;
+                    valueB = b.file_size || 0;
+                    break;
+                case 'file_type':
+                    valueA = (a.file_type || '').toLowerCase();
+                    valueB = (b.file_type || '').toLowerCase();
+                    break;
+                case 'created_at':
+                default:
+                    valueA = a.created_at || 0;
+                    valueB = b.created_at || 0;
+                    break;
+            }
+
+            if (typeof valueA === 'string') {
+                const comparison = valueA.localeCompare(valueB);
+                return this.sortOrder === 'asc' ? comparison : -comparison;
+            } else {
+                return this.sortOrder === 'asc' ? valueA - valueB : valueB - valueA;
+            }
+        });
+    }
+
+    _updatePaginatedDocuments() {
+        const startIndex = (this.currentPage - 1) * this.pageSize;
+        const endIndex = startIndex + this.pageSize;
+        this.paginatedDocuments = this.filteredDocuments.slice(startIndex, endIndex);
+    }
+
+    get totalPages() {
+        return Math.ceil(this.filteredDocuments.length / this.pageSize);
+    }
+
+    get pageNumbers() {
+        const total = this.totalPages;
+        const current = this.currentPage;
+        const pages = [];
+
+        if (total <= 7) {
+            for (let i = 1; i <= total; i++) pages.push(i);
+        } else {
+            pages.push(1);
+            if (current > 3) pages.push('...');
+            for (let i = Math.max(2, current - 1); i <= Math.min(total - 1, current + 1); i++) {
+                pages.push(i);
+            }
+            if (current < total - 2) pages.push('...');
+            if (total > 1) pages.push(total);
+        }
+
+        return pages;
     }
 
     async handleUpload() {
@@ -1033,6 +1381,69 @@ export class KnowledgeBaseView extends LitElement {
     closeViewer() {
         this.viewerOpen = false;
         this.selectedDocument = null;
+        this.viewerMode = 'rendered';
+    }
+
+    toggleViewerMode(mode) {
+        this.viewerMode = mode;
+    }
+
+    _isMarkdownFile(fileType) {
+        return ['md', 'txt'].includes(fileType?.toLowerCase());
+    }
+
+    _renderMarkdown(content) {
+        if (!content) return '';
+
+        // Simple markdown parser
+        let html = content
+            // Escape HTML
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            // Headers
+            .replace(/^### (.*$)/gm, '<h3>$1</h3>')
+            .replace(/^## (.*$)/gm, '<h2>$1</h2>')
+            .replace(/^# (.*$)/gm, '<h1>$1</h1>')
+            // Bold and Italic
+            .replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>')
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/\*(.*?)\*/g, '<em>$1</em>')
+            .replace(/___(.*?)___/g, '<strong><em>$1</em></strong>')
+            .replace(/__(.*?)__/g, '<strong>$1</strong>')
+            .replace(/_(.*?)_/g, '<em>$1</em>')
+            // Code blocks
+            .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
+            // Inline code
+            .replace(/`([^`]+)`/g, '<code>$1</code>')
+            // Blockquotes
+            .replace(/^> (.*$)/gm, '<blockquote>$1</blockquote>')
+            // Horizontal rule
+            .replace(/^---$/gm, '<hr>')
+            .replace(/^\*\*\*$/gm, '<hr>')
+            // Unordered lists
+            .replace(/^\* (.*$)/gm, '<li>$1</li>')
+            .replace(/^- (.*$)/gm, '<li>$1</li>')
+            // Ordered lists
+            .replace(/^\d+\. (.*$)/gm, '<li>$1</li>')
+            // Links
+            .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>')
+            // Line breaks
+            .replace(/\n\n/g, '</p><p>')
+            .replace(/\n/g, '<br>');
+
+        // Wrap in paragraph
+        html = '<p>' + html + '</p>';
+
+        // Fix consecutive list items
+        html = html.replace(/<\/li><br><li>/g, '</li><li>');
+        html = html.replace(/(<li>.*<\/li>)/g, '<ul>$1</ul>');
+        html = html.replace(/<\/ul><ul>/g, '');
+
+        // Fix consecutive blockquotes
+        html = html.replace(/<\/blockquote><br><blockquote>/g, '<br>');
+
+        return html;
     }
 
     closeEditor() {
@@ -1252,6 +1663,25 @@ export class KnowledgeBaseView extends LitElement {
                     </div>
                 ` : ''}
 
+                <!-- Sort & Results -->
+                <div class="toolbar-section">
+                    <div class="sort-controls">
+                        <span class="sort-label">Trier par:</span>
+                        <select class="sort-select" @change=${this.handleSortChange} .value=${this.sortBy}>
+                            <option value="created_at">Date</option>
+                            <option value="title">Nom</option>
+                            <option value="file_size">Taille</option>
+                            <option value="file_type">Type</option>
+                        </select>
+                        <button class="sort-order-btn" @click=${this.toggleSortOrder} title="Inverser l'ordre">
+                            ${this.sortOrder === 'asc' ? '↑' : '↓'}
+                        </button>
+                    </div>
+                    <span class="results-count">
+                        ${this.filteredDocuments.length} document${this.filteredDocuments.length !== 1 ? 's' : ''}
+                    </span>
+                </div>
+
                 <!-- Document List -->
                 <div class="document-list-container drop-zone ${this.isDragOver ? 'drag-over' : ''}">
                     ${this.isDragOver ? html`
@@ -1274,12 +1704,12 @@ export class KnowledgeBaseView extends LitElement {
                             <p class="empty-message">
                                 ${this.searchQuery
                                     ? 'Essayez une autre recherche'
-                                    : 'Commencez par ajouter des documents à votre base de connaissances'}
+                                    : 'Commencez par ajouter des documents à votre base de connaissances. Glissez-déposez un fichier ou cliquez sur "Ajouter".'}
                             </p>
                         </div>
                     ` : html`
                         <div class="document-list">
-                            ${this.filteredDocuments.map(doc => html`
+                            ${this.paginatedDocuments.map(doc => html`
                                 <div class="document-item">
                                     <div class="doc-icon">${this.getFileIcon(doc.file_type)}</div>
                                     <div class="doc-info">
@@ -1341,6 +1771,61 @@ export class KnowledgeBaseView extends LitElement {
                         </div>
                     `}
                 </div>
+
+                <!-- Pagination -->
+                ${this.totalPages > 1 ? html`
+                    <div class="pagination">
+                        <button
+                            class="pagination-btn"
+                            @click=${() => this.handlePageChange(1)}
+                            ?disabled=${this.currentPage === 1}
+                        >
+                            ««
+                        </button>
+                        <button
+                            class="pagination-btn"
+                            @click=${() => this.handlePageChange(this.currentPage - 1)}
+                            ?disabled=${this.currentPage === 1}
+                        >
+                            «
+                        </button>
+
+                        ${this.pageNumbers.map(page =>
+                            page === '...'
+                                ? html`<span class="pagination-info">...</span>`
+                                : html`
+                                    <button
+                                        class="pagination-btn ${this.currentPage === page ? 'active' : ''}"
+                                        @click=${() => this.handlePageChange(page)}
+                                    >
+                                        ${page}
+                                    </button>
+                                `
+                        )}
+
+                        <button
+                            class="pagination-btn"
+                            @click=${() => this.handlePageChange(this.currentPage + 1)}
+                            ?disabled=${this.currentPage === this.totalPages}
+                        >
+                            »
+                        </button>
+                        <button
+                            class="pagination-btn"
+                            @click=${() => this.handlePageChange(this.totalPages)}
+                            ?disabled=${this.currentPage === this.totalPages}
+                        >
+                            »»
+                        </button>
+
+                        <select class="page-size-select" @change=${this.handlePageSizeChange} .value=${String(this.pageSize)}>
+                            <option value="10">10 / page</option>
+                            <option value="20">20 / page</option>
+                            <option value="50">50 / page</option>
+                            <option value="100">100 / page</option>
+                        </select>
+                    </div>
+                ` : ''}
             </div>
 
             <!-- Document Viewer Modal -->
@@ -1391,9 +1876,29 @@ export class KnowledgeBaseView extends LitElement {
                                         </div>
                                     ` : ''}
                                 </div>
-                                <div class="document-content">
-                                    ${this.selectedDocument.content || 'Aucun contenu disponible'}
-                                </div>
+                                ${this._isMarkdownFile(this.selectedDocument?.file_type) ? html`
+                                    <div class="view-mode-toggle">
+                                        <button
+                                            class="view-mode-btn ${this.viewerMode === 'rendered' ? 'active' : ''}"
+                                            @click=${() => this.toggleViewerMode('rendered')}
+                                        >
+                                            Aperçu
+                                        </button>
+                                        <button
+                                            class="view-mode-btn ${this.viewerMode === 'raw' ? 'active' : ''}"
+                                            @click=${() => this.toggleViewerMode('raw')}
+                                        >
+                                            Code source
+                                        </button>
+                                    </div>
+                                ` : ''}
+                                ${this.viewerMode === 'rendered' && this._isMarkdownFile(this.selectedDocument?.file_type) ? html`
+                                    <div class="document-content markdown" .innerHTML=${this._renderMarkdown(this.selectedDocument.content)}></div>
+                                ` : html`
+                                    <div class="document-content">
+                                        ${this.selectedDocument.content || 'Aucun contenu disponible'}
+                                    </div>
+                                `}
                             ` : ''}
                         </div>
                     </div>

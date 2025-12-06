@@ -1,4 +1,5 @@
 import { html, css, LitElement } from '../assets/lit-core-2.7.4.min.js';
+import '../components/ToastNotification.js';
 
 /**
  * CitationView - Displays sources cited in AI responses
@@ -263,14 +264,19 @@ export class CitationView extends LitElement {
 
             // Fallback: Open knowledge base manager if document retrieval fails
             if (window.api?.settingsView?.openKnowledgeBaseManager) {
+                window.showToast?.(`Ouverture de "${citation.document_title || 'Document'}" dans le gestionnaire...`, 'info');
                 await window.api.settingsView.openKnowledgeBaseManager();
             } else {
-                // Last fallback: show basic info
-                alert(`Document: ${citation.document_title || 'Untitled'}\nFichier: ${citation.document_filename || 'unknown'}\nPertinence: ${Math.round((citation.relevance_score || 0) * 100)}%`);
+                // Last fallback: show info via toast
+                window.showToast?.(
+                    `Source: ${citation.document_title || 'Untitled'} (${Math.round((citation.relevance_score || 0) * 100)}% pertinent)`,
+                    'info',
+                    5000
+                );
             }
         } catch (error) {
             console.error('[CitationView] Error opening document:', error);
-            alert(`Erreur: ${error.message}`);
+            window.showToast?.(`Erreur: ${error.message}`, 'error');
         }
     }
 
