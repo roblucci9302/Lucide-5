@@ -203,7 +203,10 @@ export class QuickActionsPanel extends LitElement {
             'lucide_assistant': 'Assistant Général',
             'hr_specialist': 'Expert RH',
             'it_expert': 'Expert IT',
-            'marketing_expert': 'Expert Marketing'
+            'marketing_expert': 'Expert Marketing',
+            'ceo_advisor': 'Conseiller CEO',
+            'sales_expert': 'Expert Commercial',
+            'manager_coach': 'Coach Manager'
         };
         return names[profileId] || 'Général';
     }
@@ -213,7 +216,10 @@ export class QuickActionsPanel extends LitElement {
             'lucide_assistant': '🤖',
             'hr_specialist': '👩‍💼',
             'it_expert': '💻',
-            'marketing_expert': '📱'
+            'marketing_expert': '📱',
+            'ceo_advisor': '👔',
+            'sales_expert': '💰',
+            'manager_coach': '🎯'
         };
         return icons[profileId] || '🤖';
     }

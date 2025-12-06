@@ -4,6 +4,7 @@ import './QuickActionsPanel.js';
 import './CitationView.js';
 import './AttachmentBubble.js';
 import './DocumentPreview.js';
+import './WorkflowFormDialog.js'; // Phase 1: Workflow Forms
 
 export class AskView extends LitElement {
     static properties = {
@@ -760,17 +761,29 @@ export class AskView extends LitElement {
         // Handle workflow selection from QuickActionsPanel
         this.handleWorkflowSelected = async (event) => {
             const { workflow } = event.detail;
-            console.log('[AskView] Workflow selected:', workflow.id);
+            console.log('[AskView] Workflow selected:', workflow.id, 'hasForm:', workflow.hasForm);
 
             try {
                 // Get active profile
                 const profileData = await window.api.settingsView.agent.getActiveProfile();
                 const activeProfile = profileData || 'lucide_assistant';
 
-                // Build prompt from workflow template
-                const prompt = await window.api.workflows.buildPrompt(activeProfile, workflow.id, {});
+                // Phase 1: Check if workflow has a form
+                if (workflow.hasForm) {
+                    // Get form fields from backend
+                    const formFields = await window.api.workflows.getFormFields(activeProfile, workflow.id);
+                    console.log('[AskView] Opening form dialog with fields:', formFields?.length || 0);
 
-                // Send the workflow prompt
+                    // Open the form dialog
+                    const formDialog = this.shadowRoot.querySelector('workflow-form-dialog');
+                    if (formDialog && formFields && formFields.length > 0) {
+                        formDialog.open(workflow, formFields);
+                        return; // Wait for form submission
+                    }
+                }
+
+                // No form or no fields - send prompt directly
+                const prompt = await window.api.workflows.buildPrompt(activeProfile, workflow.id, {});
                 if (prompt) {
                     this.handleSendText(null, prompt);
                 }
@@ -779,7 +792,27 @@ export class AskView extends LitElement {
             }
         };
 
+        // Phase 1: Handle form submission from WorkflowFormDialog
+        this.handleFormSubmitted = async (event) => {
+            const { workflow, formData } = event.detail;
+            console.log('[AskView] Form submitted for workflow:', workflow.id, 'with data:', formData);
+
+            try {
+                const profileData = await window.api.settingsView.agent.getActiveProfile();
+                const activeProfile = profileData || 'lucide_assistant';
+
+                // Build prompt with form data
+                const prompt = await window.api.workflows.buildPrompt(activeProfile, workflow.id, formData);
+                if (prompt) {
+                    this.handleSendText(null, prompt);
+                }
+            } catch (error) {
+                console.error('[AskView] Error handling form submission:', error);
+            }
+        };
+
         document.addEventListener('workflow-selected', this.handleWorkflowSelected);
+        document.addEventListener('form-submitted', this.handleFormSubmitted);
 
         if (window.api) {
             window.api.askView.onShowTextInput(() => {
@@ -824,6 +857,7 @@ export class AskView extends LitElement {
 
         document.removeEventListener('keydown', this.handleEscKey);
         document.removeEventListener('workflow-selected', this.handleWorkflowSelected);
+        document.removeEventListener('form-submitted', this.handleFormSubmitted);
 
         if (this.copyTimeout) {
             clearTimeout(this.copyTimeout);
@@ -1731,6 +1765,9 @@ export class AskView extends LitElement {
                         ></attachment-bubble>
                     </div>
                 ` : ''}
+
+                <!-- Phase 1: Workflow Form Dialog -->
+                <workflow-form-dialog></workflow-form-dialog>
 
                 <!-- Text Input Container -->
                 <div class="text-input-container ${!hasResponse ? 'no-response' : ''} ${!this.showTextInput ? 'hidden' : ''}">
