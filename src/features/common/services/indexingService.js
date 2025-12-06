@@ -267,6 +267,52 @@ class IndexingService {
     }
 
     /**
+     * Get embedding provider information
+     * @returns {Object} Provider info with name, dimensions, and quality level
+     */
+    getProviderInfo() {
+        if (!this.embeddingProvider) {
+            return {
+                name: 'none',
+                displayName: 'Non configuré',
+                dimensions: 0,
+                quality: 'none',
+                isConfigured: false
+            };
+        }
+
+        const name = this.embeddingProvider.getName ? this.embeddingProvider.getName() : 'unknown';
+        const dimensions = this.embeddingProvider.dimensions || 0;
+
+        const providerInfo = {
+            name,
+            dimensions,
+            isConfigured: true
+        };
+
+        switch (name) {
+            case 'openai':
+                providerInfo.displayName = 'OpenAI';
+                providerInfo.quality = 'high';
+                providerInfo.qualityLabel = 'Haute qualité';
+                providerInfo.model = 'text-embedding-3-small';
+                break;
+            case 'mock':
+                providerInfo.displayName = 'Mock (Test)';
+                providerInfo.quality = 'low';
+                providerInfo.qualityLabel = 'Qualité limitée';
+                providerInfo.warning = 'Configurez OPENAI_API_KEY pour de meilleurs résultats';
+                break;
+            default:
+                providerInfo.displayName = name;
+                providerInfo.quality = 'unknown';
+                providerInfo.qualityLabel = 'Inconnu';
+        }
+
+        return providerInfo;
+    }
+
+    /**
      * Chunk text into overlapping segments
      * @private
      * @param {string} text - Text to chunk

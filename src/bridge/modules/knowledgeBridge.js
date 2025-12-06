@@ -352,6 +352,83 @@ module.exports = {
             return await ragService.getSessionCitations(sessionId);
         });
 
+        // Embedding Provider Info (Phase 4 Enhancement)
+        ipcMain.handle('rag:get-provider-info', async () => {
+            try {
+                return indexingService.getProviderInfo();
+            } catch (error) {
+                console.error('[KnowledgeBridge] Error getting provider info:', error);
+                return {
+                    name: 'error',
+                    displayName: 'Erreur',
+                    quality: 'none',
+                    isConfigured: false,
+                    error: error.message
+                };
+            }
+        });
+
+        // Reindex all documents (Phase 4 Enhancement)
+        ipcMain.handle('rag:reindex-all', async () => {
+            try {
+                const userId = authService.getCurrentUserId();
+                if (!userId) {
+                    throw new Error('User not authenticated');
+                }
+
+                console.log('[KnowledgeBridge] Starting reindex of all documents');
+
+                // Get all documents
+                const documents = await documentService.getAllDocuments(userId);
+                if (!documents || documents.length === 0) {
+                    return { success: true, reindexed: 0, message: 'Aucun document à réindexer' };
+                }
+
+                let reindexed = 0;
+                let errors = [];
+
+                for (const doc of documents) {
+                    try {
+                        // Get full document with content
+                        const fullDoc = await documentService.getDocument(doc.id, true);
+                        if (fullDoc && fullDoc.content) {
+                            const result = await indexingService.indexDocument(
+                                doc.id,
+                                fullDoc.content,
+                                { generateEmbeddings: true }
+                            );
+
+                            // Update document indexed status
+                            await documentService.updateDocument(doc.id, {
+                                chunk_count: result.chunk_count,
+                                indexed: 1
+                            });
+
+                            reindexed++;
+                            console.log(`[KnowledgeBridge] Reindexed: ${doc.title} (${result.chunk_count} chunks)`);
+                        }
+                    } catch (docError) {
+                        console.error(`[KnowledgeBridge] Error reindexing ${doc.title}:`, docError);
+                        errors.push({ id: doc.id, title: doc.title, error: docError.message });
+                    }
+                }
+
+                return {
+                    success: true,
+                    reindexed,
+                    total: documents.length,
+                    errors: errors.length > 0 ? errors : undefined,
+                    message: `${reindexed}/${documents.length} documents réindexés`
+                };
+            } catch (error) {
+                console.error('[KnowledgeBridge] Error reindexing all documents:', error);
+                return {
+                    success: false,
+                    error: error.message
+                };
+            }
+        });
+
         // Knowledge Base Sync (Firebase or Local)
         ipcMain.handle('knowledge:get-status', async () => {
             try {

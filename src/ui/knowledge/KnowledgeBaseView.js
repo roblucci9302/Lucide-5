@@ -166,6 +166,92 @@ export class KnowledgeBaseView extends LitElement {
             opacity: 0.6;
         }
 
+        /* Phase 4 Enhancement: Provider Badge */
+        .stat-card.provider {
+            position: relative;
+        }
+
+        .provider-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .provider-badge.high {
+            background: rgba(52, 199, 89, 0.15);
+            color: rgba(52, 199, 89, 0.95);
+            border: 1px solid rgba(52, 199, 89, 0.3);
+        }
+
+        .provider-badge.low {
+            background: rgba(255, 159, 10, 0.15);
+            color: rgba(255, 159, 10, 0.95);
+            border: 1px solid rgba(255, 159, 10, 0.3);
+        }
+
+        .provider-badge.none {
+            background: rgba(255, 69, 58, 0.15);
+            color: rgba(255, 69, 58, 0.95);
+            border: 1px solid rgba(255, 69, 58, 0.3);
+        }
+
+        .provider-warning {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 8px;
+            padding: 8px 10px;
+            background: rgba(255, 159, 10, 0.1);
+            border: 1px solid rgba(255, 159, 10, 0.2);
+            border-radius: 6px;
+            font-size: 11px;
+            color: rgba(255, 159, 10, 0.9);
+        }
+
+        .reindex-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            margin-top: 12px;
+            padding: 8px 12px;
+            background: rgba(0, 122, 255, 0.15);
+            border: 1px solid rgba(0, 122, 255, 0.3);
+            border-radius: 6px;
+            color: rgba(0, 122, 255, 0.9);
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .reindex-btn:hover:not(:disabled) {
+            background: rgba(0, 122, 255, 0.25);
+            border-color: rgba(0, 122, 255, 0.5);
+        }
+
+        .reindex-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .reindex-btn .icon {
+            animation: none;
+        }
+
+        .reindex-btn.reindexing .icon {
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
         /* Document List */
         .document-list-container {
             flex: 1;
@@ -1489,7 +1575,10 @@ export class KnowledgeBaseView extends LitElement {
         viewerMode: { type: String, state: true },
         // Phase 4: Selection
         selectedDocuments: { type: Set, state: true },
-        focusedIndex: { type: Number, state: true }
+        focusedIndex: { type: Number, state: true },
+        // Phase 4 Enhancement: RAG Provider
+        embeddingProvider: { type: Object, state: true },
+        isReindexing: { type: Boolean, state: true }
     };
 
     // Validation limits
@@ -1532,7 +1621,12 @@ export class KnowledgeBaseView extends LitElement {
         square: '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>',
         xCircle: '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>',
         chevronUp: '<polyline points="18,15 12,9 6,15"/>',
-        chevronDown: '<polyline points="6,9 12,15 18,9"/>'
+        chevronDown: '<polyline points="6,9 12,15 18,9"/>',
+        // Phase 4 Enhancement: RAG Provider icons
+        cpu: '<rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/>',
+        sparkles: '<path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/>',
+        refreshCw: '<polyline points="23,4 23,10 17,10"/><polyline points="1,20 1,14 7,14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>',
+        alertTriangle: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>'
     };
 
     // Render SVG icon
@@ -1586,6 +1680,9 @@ export class KnowledgeBaseView extends LitElement {
         // Phase 4: Selection
         this.selectedDocuments = new Set();
         this.focusedIndex = -1;
+        // Phase 4 Enhancement: RAG Provider
+        this.embeddingProvider = null;
+        this.isReindexing = false;
         // Bind drag handlers
         this._handleDragEnter = this._handleDragEnter.bind(this);
         this._handleDragLeave = this._handleDragLeave.bind(this);
@@ -1597,6 +1694,7 @@ export class KnowledgeBaseView extends LitElement {
         super.connectedCallback();
         this.loadDocuments();
         this.loadStats();
+        this.loadProviderInfo();
         // Keyboard shortcuts
         this._handleKeyDown = this._handleKeyDown.bind(this);
         document.addEventListener('keydown', this._handleKeyDown);
@@ -1764,6 +1862,57 @@ export class KnowledgeBaseView extends LitElement {
             }
         } catch (error) {
             console.error('[KnowledgeBaseView] Error loading stats:', error);
+        }
+    }
+
+    async loadProviderInfo() {
+        try {
+            const result = await window.api.invoke('rag:get-provider-info');
+            if (result) {
+                this.embeddingProvider = result;
+                console.log('[KnowledgeBaseView] Provider info loaded:', result);
+            }
+        } catch (error) {
+            console.error('[KnowledgeBaseView] Error loading provider info:', error);
+            this.embeddingProvider = {
+                name: 'error',
+                displayName: 'Erreur',
+                quality: 'none',
+                isConfigured: false
+            };
+        }
+    }
+
+    async handleReindexAll() {
+        if (this.isReindexing) return;
+
+        // Show confirmation
+        const confirmed = confirm(
+            'Réindexer tous les documents ?\n\n' +
+            'Cette opération peut prendre plusieurs minutes selon le nombre de documents.\n' +
+            'Les embeddings seront régénérés avec le provider actuel.'
+        );
+
+        if (!confirmed) return;
+
+        this.isReindexing = true;
+
+        try {
+            const result = await window.api.invoke('rag:reindex-all');
+
+            if (result.success) {
+                this._showToast(result.message, 'success');
+                // Reload stats and documents
+                await this.loadStats();
+                await this.loadDocuments();
+            } else {
+                this._showToast(`Erreur: ${result.error}`, 'error');
+            }
+        } catch (error) {
+            console.error('[KnowledgeBaseView] Error reindexing:', error);
+            this._showToast(`Erreur lors de la réindexation: ${error.message}`, 'error');
+        } finally {
+            this.isReindexing = false;
         }
     }
 
@@ -2455,6 +2604,32 @@ export class KnowledgeBaseView extends LitElement {
                         <span class="stat-icon-wrapper">${this._icon('search', 'icon-lg')}</span>
                         <div class="stat-label">Indexés</div>
                         <div class="stat-value">${this.stats.indexed || 0}</div>
+                    </div>
+                    <div class="stat-card provider">
+                        <span class="stat-icon-wrapper">${this._icon(this.embeddingProvider?.quality === 'high' ? 'sparkles' : 'cpu', 'icon-lg')}</span>
+                        <div class="stat-label">Embeddings</div>
+                        <div class="stat-value">
+                            <span class="provider-badge ${this.embeddingProvider?.quality || 'none'}">
+                                ${this.embeddingProvider?.displayName || 'Chargement...'}
+                            </span>
+                        </div>
+                        ${this.embeddingProvider?.warning ? html`
+                            <div class="provider-warning">
+                                ${this._icon('alertTriangle')}
+                                <span>${this.embeddingProvider.warning}</span>
+                            </div>
+                        ` : ''}
+                        ${this.stats.totalDocuments > 0 ? html`
+                            <button
+                                class="reindex-btn ${this.isReindexing ? 'reindexing' : ''}"
+                                @click=${this.handleReindexAll}
+                                ?disabled=${this.isReindexing}
+                                title="Régénérer tous les embeddings avec le provider actuel"
+                            >
+                                ${this._icon('refreshCw')}
+                                ${this.isReindexing ? 'Réindexation...' : 'Réindexer tout'}
+                            </button>
+                        ` : ''}
                     </div>
                 </div>
 
