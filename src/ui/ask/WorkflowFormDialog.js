@@ -301,7 +301,8 @@ export class WorkflowFormDialog extends LitElement {
         formFields: { type: Array },
         formData: { type: Object, state: true },
         errors: { type: Object, state: true },
-        isVisible: { type: Boolean }
+        isVisible: { type: Boolean },
+        isDirty: { type: Boolean, state: true }  // Phase 4: Track form modifications
     };
 
     constructor() {
@@ -311,6 +312,59 @@ export class WorkflowFormDialog extends LitElement {
         this.formData = {};
         this.errors = {};
         this.isVisible = false;
+        this.isDirty = false;  // Phase 4: Track if form has been modified
+        this._boundKeyHandler = this._handleKeyDown.bind(this);
+    }
+
+    // Phase 4: Lifecycle - add/remove keyboard listener
+    connectedCallback() {
+        super.connectedCallback();
+        document.addEventListener('keydown', this._boundKeyHandler);
+    }
+
+    disconnectedCallback() {
+        super.disconnectedCallback();
+        document.removeEventListener('keydown', this._boundKeyHandler);
+    }
+
+    // Phase 4: Handle keyboard shortcuts
+    _handleKeyDown(e) {
+        if (!this.isVisible) return;
+
+        // Escape - close dialog (with confirmation if dirty)
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            this._handleCloseAttempt();
+        }
+
+        // Ctrl+Enter or Cmd+Enter - submit form
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            e.preventDefault();
+            this.handleSubmit();
+        }
+    }
+
+    // Phase 4: Handle close attempt with confirmation
+    async _handleCloseAttempt() {
+        if (this.isDirty) {
+            // Use toast confirm if available, otherwise native confirm
+            if (window.showConfirm) {
+                const confirmed = await window.showConfirm(
+                    'Fermer sans enregistrer ?',
+                    'Les modifications non enregistrées seront perdues.',
+                    { confirmText: 'Fermer', cancelText: 'Continuer', type: 'danger' }
+                );
+                if (confirmed) {
+                    this.close();
+                }
+            } else {
+                if (confirm('Fermer sans enregistrer ? Les modifications seront perdues.')) {
+                    this.close();
+                }
+            }
+        } else {
+            this.close();
+        }
     }
 
     /**
@@ -324,6 +378,7 @@ export class WorkflowFormDialog extends LitElement {
         this.formData = {};
         this.errors = {};
         this.isVisible = true;
+        this.isDirty = false;  // Phase 4: Reset dirty state
 
         // Initialize formData with empty values
         this.formFields.forEach(field => {
@@ -335,6 +390,14 @@ export class WorkflowFormDialog extends LitElement {
         });
 
         console.log('[WorkflowFormDialog] Opened for workflow:', workflow.id, 'with', formFields.length, 'fields');
+
+        // Phase 4: Auto-focus first input after render
+        this.updateComplete.then(() => {
+            const firstInput = this.shadowRoot.querySelector('.field-input, .field-select, .field-textarea');
+            if (firstInput) {
+                firstInput.focus();
+            }
+        });
     }
 
     /**
@@ -353,6 +416,7 @@ export class WorkflowFormDialog extends LitElement {
      */
     handleInputChange(fieldName, value) {
         this.formData = { ...this.formData, [fieldName]: value };
+        this.isDirty = true;  // Phase 4: Mark form as modified
         // Clear error when user types
         if (this.errors[fieldName]) {
             this.errors = { ...this.errors, [fieldName]: null };
@@ -369,6 +433,7 @@ export class WorkflowFormDialog extends LitElement {
             : [...currentValues, option];
 
         this.formData = { ...this.formData, [fieldName]: newValues };
+        this.isDirty = true;  // Phase 4: Mark form as modified
 
         // Clear error when user selects
         if (this.errors[fieldName]) {
@@ -442,7 +507,7 @@ export class WorkflowFormDialog extends LitElement {
      */
     handleOverlayClick(e) {
         if (e.target.classList.contains('overlay')) {
-            this.close();
+            this._handleCloseAttempt();  // Phase 4: Use confirmation
         }
     }
 
@@ -587,7 +652,7 @@ export class WorkflowFormDialog extends LitElement {
                             <h2 class="dialog-title">${this.workflow.title}</h2>
                             <div class="dialog-subtitle">${this.workflow.description}</div>
                         </div>
-                        <button class="close-button" @click="${this.close}" title="Fermer">✕</button>
+                        <button class="close-button" @click="${this._handleCloseAttempt}" title="Fermer (Échap)">✕</button>
                     </div>
 
                     <div class="dialog-body">
@@ -606,8 +671,12 @@ export class WorkflowFormDialog extends LitElement {
                                 <span>${this.workflow.estimatedTime}</span>
                             </div>
                         ` : ''}
-                        <button class="btn btn-cancel" @click="${this.close}">Annuler</button>
-                        <button class="btn btn-submit" @click="${this.handleSubmit}">
+                        <!-- Phase 4: Keyboard shortcuts hint -->
+                        <div style="font-size: 10px; color: rgba(255,255,255,0.4); margin-right: auto;">
+                            Échap pour fermer • Ctrl+↵ pour soumettre
+                        </div>
+                        <button class="btn btn-cancel" @click="${this._handleCloseAttempt}">Annuler</button>
+                        <button class="btn btn-submit" @click="${this.handleSubmit}" title="Ctrl+Entrée">
                             Générer le document
                         </button>
                     </div>
