@@ -1,4 +1,5 @@
 import { html, css, LitElement } from '../assets/lit-core-2.7.4.min.js';
+import '../components/ToastNotification.js';
 
 export class KnowledgeBaseView extends LitElement {
     static styles = css`
@@ -543,6 +544,109 @@ export class KnowledgeBaseView extends LitElement {
         .btn-secondary:hover {
             background: var(--color-white-15);
         }
+
+        /* Drag & Drop Zone */
+        .drop-zone {
+            position: relative;
+            transition: all 0.2s ease;
+        }
+
+        .drop-zone.drag-over {
+            background: rgba(0, 122, 255, 0.1);
+            border-color: rgba(0, 122, 255, 0.5);
+        }
+
+        .drop-zone.drag-over::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border: 2px dashed rgba(0, 122, 255, 0.6);
+            border-radius: 12px;
+            pointer-events: none;
+            animation: pulse 1.5s ease infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .drop-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 122, 255, 0.15);
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            z-index: 100;
+            backdrop-filter: blur(4px);
+        }
+
+        .drop-overlay-icon {
+            font-size: 48px;
+            animation: bounce 0.6s ease infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+        }
+
+        .drop-overlay-text {
+            font-size: 16px;
+            font-weight: 500;
+            color: rgba(0, 122, 255, 0.9);
+        }
+
+        /* Form validation */
+        .form-input.invalid {
+            border-color: rgba(255, 69, 58, 0.6);
+        }
+
+        .form-input.valid {
+            border-color: rgba(52, 199, 89, 0.5);
+        }
+
+        .char-counter {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 4px;
+            font-size: 11px;
+            color: var(--color-white-50);
+        }
+
+        .char-counter.warning {
+            color: rgba(255, 159, 10, 0.9);
+        }
+
+        .char-counter.error {
+            color: rgba(255, 69, 58, 0.9);
+        }
+
+        .tag-preview {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 8px;
+        }
+
+        .tag-preview .tag {
+            background: rgba(0, 122, 255, 0.15);
+            border: 1px solid rgba(0, 122, 255, 0.3);
+            border-radius: 6px;
+            padding: 3px 10px;
+            font-size: 11px;
+            color: rgba(0, 122, 255, 0.9);
+            font-weight: 500;
+        }
+
+        .tag-preview .tag.overflow {
+            opacity: 0.5;
+            text-decoration: line-through;
+        }
     `;
 
     static properties = {
@@ -553,13 +657,25 @@ export class KnowledgeBaseView extends LitElement {
         searchQuery: { type: String, state: true },
         selectedFilter: { type: String, state: true },
         uploading: { type: Boolean, state: true },
+        uploadProgress: { type: Number, state: true },
+        // Drag & Drop
+        isDragOver: { type: Boolean, state: true },
         // Modal states
         viewerOpen: { type: Boolean, state: true },
         editorOpen: { type: Boolean, state: true },
         selectedDocument: { type: Object, state: true },
         documentLoading: { type: Boolean, state: true },
-        editForm: { type: Object, state: true }
+        editForm: { type: Object, state: true },
+        // Form validation
+        formErrors: { type: Object, state: true }
     };
+
+    // Validation limits
+    static MAX_TITLE_LENGTH = 200;
+    static MAX_DESCRIPTION_LENGTH = 1000;
+    static MAX_TAGS = 20;
+    static MAX_TAG_LENGTH = 50;
+    static MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
 
     constructor() {
         super();
@@ -574,18 +690,97 @@ export class KnowledgeBaseView extends LitElement {
         this.searchQuery = '';
         this.selectedFilter = 'all';
         this.uploading = false;
+        this.uploadProgress = 0;
+        // Drag & Drop
+        this.isDragOver = false;
+        this._dragCounter = 0;
         // Modal states
         this.viewerOpen = false;
         this.editorOpen = false;
         this.selectedDocument = null;
         this.documentLoading = false;
         this.editForm = { title: '', description: '', tags: '' };
+        // Form validation
+        this.formErrors = {};
+        // Bind drag handlers
+        this._handleDragEnter = this._handleDragEnter.bind(this);
+        this._handleDragLeave = this._handleDragLeave.bind(this);
+        this._handleDragOver = this._handleDragOver.bind(this);
+        this._handleDrop = this._handleDrop.bind(this);
     }
 
     connectedCallback() {
         super.connectedCallback();
         this.loadDocuments();
         this.loadStats();
+        // Keyboard shortcuts
+        this._handleKeyDown = this._handleKeyDown.bind(this);
+        document.addEventListener('keydown', this._handleKeyDown);
+    }
+
+    disconnectedCallback() {
+        super.disconnectedCallback();
+        document.removeEventListener('keydown', this._handleKeyDown);
+    }
+
+    _handleKeyDown(e) {
+        // Escape to close modals
+        if (e.key === 'Escape') {
+            if (this.viewerOpen) {
+                this.closeViewer();
+            } else if (this.editorOpen) {
+                this.closeEditor();
+            }
+        }
+        // Ctrl+S to save in editor
+        if (e.key === 's' && (e.ctrlKey || e.metaKey) && this.editorOpen) {
+            e.preventDefault();
+            this.saveDocumentEdits();
+        }
+    }
+
+    // Drag & Drop handlers
+    _handleDragEnter(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        this._dragCounter++;
+        if (e.dataTransfer.types.includes('Files')) {
+            this.isDragOver = true;
+        }
+    }
+
+    _handleDragLeave(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        this._dragCounter--;
+        if (this._dragCounter === 0) {
+            this.isDragOver = false;
+        }
+    }
+
+    _handleDragOver(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    async _handleDrop(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        this._dragCounter = 0;
+        this.isDragOver = false;
+
+        const files = Array.from(e.dataTransfer.files);
+        if (files.length === 0) return;
+
+        // Upload first file (can extend to multiple later)
+        const file = files[0];
+        await this._uploadFile(file);
+    }
+
+    _isValidFileType(filename) {
+        const validExtensions = ['.txt', '.md', '.pdf', '.docx', '.doc', '.jpg', '.jpeg', '.png', '.gif'];
+        const ext = filename.toLowerCase().substring(filename.lastIndexOf('.'));
+        return validExtensions.includes(ext);
     }
 
     async loadDocuments() {
@@ -650,32 +845,126 @@ export class KnowledgeBaseView extends LitElement {
 
         try {
             this.uploading = true;
+            this.uploadProgress = 0;
             console.log('[KnowledgeBaseView] Starting document upload...');
+
+            // Show progress toast
+            const progressId = window.showProgress?.('Préparation de l\'upload...', 0);
 
             const result = await window.api.documents.uploadDocument();
 
             if (result.success) {
                 console.log('[KnowledgeBaseView] Document uploaded successfully');
+                // Dismiss progress and show success
+                if (progressId) window.dismissToast?.(progressId);
+                window.showToast?.(`Document "${result.document.title}" uploadé avec succès !`, 'success');
                 // Reload documents
                 await this.loadDocuments();
                 await this.loadStats();
-                alert(`Document "${result.document.title}" uploadé avec succès !`);
             } else if (!result.cancelled) {
                 console.error('[KnowledgeBaseView] Upload failed:', result.error);
-                alert(`Échec de l'upload : ${result.error}`);
+                if (progressId) window.dismissToast?.(progressId);
+                window.showToast?.(`Échec de l'upload : ${result.error}`, 'error', 6000);
+            } else {
+                // Cancelled - dismiss progress silently
+                if (progressId) window.dismissToast?.(progressId);
             }
         } catch (error) {
             console.error('[KnowledgeBaseView] Error uploading document:', error);
-            alert(`Erreur : ${error.message}`);
+            window.showToast?.(`Erreur : ${error.message}`, 'error', 6000);
         } finally {
             this.uploading = false;
+            this.uploadProgress = 0;
+        }
+    }
+
+    async _uploadFile(file) {
+        if (this.uploading) {
+            window.showToast?.('Un upload est déjà en cours', 'warning');
+            return;
+        }
+
+        // Validate file type
+        if (!this._isValidFileType(file.name)) {
+            window.showToast?.('Type de fichier non supporté. Formats acceptés: TXT, MD, PDF, DOCX, JPG, PNG, GIF', 'error', 6000);
+            return;
+        }
+
+        // Validate file size
+        if (file.size > KnowledgeBaseView.MAX_FILE_SIZE) {
+            window.showToast?.(`Fichier trop volumineux. Taille maximum: 100 MB`, 'error', 6000);
+            return;
+        }
+
+        try {
+            this.uploading = true;
+            this.uploadProgress = 0;
+            console.log('[KnowledgeBaseView] Starting file upload:', file.name);
+
+            // Show progress toast
+            const progressId = window.showProgress?.(`Upload de "${file.name}"...`, 0);
+
+            // Simulate progress during file reading
+            const updateProgress = (progress) => {
+                this.uploadProgress = progress;
+                window.updateProgress?.(progressId, progress);
+            };
+
+            // Read file as ArrayBuffer
+            updateProgress(10);
+            const buffer = await file.arrayBuffer();
+            updateProgress(30);
+
+            // Convert to base64 for IPC transfer
+            const uint8Array = new Uint8Array(buffer);
+            let binary = '';
+            for (let i = 0; i < uint8Array.length; i++) {
+                binary += String.fromCharCode(uint8Array[i]);
+            }
+            const base64 = btoa(binary);
+            updateProgress(50);
+
+            // Send to backend
+            const fileData = {
+                filename: file.name,
+                buffer: base64,
+                size: file.size,
+                type: file.type
+            };
+
+            updateProgress(70);
+            const result = await window.api.documents.uploadDocument(fileData);
+            updateProgress(100);
+
+            if (result.success) {
+                console.log('[KnowledgeBaseView] File uploaded successfully');
+                if (progressId) window.dismissToast?.(progressId);
+                window.showToast?.(`Document "${result.document.title}" uploadé avec succès !`, 'success');
+                await this.loadDocuments();
+                await this.loadStats();
+            } else {
+                console.error('[KnowledgeBaseView] Upload failed:', result.error);
+                if (progressId) window.dismissToast?.(progressId);
+                window.showToast?.(`Échec de l'upload : ${result.error}`, 'error', 6000);
+            }
+        } catch (error) {
+            console.error('[KnowledgeBaseView] Error uploading file:', error);
+            window.showToast?.(`Erreur : ${error.message}`, 'error', 6000);
+        } finally {
+            this.uploading = false;
+            this.uploadProgress = 0;
         }
     }
 
     async handleDeleteDocument(documentId, title) {
-        if (!confirm(`Voulez-vous vraiment supprimer "${title}" ?`)) {
-            return;
-        }
+        // Use custom confirm dialog
+        const confirmed = await window.showConfirm?.(
+            `Supprimer "${title}" ?`,
+            'Cette action est irréversible. Le document et ses données d\'indexation seront supprimés.',
+            { confirmText: 'Supprimer', cancelText: 'Annuler', type: 'danger' }
+        );
+
+        if (!confirmed) return;
 
         try {
             await window.api.documents.deleteDocument(documentId);
@@ -684,10 +973,10 @@ export class KnowledgeBaseView extends LitElement {
             // Reload documents
             await this.loadDocuments();
             await this.loadStats();
-            alert('Document supprimé avec succès');
+            window.showToast?.('Document supprimé avec succès', 'success');
         } catch (error) {
             console.error('[KnowledgeBaseView] Error deleting document:', error);
-            alert(`Erreur lors de la suppression : ${error.message}`);
+            window.showToast?.(`Erreur lors de la suppression : ${error.message}`, 'error', 6000);
         }
     }
 
@@ -701,12 +990,12 @@ export class KnowledgeBaseView extends LitElement {
             if (result?.success) {
                 this.selectedDocument = result.document;
             } else {
-                alert(`Erreur: ${result?.error || 'Document non trouvé'}`);
+                window.showToast?.(`Erreur: ${result?.error || 'Document non trouvé'}`, 'error');
                 this.viewerOpen = false;
             }
         } catch (error) {
             console.error('[KnowledgeBaseView] Error loading document:', error);
-            alert(`Erreur lors du chargement: ${error.message}`);
+            window.showToast?.(`Erreur lors du chargement: ${error.message}`, 'error');
             this.viewerOpen = false;
         } finally {
             this.documentLoading = false;
@@ -717,6 +1006,7 @@ export class KnowledgeBaseView extends LitElement {
         console.log('[KnowledgeBaseView] Edit document:', documentId);
         this.documentLoading = true;
         this.editorOpen = true;
+        this.formErrors = {};
 
         try {
             const result = await window.api.documents.getDocument(documentId, false);
@@ -728,12 +1018,12 @@ export class KnowledgeBaseView extends LitElement {
                     tags: Array.isArray(result.document.tags) ? result.document.tags.join(', ') : ''
                 };
             } else {
-                alert(`Erreur: ${result?.error || 'Document non trouvé'}`);
+                window.showToast?.(`Erreur: ${result?.error || 'Document non trouvé'}`, 'error');
                 this.editorOpen = false;
             }
         } catch (error) {
             console.error('[KnowledgeBaseView] Error loading document:', error);
-            alert(`Erreur lors du chargement: ${error.message}`);
+            window.showToast?.(`Erreur lors du chargement: ${error.message}`, 'error');
             this.editorOpen = false;
         } finally {
             this.documentLoading = false;
@@ -749,28 +1039,87 @@ export class KnowledgeBaseView extends LitElement {
         this.editorOpen = false;
         this.selectedDocument = null;
         this.editForm = { title: '', description: '', tags: '' };
+        this.formErrors = {};
     }
 
     handleEditFormChange(field, value) {
         this.editForm = { ...this.editForm, [field]: value };
+        // Real-time validation
+        this._validateField(field, value);
+    }
+
+    _validateField(field, value) {
+        const errors = { ...this.formErrors };
+
+        switch (field) {
+            case 'title':
+                if (value.length > KnowledgeBaseView.MAX_TITLE_LENGTH) {
+                    errors.title = `Maximum ${KnowledgeBaseView.MAX_TITLE_LENGTH} caractères`;
+                } else {
+                    delete errors.title;
+                }
+                break;
+            case 'description':
+                if (value.length > KnowledgeBaseView.MAX_DESCRIPTION_LENGTH) {
+                    errors.description = `Maximum ${KnowledgeBaseView.MAX_DESCRIPTION_LENGTH} caractères`;
+                } else {
+                    delete errors.description;
+                }
+                break;
+            case 'tags':
+                const tags = value.split(',').map(t => t.trim()).filter(t => t);
+                if (tags.length > KnowledgeBaseView.MAX_TAGS) {
+                    errors.tags = `Maximum ${KnowledgeBaseView.MAX_TAGS} tags`;
+                } else if (tags.some(t => t.length > KnowledgeBaseView.MAX_TAG_LENGTH)) {
+                    errors.tags = `Maximum ${KnowledgeBaseView.MAX_TAG_LENGTH} caractères par tag`;
+                } else {
+                    delete errors.tags;
+                }
+                break;
+        }
+
+        this.formErrors = errors;
+    }
+
+    _getCharCounterClass(current, max) {
+        const ratio = current / max;
+        if (ratio >= 1) return 'error';
+        if (ratio >= 0.9) return 'warning';
+        return '';
+    }
+
+    _parseTags(tagsString) {
+        return tagsString
+            .split(',')
+            .map(t => t.trim())
+            .filter(t => t);
     }
 
     async saveDocumentEdits() {
         if (!this.selectedDocument) return;
 
+        // Validate all fields before saving
+        this._validateField('title', this.editForm.title);
+        this._validateField('description', this.editForm.description);
+        this._validateField('tags', this.editForm.tags);
+
+        // Check for errors
+        if (Object.keys(this.formErrors).length > 0) {
+            window.showToast?.('Veuillez corriger les erreurs avant de sauvegarder', 'warning');
+            return;
+        }
+
         try {
             // Parse and validate tags with limits
-            const MAX_TAGS = 20;
-            const MAX_TAG_LENGTH = 50;
             const parsedTags = this.editForm.tags
                 .split(',')
-                .map(t => t.trim().substring(0, MAX_TAG_LENGTH))
+                .map(t => t.trim().substring(0, KnowledgeBaseView.MAX_TAG_LENGTH))
                 .filter(t => t)
-                .slice(0, MAX_TAGS);
+                .slice(0, KnowledgeBaseView.MAX_TAGS);
 
             const updates = {
-                title: this.editForm.title.trim(),
-                description: this.editForm.description.trim(),
+                title: this.editForm.title.trim().substring(0, KnowledgeBaseView.MAX_TITLE_LENGTH),
+                description: this.editForm.description.trim().substring(0, KnowledgeBaseView.MAX_DESCRIPTION_LENGTH),
                 tags: parsedTags
             };
 
@@ -779,13 +1128,13 @@ export class KnowledgeBaseView extends LitElement {
                 console.log('[KnowledgeBaseView] Document updated');
                 this.closeEditor();
                 await this.loadDocuments();
-                alert('Document mis à jour avec succès');
+                window.showToast?.('Document mis à jour avec succès', 'success');
             } else {
-                alert(`Erreur: ${result?.error || 'Échec de la mise à jour'}`);
+                window.showToast?.(`Erreur: ${result?.error || 'Échec de la mise à jour'}`, 'error');
             }
         } catch (error) {
             console.error('[KnowledgeBaseView] Error updating document:', error);
-            alert(`Erreur: ${error.message}`);
+            window.showToast?.(`Erreur: ${error.message}`, 'error');
         }
     }
 
@@ -831,7 +1180,13 @@ export class KnowledgeBaseView extends LitElement {
 
     render() {
         return html`
-            <div class="kb-container">
+            <toast-notification></toast-notification>
+            <div class="kb-container"
+                @dragenter=${this._handleDragEnter}
+                @dragleave=${this._handleDragLeave}
+                @dragover=${this._handleDragOver}
+                @drop=${this._handleDrop}
+            >
                 <!-- Header -->
                 <div class="kb-header">
                     <h1 class="kb-title">📚 Base de Connaissances</h1>
@@ -898,7 +1253,13 @@ export class KnowledgeBaseView extends LitElement {
                 ` : ''}
 
                 <!-- Document List -->
-                <div class="document-list-container">
+                <div class="document-list-container drop-zone ${this.isDragOver ? 'drag-over' : ''}">
+                    ${this.isDragOver ? html`
+                        <div class="drop-overlay">
+                            <span class="drop-overlay-icon">📥</span>
+                            <span class="drop-overlay-text">Déposez votre fichier ici</span>
+                        </div>
+                    ` : ''}
                     ${this.isLoading ? html`
                         <div class="loading-state">
                             <div class="loading-spinner"></div>
@@ -1060,31 +1421,53 @@ export class KnowledgeBaseView extends LitElement {
                                     <label class="form-label">Titre</label>
                                     <input
                                         type="text"
-                                        class="form-input"
+                                        class="form-input ${this.formErrors.title ? 'invalid' : this.editForm.title ? 'valid' : ''}"
                                         .value=${this.editForm.title}
                                         @input=${(e) => this.handleEditFormChange('title', e.target.value)}
                                         placeholder="Titre du document"
+                                        maxlength="${KnowledgeBaseView.MAX_TITLE_LENGTH}"
                                     />
+                                    <div class="char-counter ${this._getCharCounterClass(this.editForm.title.length, KnowledgeBaseView.MAX_TITLE_LENGTH)}">
+                                        ${this.editForm.title.length} / ${KnowledgeBaseView.MAX_TITLE_LENGTH}
+                                    </div>
+                                    ${this.formErrors.title ? html`<div class="form-hint" style="color: rgba(255,69,58,0.9);">${this.formErrors.title}</div>` : ''}
                                 </div>
                                 <div class="form-group">
                                     <label class="form-label">Description</label>
                                     <textarea
-                                        class="form-input form-textarea"
+                                        class="form-input form-textarea ${this.formErrors.description ? 'invalid' : this.editForm.description ? 'valid' : ''}"
                                         .value=${this.editForm.description}
                                         @input=${(e) => this.handleEditFormChange('description', e.target.value)}
                                         placeholder="Description du document..."
+                                        maxlength="${KnowledgeBaseView.MAX_DESCRIPTION_LENGTH}"
                                     ></textarea>
+                                    <div class="char-counter ${this._getCharCounterClass(this.editForm.description.length, KnowledgeBaseView.MAX_DESCRIPTION_LENGTH)}">
+                                        ${this.editForm.description.length} / ${KnowledgeBaseView.MAX_DESCRIPTION_LENGTH}
+                                    </div>
+                                    ${this.formErrors.description ? html`<div class="form-hint" style="color: rgba(255,69,58,0.9);">${this.formErrors.description}</div>` : ''}
                                 </div>
                                 <div class="form-group">
                                     <label class="form-label">Tags</label>
                                     <input
                                         type="text"
-                                        class="form-input"
+                                        class="form-input ${this.formErrors.tags ? 'invalid' : this.editForm.tags ? 'valid' : ''}"
                                         .value=${this.editForm.tags}
                                         @input=${(e) => this.handleEditFormChange('tags', e.target.value)}
                                         placeholder="tag1, tag2, tag3"
                                     />
-                                    <div class="form-hint">Séparez les tags par des virgules</div>
+                                    <div class="form-hint">
+                                        Séparez les tags par des virgules (max ${KnowledgeBaseView.MAX_TAGS} tags, ${KnowledgeBaseView.MAX_TAG_LENGTH} caractères chacun)
+                                    </div>
+                                    ${this.formErrors.tags ? html`<div class="form-hint" style="color: rgba(255,69,58,0.9);">${this.formErrors.tags}</div>` : ''}
+                                    ${this.editForm.tags ? html`
+                                        <div class="tag-preview">
+                                            ${this._parseTags(this.editForm.tags).map((tag, i) => html`
+                                                <span class="tag ${i >= KnowledgeBaseView.MAX_TAGS || tag.length > KnowledgeBaseView.MAX_TAG_LENGTH ? 'overflow' : ''}">
+                                                    ${tag.length > KnowledgeBaseView.MAX_TAG_LENGTH ? tag.substring(0, KnowledgeBaseView.MAX_TAG_LENGTH) + '...' : tag}
+                                                </span>
+                                            `)}
+                                        </div>
+                                    ` : ''}
                                 </div>
                             `}
                         </div>

@@ -1,4 +1,5 @@
 import { html, css, LitElement } from '../assets/lit-core-2.7.4.min.js';
+import '../components/ToastNotification.js';
 
 export class ExternalDatabaseDialog extends LitElement {
     static styles = css`
@@ -257,7 +258,8 @@ export class ExternalDatabaseDialog extends LitElement {
 
     validateForm() {
         const errors = {};
-        const requiredFields = ['apiKey', 'authDomain', 'projectId', 'appId'];
+        // Note: authDomain is optional for some Firebase configurations
+        const requiredFields = ['apiKey', 'projectId', 'appId'];
 
         requiredFields.forEach(field => {
             if (!this.config[field] || this.config[field].trim() === '') {
@@ -333,7 +335,7 @@ export class ExternalDatabaseDialog extends LitElement {
             const result = await window.api.knowledge.connectExternal(configWithName);
 
             if (result.success) {
-                alert('Connexion établie avec succès !');
+                window.showToast?.('Connexion établie avec succès !', 'success');
                 this.handleCancel();
             } else {
                 this.testResult = {
@@ -377,6 +379,7 @@ export class ExternalDatabaseDialog extends LitElement {
 
     render() {
         return html`
+            <toast-notification></toast-notification>
             <div class="dialog-container">
                 <div class="dialog-header">
                     <h1 class="dialog-title">🔗 Connecter une Base Externe</h1>
@@ -433,18 +436,16 @@ export class ExternalDatabaseDialog extends LitElement {
 
                     <div class="form-group">
                         <label class="form-label">
-                            Auth Domain <span class="required">*</span>
+                            Auth Domain
                         </label>
                         <input
                             type="text"
-                            class="form-input ${this.errors.authDomain ? 'error' : ''}"
+                            class="form-input"
                             placeholder="projet.firebaseapp.com"
                             .value=${this.config.authDomain}
                             @input=${(e) => this.handleInputChange('authDomain', e.target.value)}
                         />
-                        ${this.errors.authDomain ? html`
-                            <div class="form-error">${this.errors.authDomain}</div>
-                        ` : ''}
+                        <div class="form-help">Optionnel - Requis pour l'authentification Firebase</div>
                     </div>
 
                     <div class="form-group">
