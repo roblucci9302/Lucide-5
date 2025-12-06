@@ -21,8 +21,10 @@
 class DocumentPreviewLogic {
     constructor() {
         this.document = null;
-        this.expanded = false;
+        this.expanded = true;  // Phase 3: Document ouvert par défaut
         this.exporting = null;
+        this.lastExportedPath = null;  // Phase 3: Track last export
+        this.copyState = 'idle';  // Phase 3: Copy button state
     }
 
     getDocumentIcon(type) {
@@ -165,13 +167,14 @@ describe('DocumentPreview Component Logic', () => {
         });
 
         test('should toggle multiple times', () => {
-            expect(preview.expanded).toBe(false);
-            preview.toggleExpanded();
+            // Phase 3: Document now starts expanded by default
             expect(preview.expanded).toBe(true);
             preview.toggleExpanded();
             expect(preview.expanded).toBe(false);
             preview.toggleExpanded();
             expect(preview.expanded).toBe(true);
+            preview.toggleExpanded();
+            expect(preview.expanded).toBe(false);
         });
     });
 

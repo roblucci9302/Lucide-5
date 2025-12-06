@@ -10,7 +10,9 @@ export class DocumentPreview extends LitElement {
     static properties = {
         document: { type: Object },
         expanded: { type: Boolean, state: true },
-        exporting: { type: String, state: true }  // 'pdf', 'docx', 'md', or null
+        exporting: { type: String, state: true },  // 'pdf', 'docx', 'md', or null
+        lastExportedPath: { type: String, state: true }, // Phase 3: Track last export
+        copyState: { type: String, state: true }  // Phase 3: 'idle', 'copied'
     };
 
     static styles = css`
@@ -273,6 +275,57 @@ export class DocumentPreview extends LitElement {
             cursor: wait;
         }
 
+        /* Phase 3: Action buttons (Copy, Open) */
+        .action-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: var(--color-white-75);
+            font-size: 11px;
+            font-weight: 500;
+            cursor: pointer;
+            padding: 6px 10px;
+            border-radius: 6px;
+            transition: all 0.15s ease;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .action-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.25);
+            color: var(--color-white-90);
+        }
+
+        .action-btn.copied {
+            background: rgba(52, 199, 89, 0.15);
+            border-color: rgba(52, 199, 89, 0.4);
+            color: rgb(52, 199, 89);
+        }
+
+        .action-btn.open-file {
+            background: rgba(0, 122, 255, 0.1);
+            border-color: rgba(0, 122, 255, 0.3);
+            color: rgb(100, 180, 255);
+        }
+
+        .action-btn.open-file:hover {
+            background: rgba(0, 122, 255, 0.2);
+            border-color: rgba(0, 122, 255, 0.5);
+        }
+
+        .footer-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .footer-right {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
         .spinner {
             display: inline-block;
             width: 10px;
@@ -310,8 +363,10 @@ export class DocumentPreview extends LitElement {
     constructor() {
         super();
         this.document = null;
-        this.expanded = false;
+        this.expanded = true;  // Phase 3: Document ouvert par défaut
         this.exporting = null;
+        this.lastExportedPath = null;  // Phase 3: Track last export path
+        this.copyState = 'idle';  // Phase 3: Copy button state
     }
 
     getDocumentIcon(type) {
@@ -330,6 +385,56 @@ export class DocumentPreview extends LitElement {
 
     toggleExpanded() {
         this.expanded = !this.expanded;
+    }
+
+    // Phase 3: Copy document content to clipboard
+    async copyContent() {
+        if (!this.document?.content) return;
+
+        try {
+            await navigator.clipboard.writeText(this.document.content);
+            this.copyState = 'copied';
+            this.requestUpdate();
+
+            // Show toast notification
+            if (window.showToast) {
+                window.showToast('Contenu copié dans le presse-papiers', 'success', 3000);
+            }
+
+            // Reset state after 2 seconds
+            setTimeout(() => {
+                this.copyState = 'idle';
+                this.requestUpdate();
+            }, 2000);
+        } catch (error) {
+            console.error('[DocumentPreview] Copy failed:', error);
+            if (window.showToast) {
+                window.showToast('Erreur lors de la copie', 'error', 3000);
+            }
+        }
+    }
+
+    // Phase 3: Open exported file in system
+    async openExportedFile() {
+        if (!this.lastExportedPath) return;
+
+        try {
+            if (window.api?.shell?.openPath) {
+                await window.api.shell.openPath(this.lastExportedPath);
+            } else if (window.api?.documents?.openFile) {
+                await window.api.documents.openFile(this.lastExportedPath);
+            } else {
+                console.warn('[DocumentPreview] No API available to open file');
+                if (window.showToast) {
+                    window.showToast('Impossible d\'ouvrir le fichier', 'warning', 3000);
+                }
+            }
+        } catch (error) {
+            console.error('[DocumentPreview] Error opening file:', error);
+            if (window.showToast) {
+                window.showToast('Erreur lors de l\'ouverture du fichier', 'error', 3000);
+            }
+        }
     }
 
     async handleExport(format) {
@@ -351,6 +456,9 @@ export class DocumentPreview extends LitElement {
 
             if (result.success) {
                 console.log(`[DocumentPreview] Export successful: ${result.filePath}`);
+
+                // Phase 3: Store the exported file path for "Open" button
+                this.lastExportedPath = result.filePath;
 
                 // Show notification or alert
                 this.dispatchEvent(new CustomEvent('export-success', {
@@ -460,34 +568,56 @@ export class DocumentPreview extends LitElement {
                 </div>
 
                 <div class="document-footer">
-                    <div style="font-size: 10px; color: var(--color-white-50);">
-                        Exporter en :
+                    <div class="footer-left">
+                        <!-- Phase 3: Copy button -->
+                        <button
+                            class="action-btn ${this.copyState === 'copied' ? 'copied' : ''}"
+                            @click=${(e) => { e.stopPropagation(); this.copyContent(); }}
+                            title="Copier le contenu"
+                        >
+                            ${this.copyState === 'copied' ? '✓' : '📋'} ${this.copyState === 'copied' ? 'Copié' : 'Copier'}
+                        </button>
+
+                        <!-- Phase 3: Open file button (appears after export) -->
+                        ${this.lastExportedPath ? html`
+                            <button
+                                class="action-btn open-file"
+                                @click=${(e) => { e.stopPropagation(); this.openExportedFile(); }}
+                                title="Ouvrir le fichier exporté"
+                            >
+                                📂 Ouvrir
+                            </button>
+                        ` : ''}
                     </div>
-                    <div class="export-options">
-                        <button
-                            class="export-option ${this.exporting === 'pdf' ? 'exporting' : ''}"
-                            @click=${() => this.handleExport('pdf')}
-                            ?disabled=${this.exporting}
-                            title="Exporter en PDF"
-                        >
-                            ${this.exporting === 'pdf' ? html`<span class="spinner"></span>` : '📄'} PDF
-                        </button>
-                        <button
-                            class="export-option ${this.exporting === 'docx' ? 'exporting' : ''}"
-                            @click=${() => this.handleExport('docx')}
-                            ?disabled=${this.exporting}
-                            title="Exporter en Word"
-                        >
-                            ${this.exporting === 'docx' ? html`<span class="spinner"></span>` : '📝'} DOCX
-                        </button>
-                        <button
-                            class="export-option ${this.exporting === 'md' ? 'exporting' : ''}"
-                            @click=${() => this.handleExport('md')}
-                            ?disabled=${this.exporting}
-                            title="Exporter en Markdown"
-                        >
-                            ${this.exporting === 'md' ? html`<span class="spinner"></span>` : '📋'} MD
-                        </button>
+
+                    <div class="footer-right">
+                        <span style="font-size: 10px; color: var(--color-white-50);">Exporter :</span>
+                        <div class="export-options">
+                            <button
+                                class="export-option ${this.exporting === 'pdf' ? 'exporting' : ''}"
+                                @click=${(e) => { e.stopPropagation(); this.handleExport('pdf'); }}
+                                ?disabled=${this.exporting}
+                                title="Exporter en PDF"
+                            >
+                                ${this.exporting === 'pdf' ? html`<span class="spinner"></span>` : '📄'} PDF
+                            </button>
+                            <button
+                                class="export-option ${this.exporting === 'docx' ? 'exporting' : ''}"
+                                @click=${(e) => { e.stopPropagation(); this.handleExport('docx'); }}
+                                ?disabled=${this.exporting}
+                                title="Exporter en Word"
+                            >
+                                ${this.exporting === 'docx' ? html`<span class="spinner"></span>` : '📝'} DOCX
+                            </button>
+                            <button
+                                class="export-option ${this.exporting === 'md' ? 'exporting' : ''}"
+                                @click=${(e) => { e.stopPropagation(); this.handleExport('md'); }}
+                                ?disabled=${this.exporting}
+                                title="Exporter en Markdown"
+                            >
+                                ${this.exporting === 'md' ? html`<span class="spinner"></span>` : '📋'} MD
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
