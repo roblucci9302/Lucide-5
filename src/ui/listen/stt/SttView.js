@@ -115,6 +115,12 @@ export class SttView extends LitElement {
     }
 
     handleSttUpdate(event, { speaker, text, isFinal, isPartial }) {
+        console.log(`[SttView] 📥 RECEIVED stt-update:`, {
+            speaker,
+            textPreview: text?.substring(0, 50) + (text?.length > 50 ? '...' : ''),
+            isPartial,
+            isFinal
+        });
         if (text === undefined) return;
 
         const container = this.shadowRoot.querySelector('.transcription-container');

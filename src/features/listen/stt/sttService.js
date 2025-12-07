@@ -110,7 +110,19 @@ class SttService {
         const listenWindow = windowPool?.get('listen');
 
         if (listenWindow && !listenWindow.isDestroyed()) {
+            // Debug log for stt-update events
+            if (channel === 'stt-update') {
+                console.log(`[SttService] 📤 SENDING stt-update to renderer:`, {
+                    speaker: data.speaker,
+                    textPreview: data.text?.substring(0, 50) + (data.text?.length > 50 ? '...' : ''),
+                    isPartial: data.isPartial,
+                    isFinal: data.isFinal
+                });
+            }
             listenWindow.webContents.send(channel, data);
+        } else {
+            console.warn(`[SttService] ⚠️ Cannot send '${channel}' - Listen window not available!`);
+            console.warn(`[SttService] ⚠️ windowPool has 'listen': ${windowPool?.has('listen')}`);
         }
     }
 
@@ -200,6 +212,8 @@ class SttService {
     }
 
     async initializeSttSessions(language = 'fr') {
+        console.log('[SttService] 🔊 ====== STARTING STT INITIALIZATION ======');
+
         // Fix MEDIUM BUG-M4: Validate language parameter
         const SUPPORTED_LANGUAGES = ['en', 'fr', 'es', 'de', 'it', 'pt', 'ja', 'ko', 'zh', 'ru', 'ar', 'hi'];
         let effectiveLanguage = process.env.OPENAI_TRANSCRIBE_LANG || language || 'fr';
@@ -218,7 +232,15 @@ class SttService {
         this._isClosing = false;
 
         const modelInfo = await modelStateService.getCurrentModelInfo('stt');
+        console.log(`[SttService] 🔑 Model info retrieved:`, modelInfo ? {
+            provider: modelInfo.provider,
+            model: modelInfo.model,
+            hasApiKey: !!modelInfo.apiKey
+        } : 'NULL - NO STT MODEL CONFIGURED!');
+
         if (!modelInfo || !modelInfo.apiKey) {
+            console.error('[SttService] ❌ CRITICAL: No STT model or API key configured!');
+            console.error('[SttService] ❌ Please configure an STT model in Settings > Models');
             throw new Error('AI model or API key is not configured.');
         }
         this.modelInfo = modelInfo;
@@ -532,7 +554,8 @@ class SttService {
             createSTT(this.modelInfo.provider, theirOptions),
         ]);
 
-        console.log('✅ Both STT sessions initialized successfully.');
+        console.log('[SttService] ✅ Both STT sessions initialized successfully.');
+        console.log('[SttService] 🔊 ====== STT INITIALIZATION COMPLETE ======');
 
         // ── Setup keep-alive heart-beats ────────────────────────────────────────
         if (this.keepAliveInterval) clearInterval(this.keepAliveInterval);
@@ -674,6 +697,7 @@ class SttService {
     async sendMicAudioContent(data, mimeType) {
         // Fix LOW BUG-L6: Remove commented dead code (provider check now handled via modelInfo)
         if (!this.mySttSession) {
+            console.error('[SttService] ❌ sendMicAudioContent called but mySttSession is NULL');
             throw new Error('User STT session not active');
         }
 

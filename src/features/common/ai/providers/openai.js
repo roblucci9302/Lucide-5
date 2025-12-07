@@ -48,11 +48,12 @@ async function createSTT({ apiKey, language = 'en', callbacks = {}, usePortkey =
         'OpenAI-Beta': 'realtime=v1',
       };
 
+  console.log(`[OpenAI STT] 🔌 Connecting to WebSocket: ${wsUrl.substring(0, 50)}...`);
   const ws = new WebSocket(wsUrl, { headers });
 
   return new Promise((resolve, reject) => {
     ws.onopen = () => {
-      console.log("WebSocket session opened.");
+      console.log("[OpenAI STT] ✅ WebSocket session opened successfully!");
 
       const sessionConfig = {
         type: 'transcription_session.update',
@@ -120,6 +121,15 @@ async function createSTT({ apiKey, language = 'en', callbacks = {}, usePortkey =
       catch { return; }                       // Ignorer les échecs de parsing JSON
 
       if (!msg || typeof msg !== 'object') return;
+
+      // Debug: Log transcription messages
+      if (msg.type && msg.type.includes('transcription')) {
+        console.log(`[OpenAI STT] 📝 Received transcription message:`, {
+          type: msg.type,
+          hasTranscript: !!msg.transcript,
+          transcriptPreview: msg.transcript?.substring(0, 50)
+        });
+      }
 
       msg.provider = 'openai';                // ← Toujours spécifier
       callbacks.onmessage?.(msg);

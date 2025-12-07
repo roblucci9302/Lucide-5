@@ -543,6 +543,15 @@ async function setupMicProcessing(micStream) {
             const pcm16 = convertFloat32ToInt16(processedChunk);
             const b64 = arrayBufferToBase64(pcm16.buffer);
 
+            // Debug: Log first audio chunk to confirm capture is working
+            if (!window._micAudioSentCount) {
+                window._micAudioSentCount = 0;
+            }
+            window._micAudioSentCount++;
+            if (window._micAudioSentCount <= 3 || window._micAudioSentCount % 100 === 0) {
+                console.log(`[listenCapture] 🎤 Sending mic audio chunk #${window._micAudioSentCount}`);
+            }
+
             window.api.listenCapture.sendMicAudioContent({
                 data: b64,
                 mimeType: 'audio/pcm;rate=24000',
