@@ -42,17 +42,22 @@ export class OnboardingWizard extends LitElement {
             display: block;
             width: 100%;
             height: 100%;
+            overflow-y: auto;
         }
 
         .wizard-container {
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
-            height: 100%;
+            justify-content: flex-start;
+            min-height: 100%;
+            height: auto;
             background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
             padding: var(--space-10);
+            padding-top: 40px;
+            padding-bottom: 40px;
             box-sizing: border-box;
+            overflow-y: auto;
         }
 
         .wizard-card {

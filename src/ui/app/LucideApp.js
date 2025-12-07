@@ -275,7 +275,8 @@ export class LucideApp extends LitElement {
         }
 
         // Phase WOW 1: Show onboarding wizard if needed
-        if (this.showOnboarding) {
+        // Exception: Allow settings view even during onboarding
+        if (this.showOnboarding && this.currentView !== 'settings' && this.currentView !== 'shortcut-settings') {
             return html`<onboarding-wizard></onboarding-wizard>`;
         }
 
