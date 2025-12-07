@@ -58,8 +58,21 @@ class UserProfileService extends EventEmitter {
      * @returns {boolean} True if onboarding needed
      */
     needsOnboarding() {
+        // Fix: Check if service is initialized first
+        if (!this.currentUid) {
+            console.warn('[UserProfileService] needsOnboarding called before initialization - service not ready');
+            return false; // Don't show onboarding if service isn't ready
+        }
         if (!this.currentProfile) return true;
         return this.currentProfile.onboarding_completed !== 1;
+    }
+
+    /**
+     * Check if the service is properly initialized
+     * @returns {boolean} True if service is ready
+     */
+    isInitialized() {
+        return this.currentUid !== null;
     }
 
     /**
@@ -106,10 +119,22 @@ class UserProfileService extends EventEmitter {
      * @returns {Promise<Object>} Updated profile
      */
     async completeOnboarding(data) {
+        // Fix: Validate service is initialized before proceeding
+        if (!this.currentUid) {
+            const error = new Error('UserProfileService not initialized. Cannot complete onboarding without a valid user ID.');
+            console.error('[UserProfileService] completeOnboarding failed:', error.message);
+            throw error;
+        }
+
         try {
-            console.log('[UserProfileService] Completing onboarding:', data);
+            console.log('[UserProfileService] Completing onboarding for user:', this.currentUid, 'data:', data);
 
             const { selectedProfile, preferences } = data;
+
+            // Validate required data
+            if (!selectedProfile) {
+                throw new Error('No profile selected. Please select a profile to continue.');
+            }
 
             // Update profile with onboarding data
             await userProfileRepository.updateProfile(this.currentUid, {

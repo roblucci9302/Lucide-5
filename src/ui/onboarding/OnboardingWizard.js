@@ -12,8 +12,24 @@ export class OnboardingWizard extends LitElement {
         selectedProfile: { type: String },
         questions: { type: Array },
         answers: { type: Object },
-        isCompleting: { type: Boolean }
+        isCompleting: { type: Boolean },
+        // Fix: Add loading and error states for better UX
+        isLoadingProfiles: { type: Boolean },
+        loadError: { type: String }
     };
+
+    // Fallback profiles in case API fails
+    static FALLBACK_PROFILES = [
+        { id: 'lucide_assistant', name: 'Lucy - Assistant Général', description: 'Assistant polyvalent pour toutes vos questions', icon: '🤖' },
+        { id: 'student_assistant', name: 'Lucy - Étudiant', description: 'Assistant académique pour études et examens', icon: '🎓' },
+        { id: 'researcher_assistant', name: 'Lucy - Chercheur', description: 'Expert en recherche scientifique et publications', icon: '🔬' },
+        { id: 'hr_specialist', name: 'Lucy - Expert RH', description: 'Spécialiste en ressources humaines et recrutement', icon: '👩‍💼' },
+        { id: 'it_expert', name: 'Lucy - Expert IT', description: 'Expert en développement et résolution de bugs', icon: '💻' },
+        { id: 'marketing_expert', name: 'Lucy - Expert Marketing', description: 'Spécialiste en campagnes et stratégie marketing', icon: '📱' },
+        { id: 'ceo_advisor', name: 'Lucy - Conseiller CEO', description: 'Conseiller stratégique pour décisions exécutives', icon: '🎯' },
+        { id: 'sales_expert', name: 'Lucy - Expert Sales', description: 'Spécialiste en vente et développement commercial', icon: '💼' },
+        { id: 'manager_coach', name: 'Lucy - Coach Manager', description: 'Coach pour management d\'équipe et leadership', icon: '👥' }
+    ];
 
     static styles = css`
         * {
@@ -312,6 +328,71 @@ export class OnboardingWizard extends LitElement {
             animation: spin var(--animation-slower) linear infinite;
             margin-right: 8px;
         }
+
+        /* Fix: Loading state styles */
+        .loading-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 60px 20px;
+            gap: 16px;
+        }
+
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(255, 255, 255, 0.2);
+            border-top-color: #6366f1;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        .loading-text {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 14px;
+        }
+
+        /* Fix: Error state styles */
+        .error-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 20px;
+            gap: 16px;
+            text-align: center;
+        }
+
+        .error-icon {
+            font-size: 48px;
+            margin-bottom: 8px;
+        }
+
+        .error-message {
+            color: #f87171;
+            font-size: 14px;
+            margin-bottom: 16px;
+        }
+
+        .btn-retry {
+            padding: 10px 24px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-retry:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
     `;
 
     constructor() {
@@ -322,6 +403,9 @@ export class OnboardingWizard extends LitElement {
         this.questions = [];
         this.answers = {};
         this.isCompleting = false;
+        // Fix: Initialize loading and error states
+        this.isLoadingProfiles = true;
+        this.loadError = null;
     }
 
     connectedCallback() {
@@ -330,12 +414,40 @@ export class OnboardingWizard extends LitElement {
     }
 
     async loadProfiles() {
+        this.isLoadingProfiles = true;
+        this.loadError = null;
+
         try {
+            // Check if API is available
+            if (!window.api || !window.api.profile) {
+                console.warn('[OnboardingWizard] API not available, using fallback profiles');
+                this.profiles = OnboardingWizard.FALLBACK_PROFILES;
+                return;
+            }
+
             const result = await window.api.profile.getAgentProfiles();
-            this.profiles = result.profiles || [];
+
+            if (result.success && result.profiles && result.profiles.length > 0) {
+                this.profiles = result.profiles;
+                console.log('[OnboardingWizard] Loaded', this.profiles.length, 'profiles from API');
+            } else {
+                // API returned empty or failed, use fallback
+                console.warn('[OnboardingWizard] API returned empty profiles, using fallback');
+                this.profiles = OnboardingWizard.FALLBACK_PROFILES;
+            }
         } catch (error) {
             console.error('[OnboardingWizard] Error loading profiles:', error);
+            // Use fallback profiles so user isn't blocked
+            this.profiles = OnboardingWizard.FALLBACK_PROFILES;
+            console.log('[OnboardingWizard] Using fallback profiles due to error');
+        } finally {
+            this.isLoadingProfiles = false;
         }
+    }
+
+    // Fix: Add retry method for error recovery
+    retryLoadProfiles() {
+        this.loadProfiles();
     }
 
     selectProfile(profileId) {
@@ -445,7 +557,9 @@ export class OnboardingWizard extends LitElement {
             }));
         } catch (error) {
             console.error('[OnboardingWizard] Error completing onboarding:', error);
-            alert('Erreur lors de la finalisation. Veuillez réessayer.');
+            // Fix: More informative error message
+            const errorMessage = error.message || 'Une erreur inattendue s\'est produite';
+            alert(`Erreur lors de la finalisation:\n\n${errorMessage}\n\nVeuillez réessayer.`);
         } finally {
             this.isCompleting = false;
         }
@@ -465,6 +579,37 @@ export class OnboardingWizard extends LitElement {
     }
 
     renderProfileSelection() {
+        // Fix: Show loading state while profiles are being fetched
+        if (this.isLoadingProfiles) {
+            return html`
+                <h1 class="step-title">Choisissez votre profil</h1>
+                <p class="step-description">
+                    Sélectionnez le profil qui correspond le mieux à votre rôle professionnel
+                </p>
+                <div class="loading-container">
+                    <div class="loading-spinner"></div>
+                    <span class="loading-text">Chargement des profils...</span>
+                </div>
+            `;
+        }
+
+        // Fix: Show error state if no profiles are available
+        if (!this.profiles || this.profiles.length === 0) {
+            return html`
+                <h1 class="step-title">Choisissez votre profil</h1>
+                <div class="error-container">
+                    <div class="error-icon">⚠️</div>
+                    <p class="error-message">
+                        Impossible de charger les profils.
+                        <br/>Veuillez réessayer.
+                    </p>
+                    <button class="btn-retry" @click=${() => this.retryLoadProfiles()}>
+                        Réessayer
+                    </button>
+                </div>
+            `;
+        }
+
         return html`
             <h1 class="step-title">Choisissez votre profil</h1>
             <p class="step-description">

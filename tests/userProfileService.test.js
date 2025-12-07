@@ -46,24 +46,50 @@ describe('User Profile Service', () => {
     // Section 1: needsOnboarding() Logic
     // ==========================================
     describe('needsOnboarding()', () => {
-        test('should return true when currentProfile is null', () => {
+        // Fix: Service must be initialized (currentUid set) for needsOnboarding to work
+        test('should return false when service is not initialized (currentUid is null)', () => {
+            userProfileService.currentUid = null;
+            userProfileService.currentProfile = null;
+            expect(userProfileService.needsOnboarding()).toBe(false);
+        });
+
+        test('should return true when currentProfile is null but service is initialized', () => {
+            userProfileService.currentUid = 'test_user';
             userProfileService.currentProfile = null;
             expect(userProfileService.needsOnboarding()).toBe(true);
         });
 
         test('should return true when onboarding_completed is 0', () => {
+            userProfileService.currentUid = 'test_user';
             userProfileService.currentProfile = { onboarding_completed: 0 };
             expect(userProfileService.needsOnboarding()).toBe(true);
         });
 
         test('should return true when onboarding_completed is undefined', () => {
+            userProfileService.currentUid = 'test_user';
             userProfileService.currentProfile = {};
             expect(userProfileService.needsOnboarding()).toBe(true);
         });
 
         test('should return false when onboarding_completed is 1', () => {
+            userProfileService.currentUid = 'test_user';
             userProfileService.currentProfile = { onboarding_completed: 1 };
             expect(userProfileService.needsOnboarding()).toBe(false);
+        });
+    });
+
+    // ==========================================
+    // Section 1b: isInitialized() Logic (new)
+    // ==========================================
+    describe('isInitialized()', () => {
+        test('should return false when currentUid is null', () => {
+            userProfileService.currentUid = null;
+            expect(userProfileService.isInitialized()).toBe(false);
+        });
+
+        test('should return true when currentUid is set', () => {
+            userProfileService.currentUid = 'test_user';
+            expect(userProfileService.isInitialized()).toBe(true);
         });
     });
 
