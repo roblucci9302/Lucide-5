@@ -635,6 +635,72 @@ class UserProfileService extends EventEmitter {
                     type: 'text',
                     placeholder: 'Ex: Tech, Conseil, Finance, Retail...'
                 }
+            ],
+            // Phase 3: Added student_assistant questions
+            student_assistant: [
+                {
+                    id: 'education_level',
+                    question: 'Niveau d\'études actuel ?',
+                    type: 'select',
+                    options: ['Lycée', 'Licence (L1-L3)', 'Master (M1-M2)', 'Doctorat', 'Formation professionnelle']
+                },
+                {
+                    id: 'study_field',
+                    question: 'Domaine d\'études ?',
+                    type: 'text',
+                    placeholder: 'Ex: Informatique, Droit, Médecine, Commerce...'
+                },
+                {
+                    id: 'study_goals',
+                    question: 'Vos objectifs principaux ?',
+                    type: 'multiselect',
+                    options: ['Réussir mes examens', 'Comprendre les cours', 'Rédiger des mémoires', 'Préparer des concours', 'Améliorer mes notes']
+                },
+                {
+                    id: 'learning_style',
+                    question: 'Comment apprenez-vous le mieux ?',
+                    type: 'select',
+                    options: ['Visuellement (schémas, graphiques)', 'En lisant', 'En écoutant', 'En pratiquant']
+                },
+                {
+                    id: 'time_availability',
+                    question: 'Temps consacré aux études par jour ?',
+                    type: 'select',
+                    options: ['< 2 heures', '2-4 heures', '4-6 heures', '6+ heures']
+                }
+            ],
+            // Phase 3: Added researcher_assistant questions
+            researcher_assistant: [
+                {
+                    id: 'research_field',
+                    question: 'Domaine de recherche ?',
+                    type: 'text',
+                    placeholder: 'Ex: IA, Biologie moléculaire, Sciences sociales...'
+                },
+                {
+                    id: 'research_stage',
+                    question: 'Stade de votre recherche ?',
+                    type: 'select',
+                    options: ['Exploration/Revue littérature', 'Hypothèses/Méthodologie', 'Collecte de données', 'Analyse', 'Rédaction/Publication']
+                },
+                {
+                    id: 'research_type',
+                    question: 'Type de recherche ?',
+                    type: 'select',
+                    options: ['Recherche académique', 'R&D industrielle', 'Recherche appliquée', 'Recherche fondamentale']
+                },
+                {
+                    id: 'publication_goals',
+                    question: 'Objectifs de publication ?',
+                    type: 'multiselect',
+                    options: ['Articles peer-reviewed', 'Conférences', 'Thèse/Mémoire', 'Brevets', 'Vulgarisation']
+                },
+                {
+                    id: 'tools_used',
+                    question: 'Outils de recherche utilisés ?',
+                    type: 'multiselect',
+                    options: ['Google Scholar', 'PubMed', 'arXiv', 'Zotero/Mendeley', 'LaTeX', 'Python/R pour stats']
+                }
             ]
         };
 
