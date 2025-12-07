@@ -1,0 +1,105 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: lucidi-postgres-test
+    environment:
+      POSTGRES_USER: lucidi_test
+      POSTGRES_PASSWORD: test_password_2024
+      POSTGRES_DB: lucidi_test
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./postgres/test-data.sql:/docker-entrypoint-initdb.d/02-test-data.sql
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lucidi_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - lucidi-test-network
+
+  # MySQL Database
+  mysql:
+    image: mysql:8.0
+    container_name: lucidi-mysql-test
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password_2024
+      MYSQL_DATABASE: lucidi_test
+      MYSQL_USER: lucidi_test
+      MYSQL_PASSWORD: test_password_2024
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./mysql/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./mysql/test-data.sql:/docker-entrypoint-initdb.d/02-test-data.sql
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "--silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - lucidi-test-network
+
+  # Redis Cache (Optional)
+  redis:
+    image: redis:7-alpine
+    container_name: lucidi-redis-test
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - lucidi-test-network
+
+  # pgAdmin (Debug mode only)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: lucidi-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@lucidi.test
+      PGADMIN_DEFAULT_PASSWORD: admin123
+      PGADMIN_LISTEN_PORT: 80
+    ports:
+      - "8080:80"
+    depends_on:
+      - postgres
+    networks:
+      - lucidi-test-network
+    profiles:
+      - debug
+
+  # phpMyAdmin (Debug mode only)
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: lucidi-phpmyadmin
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+      PMA_USER: lucidi_test
+      PMA_PASSWORD: test_password_2024
+    ports:
+      - "8081:80"
+    depends_on:
+      - mysql
+    networks:
+      - lucidi-test-network
+    profiles:
+      - debug
+
+volumes:
+  postgres-data:
+  mysql-data:
+
+networks:
+  lucidi-test-network:
+    driver: bridge

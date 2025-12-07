@@ -1,0 +1,842 @@
+/**
+ * Firebase Knowledge Base Sync Service
+ *
+ * Manages synchronization between local SQLite knowledge base and Firebase Firestore.
+ * Provides bidirectional sync, real-time updates, and external database connections.
+ *
+ * KB-P1-2: Added secure storage for Firebase credentials using Electron safeStorage
+ */
+
+const { getFirestoreInstance } = require('../../common/services/firebaseClient');
+const { initializeApp, getApps, deleteApp } = require('firebase/app');
+const { getFirestore, collection, doc, getDoc, getDocs, setDoc, deleteDoc, query, where, orderBy, limit, onSnapshot } = require('firebase/firestore');
+const { loaders } = require('../../common/utils/dependencyLoader');
+const uuid = loaders.loadUuid();
+const uuidv4 = uuid.v4;
+const sqliteClient = require('../../common/services/sqliteClient');
+const authService = require('../../common/services/authService');
+const documentService = require('../../common/services/documentService');
+const Store = require('electron-store');
+// KB-P1-2: Import safeStorage for credential encryption
+const { safeStorage } = require('electron');
+// KB-P2-4: Import EventEmitter for connectivity status
+const { EventEmitter } = require('events');
+
+// KB-P2-4: Global event emitter for sync status changes
+const syncEvents = new EventEmitter();
+
+/**
+ * @class FirebaseKnowledgeSync
+ * @description Service for syncing knowledge base with Firebase Firestore
+ */
+class FirebaseKnowledgeSync {
+    constructor() {
+        this.db = null;
+        this.firestore = null;
+        this.externalApp = null; // Secondary Firebase app for external databases
+        this.externalFirestore = null; // Firestore instance for external database
+        this.syncListeners = new Map(); // uid -> unsubscribe function
+        this.syncInProgress = false;
+        this.externalConfig = null;
+
+        // KB-P2-4: Connectivity tracking
+        this.connectivityStatus = {
+            isOnline: true,
+            lastCheck: null,
+            lastError: null,
+            consecutiveFailures: 0
+        };
+
+        // Use electron-store instead of app_config SQLite table
+        this.configStore = new Store({
+            name: 'knowledge-sync-config',
+            defaults: {
+                syncEnabled: false,
+                knowledgeBaseName: 'Base Locale',
+                lastSyncTime: null
+            }
+        });
+        console.log('[FirebaseKnowledgeSync] Service initialized');
+    }
+
+    /**
+     * KB-P2-4: Check Firebase connectivity status
+     * @returns {Promise<Object>} Connectivity status
+     */
+    async checkConnectivity() {
+        try {
+            const activeFirestore = this.getActiveFirestore();
+            if (!activeFirestore) {
+                this.connectivityStatus = {
+                    isOnline: false,
+                    lastCheck: Date.now(),
+                    lastError: 'Firebase non configuré',
+                    consecutiveFailures: this.connectivityStatus.consecutiveFailures + 1
+                };
+                return this.connectivityStatus;
+            }
+
+            // Try a simple read operation to verify connectivity
+            const testRef = doc(activeFirestore, '_connectivity_check/test');
+            await getDoc(testRef);
+
+            // Success - reset failure counter
+            const wasOffline = !this.connectivityStatus.isOnline;
+            this.connectivityStatus = {
+                isOnline: true,
+                lastCheck: Date.now(),
+                lastError: null,
+                consecutiveFailures: 0
+            };
+
+            // Emit event if connectivity was restored
+            if (wasOffline) {
+                console.log('[FirebaseKnowledgeSync] ✅ Connectivity restored');
+                syncEvents.emit('connectivity-restored', this.connectivityStatus);
+            }
+
+            return this.connectivityStatus;
+        } catch (error) {
+            const wasOnline = this.connectivityStatus.isOnline;
+            this.connectivityStatus = {
+                isOnline: false,
+                lastCheck: Date.now(),
+                lastError: this._classifyConnectivityError(error),
+                consecutiveFailures: this.connectivityStatus.consecutiveFailures + 1
+            };
+
+            // Emit event if connectivity was lost
+            if (wasOnline) {
+                console.warn('[FirebaseKnowledgeSync] ⚠️ Connectivity lost:', this.connectivityStatus.lastError);
+                syncEvents.emit('connectivity-lost', this.connectivityStatus);
+            }
+
+            return this.connectivityStatus;
+        }
+    }
+
+    /**
+     * KB-P2-4: Get current connectivity status without checking
+     * @returns {Object} Current connectivity status
+     */
+    getConnectivityStatus() {
+        return { ...this.connectivityStatus };
+    }
+
+    /**
+     * KB-P2-4: Classify connectivity error for user-friendly messages
+     */
+    _classifyConnectivityError(error) {
+        const message = (error.message || '').toLowerCase();
+        const code = error.code || '';
+
+        if (message.includes('network') || message.includes('offline') || code === 'unavailable') {
+            return 'Hors ligne - Vérifiez votre connexion internet';
+        }
+        if (message.includes('permission') || code === 'permission-denied') {
+            return 'Accès refusé - Vérifiez vos permissions Firebase';
+        }
+        if (message.includes('not-found') || code === 'not-found') {
+            return 'Base de données non trouvée';
+        }
+        if (message.includes('timeout')) {
+            return 'Délai d\'attente dépassé';
+        }
+        return 'Erreur de connexion Firebase';
+    }
+
+    /**
+     * Initialize the service
+     */
+    async initialize() {
+        this.db = sqliteClient.getDb();
+        this.firestore = getFirestoreInstance();
+
+        if (!this.firestore) {
+            console.warn('[FirebaseKnowledgeSync] Firestore not available');
+            return false;
+        }
+
+        console.log('[FirebaseKnowledgeSync] Service ready');
+        return true;
+    }
+
+    /**
+     * Get current knowledge base status for user
+     * @param {string} uid - User ID
+     * @returns {Promise<Object>} Status object
+     */
+    async getStatus(uid) {
+        try {
+            if (!this.db) await this.initialize();
+
+            // Count local documents
+            const localCount = this.db.prepare(`
+                SELECT COUNT(*) as count FROM documents WHERE uid = ?
+            `).get(uid);
+
+            // Use electron-store instead of app_config table
+            const syncEnabled = this.configStore.get('syncEnabled', false);
+            const name = this.configStore.get('knowledgeBaseName', 'Base Locale');
+
+            // KB-P2-4: Include connectivity status
+            return {
+                status: syncEnabled ? 'active' : 'inactive',
+                name,
+                documentCount: localCount.count || 0,
+                syncEnabled,
+                lastSync: this._getLastSyncTime(),
+                connectivity: this.connectivityStatus,
+                isExternalConnected: this.isExternalConnected()
+            };
+        } catch (error) {
+            console.error('[FirebaseKnowledgeSync] Error getting status:', error);
+            return {
+                status: 'inactive',
+                name: '',
+                documentCount: 0,
+                syncEnabled: false
+            };
+        }
+    }
+
+    /**
+     * Create personal knowledge base on Firestore
+     * @param {string} uid - User ID
+     * @returns {Promise<Object>} Result object
+     */
+    async createPersonalKnowledgeBase(uid) {
+        console.log(`[FirebaseKnowledgeSync] Creating personal knowledge base for user: ${uid}`);
+
+        try {
+            if (!this.firestore) {
+                throw new Error('Firestore not initialized');
+            }
+
+            // Create metadata document (4 segments for valid doc() path)
+            const metadataRef = doc(this.firestore, `users/${uid}/knowledge_config/metadata`);
+
+            await setDoc(metadataRef, {
+                total_documents: 0,
+                total_size: 0,
+                last_sync: Date.now(),
+                sync_enabled: true,
+                created_at: Date.now(),
+                version: '1.0'
+            });
+
+            // Enable sync in local config
+            this._setSyncEnabled(true);
+            this._setKnowledgeBaseName('Base Personnelle');
+
+            console.log('[FirebaseKnowledgeSync] Personal knowledge base created');
+
+            // Sync existing local documents to Firebase
+            const syncResult = await this.syncToFirebase(uid);
+
+            return {
+                success: true,
+                name: 'Base Personnelle',
+                documentCount: syncResult.syncedCount || 0
+            };
+        } catch (error) {
+            console.error('[FirebaseKnowledgeSync] Error creating personal knowledge base:', error);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
+
+    /**
+     * Sync local documents to Firestore
+     * @param {string} uid - User ID
+     * @returns {Promise<Object>} Sync result
+     */
+    async syncToFirebase(uid) {
+        console.log(`[FirebaseKnowledgeSync] Syncing to Firebase for user: ${uid}`);
+
+        if (this.syncInProgress) {
+            console.warn('[FirebaseKnowledgeSync] Sync already in progress');
+            return { success: false, error: 'Sync already in progress' };
+        }
+
+        try {
+            this.syncInProgress = true;
+
+            if (!this.firestore) {
+                throw new Error('Firestore not initialized');
+            }
+
+            // Get all local documents for user
+            const documents = this.db.prepare(`
+                SELECT * FROM documents WHERE uid = ?
+            `).all(uid);
+
+            console.log(`[FirebaseKnowledgeSync] Found ${documents.length} local documents to sync`);
+
+            let syncedCount = 0;
+
+            for (const document of documents) {
+                try {
+                    // Create document reference (4 segments for valid doc() path)
+                    const docRef = doc(this.firestore, `users/${uid}/documents/${document.id}`);
+
+                    // Prepare document data
+                    const docData = {
+                        id: document.id,
+                        title: document.title,
+                        filename: document.filename,
+                        file_type: document.file_type,
+                        file_size: document.file_size,
+                        content: document.content,
+                        tags: document.tags ? JSON.parse(document.tags) : [],
+                        description: document.description,
+                        chunk_count: document.chunk_count,
+                        indexed: document.indexed === 1,
+                        created_at: document.created_at,
+                        updated_at: document.updated_at,
+                        synced_at: Date.now()
+                    };
+
+                    await setDoc(docRef, docData);
+
+                    // Get chunks for this document
+                    const chunks = this.db.prepare(`
+                        SELECT * FROM document_chunks WHERE document_id = ?
+                    `).all(document.id);
+
+                    // Sync chunks (4 segments for valid doc() path)
+                    for (const chunk of chunks) {
+                        const chunkRef = doc(this.firestore, `users/${uid}/chunks/${chunk.id}`);
+
+                        const chunkData = {
+                            id: chunk.id,
+                            document_id: chunk.document_id,
+                            chunk_index: chunk.chunk_index,
+                            content: chunk.content,
+                            token_count: chunk.token_count,
+                            embedding: chunk.embedding ? JSON.parse(chunk.embedding) : null,
+                            created_at: chunk.created_at
+                        };
+
+                        await setDoc(chunkRef, chunkData);
+                    }
+
+                    syncedCount++;
+                    console.log(`[FirebaseKnowledgeSync] Synced document: ${document.title} (${chunks.length} chunks)`);
+                } catch (error) {
+                    console.error(`[FirebaseKnowledgeSync] Error syncing document ${document.id}:`, error);
+                }
+            }
+
+            // Update metadata (4 segments for valid doc() path)
+            const metadataRef = doc(this.firestore, `users/${uid}/knowledge_config/metadata`);
+            await setDoc(metadataRef, {
+                total_documents: syncedCount,
+                last_sync: Date.now(),
+                sync_enabled: true
+            }, { merge: true });
+
+            this._setLastSyncTime(Date.now());
+
+            console.log(`[FirebaseKnowledgeSync] Sync completed: ${syncedCount} documents synced`);
+
+            return {
+                success: true,
+                syncedCount
+            };
+        } catch (error) {
+            console.error('[FirebaseKnowledgeSync] Error syncing to Firebase:', error);
+            return {
+                success: false,
+                error: error.message
+            };
+        } finally {
+            this.syncInProgress = false;
+        }
+    }
+
+    /**
+     * Sync from Firestore to local SQLite
+     * @param {string} uid - User ID
+     * @returns {Promise<Object>} Sync result
+     */
+    async syncFromFirebase(uid) {
+        console.log(`[FirebaseKnowledgeSync] Syncing from Firebase for user: ${uid}`);
+
+        try {
+            if (!this.firestore) {
+                throw new Error('Firestore not initialized');
+            }
+
+            // Get all documents from Firestore (3 segments for valid collection() path)
+            const documentsRef = collection(this.firestore, `users/${uid}/documents`);
+            const snapshot = await getDocs(documentsRef);
+
+            console.log(`[FirebaseKnowledgeSync] Found ${snapshot.size} Firebase documents`);
+
+            let syncedCount = 0;
+
+            for (const docSnapshot of snapshot.docs) {
+                const data = docSnapshot.data();
+
+                try {
+                    // Check if document exists locally
+                    const existing = this.db.prepare(`
+                        SELECT id FROM documents WHERE id = ?
+                    `).get(data.id);
+
+                    if (existing) {
+                        // Update existing document
+                        this.db.prepare(`
+                            UPDATE documents
+                            SET title = ?, content = ?, tags = ?, description = ?,
+                                chunk_count = ?, indexed = ?, updated_at = ?
+                            WHERE id = ?
+                        `).run(
+                            data.title,
+                            data.content,
+                            JSON.stringify(data.tags || []),
+                            data.description,
+                            data.chunk_count,
+                            data.indexed ? 1 : 0,
+                            Date.now(),
+                            data.id
+                        );
+                    } else {
+                        // Insert new document
+                        this.db.prepare(`
+                            INSERT INTO documents (
+                                id, uid, title, filename, file_type, file_size,
+                                content, tags, description, chunk_count, indexed,
+                                created_at, updated_at, sync_state
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        `).run(
+                            data.id,
+                            uid,
+                            data.title,
+                            data.filename,
+                            data.file_type,
+                            data.file_size,
+                            data.content,
+                            JSON.stringify(data.tags || []),
+                            data.description,
+                            data.chunk_count,
+                            data.indexed ? 1 : 0,
+                            data.created_at,
+                            Date.now(),
+                            'clean'
+                        );
+                    }
+
+                    syncedCount++;
+                } catch (error) {
+                    console.error(`[FirebaseKnowledgeSync] Error syncing document ${data.id}:`, error);
+                }
+            }
+
+            this._setLastSyncTime(Date.now());
+
+            console.log(`[FirebaseKnowledgeSync] Sync from Firebase completed: ${syncedCount} documents`);
+
+            return {
+                success: true,
+                syncedCount
+            };
+        } catch (error) {
+            console.error('[FirebaseKnowledgeSync] Error syncing from Firebase:', error);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
+
+    /**
+     * Connect to external Firestore database
+     * @param {Object} config - Firebase config
+     * @returns {Promise<Object>} Result
+     */
+    async connectExternalDatabase(config) {
+        console.log('[FirebaseKnowledgeSync] Connecting to external database');
+
+        try {
+            // Validate config
+            if (!config.apiKey || !config.projectId || !config.appId) {
+                throw new Error('Invalid Firebase configuration');
+            }
+
+            // Store external config
+            this.externalConfig = config;
+
+            // Disconnect existing external app if any
+            await this.disconnectExternalDatabase();
+
+            // Initialize secondary Firebase app for external database
+            const appName = `external_${config.projectId}`;
+
+            // Check if app already exists
+            const existingApps = getApps();
+            const existingApp = existingApps.find(app => app.name === appName);
+
+            if (existingApp) {
+                this.externalApp = existingApp;
+            } else {
+                this.externalApp = initializeApp(config, appName);
+            }
+
+            // Get Firestore instance for external app
+            this.externalFirestore = getFirestore(this.externalApp);
+
+            console.log(`[FirebaseKnowledgeSync] External Firebase app initialized: ${appName}`);
+
+            // Test connection by checking metadata
+            const metadataRef = doc(this.externalFirestore, 'metadata/info');
+            try {
+                await getDoc(metadataRef);
+                console.log('[FirebaseKnowledgeSync] External database connection verified');
+            } catch (e) {
+                console.warn('[FirebaseKnowledgeSync] Metadata not found, creating...');
+            }
+
+            // Enable sync
+            this._setSyncEnabled(true);
+            this._setKnowledgeBaseName(`Base Externe (${config.projectId})`);
+
+            // KB-P1-2: Store config securely for reconnection
+            this._storeExternalConfigSecurely(config);
+
+            console.log('[FirebaseKnowledgeSync] Connected to external database');
+
+            return {
+                success: true,
+                name: `Base Externe (${config.projectId})`,
+                documentCount: 0,
+                projectId: config.projectId
+            };
+        } catch (error) {
+            console.error('[FirebaseKnowledgeSync] Error connecting to external database:', error);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
+
+    /**
+     * Disconnect from external database
+     * @returns {Promise<Object>} Result
+     */
+    async disconnectExternalDatabase() {
+        try {
+            if (this.externalApp) {
+                await deleteApp(this.externalApp);
+                this.externalApp = null;
+                this.externalFirestore = null;
+                this.externalConfig = null;
+                // KB-P1-2: Use secure delete method
+                this._deleteExternalConfigSecurely();
+                console.log('[FirebaseKnowledgeSync] Disconnected from external database');
+            }
+            return { success: true };
+        } catch (error) {
+            console.error('[FirebaseKnowledgeSync] Error disconnecting external database:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Get active Firestore instance (external if connected, otherwise main)
+     * @returns {Object} Firestore instance
+     */
+    getActiveFirestore() {
+        return this.externalFirestore || this.firestore;
+    }
+
+    /**
+     * Check if connected to external database
+     * @returns {boolean}
+     */
+    isExternalConnected() {
+        return this.externalApp !== null && this.externalFirestore !== null;
+    }
+
+    /**
+     * Setup real-time sync listener
+     * @param {string} uid - User ID
+     */
+    setupRealtimeSync(uid) {
+        console.log(`[FirebaseKnowledgeSync] Setting up real-time sync for user: ${uid}`);
+
+        if (!this.firestore) {
+            console.warn('[FirebaseKnowledgeSync] Firestore not available');
+            return;
+        }
+
+        // Clean up existing listener
+        if (this.syncListeners.has(uid)) {
+            this.syncListeners.get(uid)();
+        }
+
+        // Create new listener (3 segments for valid collection() path)
+        const documentsRef = collection(this.firestore, `users/${uid}/documents`);
+
+        const unsubscribe = onSnapshot(documentsRef, (snapshot) => {
+            console.log(`[FirebaseKnowledgeSync] Received ${snapshot.docChanges().length} changes from Firebase`);
+
+            snapshot.docChanges().forEach((change) => {
+                const data = change.doc.data();
+
+                if (change.type === 'added' || change.type === 'modified') {
+                    // Update local database
+                    this._upsertLocalDocument(uid, data);
+                } else if (change.type === 'removed') {
+                    // Delete from local database
+                    this._deleteLocalDocument(data.id);
+                }
+            });
+        }, (error) => {
+            console.error('[FirebaseKnowledgeSync] Real-time sync error:', error);
+        });
+
+        this.syncListeners.set(uid, unsubscribe);
+        console.log('[FirebaseKnowledgeSync] Real-time sync active');
+    }
+
+    /**
+     * Stop real-time sync
+     * @param {string} uid - User ID
+     */
+    stopRealtimeSync(uid) {
+        if (this.syncListeners.has(uid)) {
+            this.syncListeners.get(uid)();
+            this.syncListeners.delete(uid);
+            console.log(`[FirebaseKnowledgeSync] Real-time sync stopped for user: ${uid}`);
+        }
+    }
+
+    // ====== Private Helper Methods ======
+
+    _upsertLocalDocument(uid, data) {
+        try {
+            const existing = this.db.prepare(`SELECT id FROM documents WHERE id = ?`).get(data.id);
+
+            if (existing) {
+                this.db.prepare(`
+                    UPDATE documents
+                    SET title = ?, content = ?, tags = ?, description = ?,
+                        chunk_count = ?, indexed = ?, updated_at = ?
+                    WHERE id = ?
+                `).run(
+                    data.title,
+                    data.content,
+                    JSON.stringify(data.tags || []),
+                    data.description,
+                    data.chunk_count,
+                    data.indexed ? 1 : 0,
+                    Date.now(),
+                    data.id
+                );
+            } else {
+                this.db.prepare(`
+                    INSERT INTO documents (
+                        id, uid, title, filename, file_type, file_size,
+                        content, tags, description, chunk_count, indexed,
+                        created_at, updated_at, sync_state
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `).run(
+                    data.id,
+                    uid,
+                    data.title,
+                    data.filename,
+                    data.file_type,
+                    data.file_size,
+                    data.content,
+                    JSON.stringify(data.tags || []),
+                    data.description,
+                    data.chunk_count,
+                    data.indexed ? 1 : 0,
+                    data.created_at,
+                    Date.now(),
+                    'clean'
+                );
+            }
+
+            console.log(`[FirebaseKnowledgeSync] Upserted local document: ${data.title}`);
+        } catch (error) {
+            console.error('[FirebaseKnowledgeSync] Error upserting local document:', error);
+        }
+    }
+
+    _deleteLocalDocument(documentId) {
+        try {
+            this.db.prepare(`DELETE FROM documents WHERE id = ?`).run(documentId);
+            this.db.prepare(`DELETE FROM document_chunks WHERE document_id = ?`).run(documentId);
+            console.log(`[FirebaseKnowledgeSync] Deleted local document: ${documentId}`);
+        } catch (error) {
+            console.error('[FirebaseKnowledgeSync] Error deleting local document:', error);
+        }
+    }
+
+    _setSyncEnabled(enabled) {
+        try {
+            this.configStore.set('syncEnabled', enabled);
+        } catch (error) {
+            console.error('[FirebaseKnowledgeSync] Error setting sync enabled:', error);
+        }
+    }
+
+    _setKnowledgeBaseName(name) {
+        try {
+            this.configStore.set('knowledgeBaseName', name);
+        } catch (error) {
+            console.error('[FirebaseKnowledgeSync] Error setting knowledge base name:', error);
+        }
+    }
+
+    _setLastSyncTime(timestamp) {
+        try {
+            this.configStore.set('lastSyncTime', timestamp);
+        } catch (error) {
+            console.error('[FirebaseKnowledgeSync] Error setting last sync time:', error);
+        }
+    }
+
+    _getLastSyncTime() {
+        try {
+            return this.configStore.get('lastSyncTime', null);
+        } catch (error) {
+            console.error('[FirebaseKnowledgeSync] Error getting last sync time:', error);
+            return null;
+        }
+    }
+
+    // ====== KB-P1-2: Secure Storage Methods ======
+
+    /**
+     * KB-P1-2: Store external Firebase config with encryption
+     * Uses Electron safeStorage to encrypt sensitive API keys
+     * @param {Object} config - Firebase configuration containing apiKey, projectId, etc.
+     */
+    _storeExternalConfigSecurely(config) {
+        try {
+            if (!config) {
+                this.configStore.delete('externalConfigEncrypted');
+                this.configStore.delete('externalConfigMeta');
+                return;
+            }
+
+            // Check if encryption is available
+            if (!safeStorage.isEncryptionAvailable()) {
+                console.warn('[FirebaseKnowledgeSync] ⚠️ Encryption not available on this system, storing config with basic obfuscation');
+                // Fallback: store with base64 encoding (not truly secure, but better than plaintext)
+                const encoded = Buffer.from(JSON.stringify(config)).toString('base64');
+                this.configStore.set('externalConfigEncoded', encoded);
+                this.configStore.set('externalConfigSecure', false);
+                return;
+            }
+
+            // Extract sensitive fields for encryption
+            const sensitiveData = {
+                apiKey: config.apiKey,
+                appId: config.appId,
+                messagingSenderId: config.messagingSenderId
+            };
+
+            // Encrypt sensitive data
+            const encryptedBuffer = safeStorage.encryptString(JSON.stringify(sensitiveData));
+            const encryptedBase64 = encryptedBuffer.toString('base64');
+
+            // Store non-sensitive metadata separately (for display purposes)
+            const metadata = {
+                projectId: config.projectId,
+                authDomain: config.authDomain,
+                storageBucket: config.storageBucket,
+                name: config.name,
+                connectedAt: Date.now()
+            };
+
+            this.configStore.set('externalConfigEncrypted', encryptedBase64);
+            this.configStore.set('externalConfigMeta', metadata);
+            this.configStore.set('externalConfigSecure', true);
+
+            console.log('[FirebaseKnowledgeSync] ✅ External config stored securely with encryption');
+        } catch (error) {
+            console.error('[FirebaseKnowledgeSync] Error storing config securely:', error);
+            throw new Error('Failed to store configuration securely');
+        }
+    }
+
+    /**
+     * KB-P1-2: Retrieve external Firebase config with decryption
+     * @returns {Object|null} Decrypted Firebase configuration or null
+     */
+    _getExternalConfigSecurely() {
+        try {
+            const isSecure = this.configStore.get('externalConfigSecure', false);
+
+            if (!isSecure) {
+                // Try to get base64 encoded fallback
+                const encoded = this.configStore.get('externalConfigEncoded');
+                if (encoded) {
+                    return JSON.parse(Buffer.from(encoded, 'base64').toString('utf8'));
+                }
+                return null;
+            }
+
+            const encryptedBase64 = this.configStore.get('externalConfigEncrypted');
+            const metadata = this.configStore.get('externalConfigMeta');
+
+            if (!encryptedBase64 || !metadata) {
+                return null;
+            }
+
+            // Check if encryption is available
+            if (!safeStorage.isEncryptionAvailable()) {
+                console.warn('[FirebaseKnowledgeSync] Encryption not available, cannot decrypt stored config');
+                return null;
+            }
+
+            // Decrypt sensitive data
+            const encryptedBuffer = Buffer.from(encryptedBase64, 'base64');
+            const decryptedString = safeStorage.decryptString(encryptedBuffer);
+            const sensitiveData = JSON.parse(decryptedString);
+
+            // Combine with metadata
+            return {
+                ...metadata,
+                ...sensitiveData
+            };
+        } catch (error) {
+            console.error('[FirebaseKnowledgeSync] Error retrieving secure config:', error);
+            return null;
+        }
+    }
+
+    /**
+     * KB-P1-2: Delete stored external config securely
+     */
+    _deleteExternalConfigSecurely() {
+        try {
+            this.configStore.delete('externalConfigEncrypted');
+            this.configStore.delete('externalConfigMeta');
+            this.configStore.delete('externalConfigSecure');
+            this.configStore.delete('externalConfigEncoded');
+            // Also delete legacy unencrypted config if exists
+            this.configStore.delete('externalConfig');
+            console.log('[FirebaseKnowledgeSync] External config deleted securely');
+        } catch (error) {
+            console.error('[FirebaseKnowledgeSync] Error deleting secure config:', error);
+        }
+    }
+}
+
+// Export singleton instance
+const firebaseKnowledgeSync = new FirebaseKnowledgeSync();
+
+module.exports = {
+    firebaseKnowledgeSync,
+    // KB-P2-4: Export sync events for UI notifications
+    syncEvents
+};

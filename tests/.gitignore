@@ -1,0 +1,6 @@
+# Test artifacts
+test-data.db
+test-data.db-shm
+test-data.db-wal
+*.log
+.DS_Store

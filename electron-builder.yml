@@ -1,0 +1,119 @@
+# electron-builder.yml
+
+# The unique application ID
+appId: com.ilm.lucide
+
+# The user-facing application name
+productName: Lucide
+
+# Publish configuration for GitHub releases
+publish:
+    provider: github
+    owner: roblucci9302
+    repo: Lucide-101214
+    releaseType: draft
+
+# Protocols configuration for deep linking
+protocols:
+    name: Lucide Protocol
+    schemes: 
+        - lucide
+
+# List of files to be included in the app package
+files:
+    - src/**/*
+    - package.json
+    - web/backend_node/**/*
+    - '!**/node_modules/electron/**'
+    - public/build/**/*
+
+# Additional resources to be copied into the app's resources directory
+extraResources:
+    - from: web/out
+      to: out
+
+asarUnpack:
+    - "src/ui/assets/SystemAudioDump"
+    - "**/node_modules/sharp/**/*"
+    - "**/node_modules/@img/**/*"
+
+# Windows configuration
+win:
+    icon: src/ui/assets/logo.ico
+    target:
+        - target: nsis
+          arch: x64
+        - target: portable
+          arch: x64
+    requestedExecutionLevel: asInvoker
+    signAndEditExecutable: true
+    cscLink: build\certs\lucide-dev.pfx
+    cscKeyPassword: "${env.CSC_KEY_PASSWORD}"
+    signtoolOptions:
+      certificateSubjectName: "Lucide Dev Code Signing"
+
+# NSIS installer configuration for Windows
+nsis:
+    oneClick: false
+    perMachine: false
+    allowToChangeInstallationDirectory: true
+    deleteAppDataOnUninstall: true
+    createDesktopShortcut: always
+    createStartMenuShortcut: true
+    shortcutName: Lucide
+
+# macOS specific configuration
+mac:
+    # The application category type
+    category: public.app-category.utilities
+    # Path to the .icns icon file
+    icon: src/ui/assets/logo.icns
+    # Minimum macOS version (supports both Intel and Apple Silicon)
+    minimumSystemVersion: '11.0'
+    hardenedRuntime: true
+    entitlements: entitlements.plist
+    entitlementsInherit: entitlements.plist
+    target:
+      - target: dmg
+        arch: universal
+      - target: zip
+        arch: universal
+
+# Linux specific configuration
+linux:
+    # Path to the PNG icon file (Linux requires PNG)
+    icon: src/ui/assets/logo.png
+    # Application category for desktop environments
+    category: Utility
+    # Build targets for Linux distribution
+    target:
+        - target: AppImage
+          arch: x64
+        - target: deb
+          arch: x64
+        - target: rpm
+          arch: x64
+    # Package maintainer info
+    maintainer: "Lucide Team"
+    vendor: "Lucide"
+    # Short description for package managers
+    synopsis: "AI-powered productivity assistant"
+    # Full description
+    description: "Lucide - Your AI companion for enhanced productivity with voice transcription and intelligent assistance"
+
+# Debian package configuration
+deb:
+    # Package dependencies for Debian/Ubuntu
+    # libsecret-1-0 is required for keytar (credential storage)
+    depends:
+        - libsecret-1-0
+    # Package category
+    category: utils
+    # Priority level
+    priority: optional
+
+# RPM package configuration
+rpm:
+    # Package dependencies for Fedora/RHEL
+    depends:
+        - libsecret
