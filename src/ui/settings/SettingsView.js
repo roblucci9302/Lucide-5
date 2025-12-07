@@ -700,11 +700,14 @@ export class SettingsView extends LitElement {
             const result = await window.api.settingsView.setAutoUpdate(newValue);
             if (result && result.success) {
                 this.autoUpdateEnabled = newValue;
+                window.showToast?.(newValue ? 'Mises à jour automatiques activées' : 'Mises à jour automatiques désactivées', 'success');
             } else {
                 console.error('Failed to update auto-update setting');
+                window.showToast?.('Échec de la modification des mises à jour automatiques', 'error');
             }
         } catch (e) {
             console.error('Error toggling auto-update:', e);
+            window.showToast?.(`Erreur : ${e.message}`, 'error');
         }
         this.autoUpdateLoading = false;
         this.requestUpdate();
@@ -867,10 +870,17 @@ export class SettingsView extends LitElement {
     async handleClearKey(provider) {
         console.log(`[SettingsView] handleClearKey: ${provider}`);
         this.saving = true;
-        await window.api.settingsView.removeApiKey(provider);
-        this.apiKeys = { ...this.apiKeys, [provider]: '' };
-        await this.refreshModelData();
-        this.saving = false;
+        try {
+            await window.api.settingsView.removeApiKey(provider);
+            this.apiKeys = { ...this.apiKeys, [provider]: '' };
+            await this.refreshModelData();
+            window.showToast?.(`Clé ${provider} supprimée`, 'success');
+        } catch (error) {
+            console.error(`Error clearing ${provider} key:`, error);
+            window.showToast?.(`Erreur : ${error.message}`, 'error');
+        } finally {
+            this.saving = false;
+        }
     }
 
     async refreshModelData() {
@@ -1274,12 +1284,16 @@ export class SettingsView extends LitElement {
             if (result && result.success) {
                 this.activeProfile = profileId;
                 console.log('Agent profile changed to:', profileId);
+                const profileName = this.availableProfiles.find(p => p.id === profileId)?.name || profileId;
+                window.showToast?.(`Profil changé : ${profileName}`, 'success');
                 this.requestUpdate();
             } else {
                 console.error('Failed to change agent profile');
+                window.showToast?.('Échec du changement de profil', 'error');
             }
         } catch (error) {
             console.error('Error changing agent profile:', error);
+            window.showToast?.(`Erreur : ${error.message}`, 'error');
         }
     }
 
@@ -1299,20 +1313,34 @@ export class SettingsView extends LitElement {
             await window.api.settingsView.openPersonalizePage();
         } catch (error) {
             console.error('Failed to open personalize page:', error);
+            window.showToast?.('Impossible d\'ouvrir la page de personnalisation', 'error');
         }
     }
 
     async handleToggleInvisibility() {
         console.log('Toggle Invisibility clicked');
-        this.isContentProtectionOn = await window.api.settingsView.toggleContentProtection();
-        this.requestUpdate();
+        try {
+            this.isContentProtectionOn = await window.api.settingsView.toggleContentProtection();
+            window.showToast?.(this.isContentProtectionOn ? 'Protection du contenu activée' : 'Protection du contenu désactivée', 'success');
+            this.requestUpdate();
+        } catch (error) {
+            console.error('Error toggling content protection:', error);
+            window.showToast?.(`Erreur : ${error.message}`, 'error');
+        }
     }
 
     async handleToggleScreenshot() {
         console.log('Toggle Screenshot clicked');
-        this.isScreenshotEnabled = !this.isScreenshotEnabled;
-        await window.api.settingsView.setScreenshotEnabled(this.isScreenshotEnabled);
-        this.requestUpdate();
+        try {
+            this.isScreenshotEnabled = !this.isScreenshotEnabled;
+            await window.api.settingsView.setScreenshotEnabled(this.isScreenshotEnabled);
+            window.showToast?.(this.isScreenshotEnabled ? 'Captures d\'écran activées' : 'Captures d\'écran désactivées', 'success');
+            this.requestUpdate();
+        } catch (error) {
+            console.error('Error toggling screenshot:', error);
+            this.isScreenshotEnabled = !this.isScreenshotEnabled; // Revert on error
+            window.showToast?.(`Erreur : ${error.message}`, 'error');
+        }
     }
 
     async handleSaveApiKey() {
@@ -1325,12 +1353,15 @@ export class SettingsView extends LitElement {
             if (result.success) {
                 console.log('API Key saved successfully via IPC.');
                 this.apiKey = newApiKey;
+                window.showToast?.('Clé API enregistrée', 'success');
                 this.requestUpdate();
             } else {
-                 console.error('Failed to save API Key via IPC:', result.error);
+                console.error('Failed to save API Key via IPC:', result.error);
+                window.showToast?.(`Échec de l'enregistrement : ${result.error}`, 'error');
             }
         } catch(e) {
             console.error('Error invoking save-api-key IPC:', e);
+            window.showToast?.(`Erreur : ${e.message}`, 'error');
         }
     }
 
@@ -1358,15 +1389,18 @@ export class SettingsView extends LitElement {
 
             if (result.success) {
                 console.log('[SettingsView] Ollama shut down successfully');
+                window.showToast?.('Service Ollama arrêté', 'success');
                 // Refresh status to reflect the change
                 await this.refreshOllamaStatus();
             } else {
                 console.error('[SettingsView] Failed to shutdown Ollama:', result.error);
+                window.showToast?.(`Échec de l'arrêt d'Ollama : ${result.error}`, 'error');
                 // Restore previous state on error
                 await this.refreshOllamaStatus();
             }
         } catch (error) {
             console.error('[SettingsView] Error during Ollama shutdown:', error);
+            window.showToast?.(`Erreur : ${error.message}`, 'error');
             // Restore previous state on error
             await this.refreshOllamaStatus();
         }
@@ -1451,6 +1485,7 @@ export class SettingsView extends LitElement {
             await window.api.settingsView.openKnowledgeBaseManager();
         } catch (error) {
             console.error('[SettingsView] Error opening knowledge base manager:', error);
+            window.showToast?.('Impossible d\'ouvrir le gestionnaire de base de connaissances', 'error');
         }
     }
 
@@ -1561,9 +1596,13 @@ export class SettingsView extends LitElement {
             const result = await window.api.license.refresh();
             if (result.success) {
                 this.licenseInfo = result.license;
+                window.showToast?.('Licence actualisée', 'success');
+            } else {
+                window.showToast?.(`Échec de l'actualisation : ${result.error}`, 'error');
             }
         } catch (error) {
             console.error('[SettingsView] License refresh error:', error);
+            window.showToast?.(`Erreur : ${error.message}`, 'error');
         } finally {
             this.licenseLoading = false;
             this.requestUpdate();
