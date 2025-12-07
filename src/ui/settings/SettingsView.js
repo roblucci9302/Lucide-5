@@ -672,7 +672,7 @@ export class SettingsView extends LitElement {
         this.enterpriseStatus = { connected: false };
         this.enterpriseLoading = false;
         this.enterpriseDatabases = [];
-        this.loadInitialData();
+        // Note: loadInitialData() is now called in connectedCallback() to avoid race conditions
         //////// after_modelStateService ////////
     }
 
@@ -747,7 +747,12 @@ export class SettingsView extends LitElement {
 
     //////// after_modelStateService ////////
     async loadInitialData() {
-        if (!window.api) return;
+        if (!window.api) {
+            console.warn('[SettingsView] window.api not available, cannot load settings');
+            window.showToast?.('API non disponible. Veuillez redémarrer l\'application.', 'error');
+            this.isLoading = false;
+            return;
+        }
         this.isLoading = true;
         try {
             // Load essential data first
@@ -801,6 +806,8 @@ export class SettingsView extends LitElement {
             this.loadLocalAIStatus();
         } catch (error) {
             console.error('Error loading initial settings data:', error);
+            // Show user-friendly error message
+            window.showToast?.('Erreur lors du chargement des paramètres. Certaines fonctionnalités peuvent être indisponibles.', 'warning', 6000);
         } finally {
             this.isLoading = false;
         }
@@ -978,9 +985,10 @@ export class SettingsView extends LitElement {
                 
                 if (result.success) {
                     console.log(`[SettingsView] Model ${modelName} installed successfully`);
+                    window.showToast?.(`Modèle ${modelName} installé avec succès`, 'success');
                     delete this.installingModels[modelName];
                     this.requestUpdate();
-                    
+
                     // Actualiser l'état
                     await this.refreshOllamaStatus();
                     await this.refreshModelData();
@@ -993,11 +1001,12 @@ export class SettingsView extends LitElement {
             }
         } catch (error) {
             console.error(`[SettingsView] Error installing model ${modelName}:`, error);
+            window.showToast?.(`Échec de l'installation du modèle ${modelName} : ${error.message}`, 'error');
             delete this.installingModels[modelName];
             this.requestUpdate();
         }
     }
-    
+
     async downloadWhisperModel(modelId) {
         // Mark as installing
         this.installingModels = { ...this.installingModels, [modelId]: 0 };
@@ -1025,14 +1034,16 @@ export class SettingsView extends LitElement {
                         modelInfo.installed = true;
                     }
                 }
-                
+
+                window.showToast?.(`Modèle Whisper ${modelId} téléchargé avec succès`, 'success');
+
                 // Remove from installing models
                 delete this.installingModels[modelId];
                 this.requestUpdate();
-                
+
                 // Reload LocalAI status to get fresh data
                 await this.loadLocalAIStatus();
-                
+
                 // Auto-select the model after download
                 await this.selectModel('stt', modelId);
             } else {
@@ -1096,11 +1107,13 @@ export class SettingsView extends LitElement {
 
     connectedCallback() {
         super.connectedCallback();
-        
+
         this.setupEventListeners();
         this.setupIpcListeners();
         this.setupWindowResize();
         this.loadAutoUpdateSetting();
+        // Load initial data after component is connected (avoids race condition with window.api)
+        this.loadInitialData();
         // Force one height calculation immediately (innerHeight may be 0 at first)
         setTimeout(() => this.updateScrollHeight(), 0);
     }
