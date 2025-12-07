@@ -1,0 +1,20 @@
+Ceci est un document de test pour Lucide
+
+Ce fichier texte simple contient du contenu en français pour tester la fonctionnalité d'upload et d'analyse de documents.
+
+Sections de test:
+
+1. Introduction
+Ce document sert à valider que les uploads fonctionnent correctement.
+
+2. Contenu technique
+Le système doit être capable d'extraire ce texte et de l'utiliser comme contexte pour les questions posées à l'IA.
+
+3. Vérifications
+- Le fichier doit apparaître dans AttachmentBubble
+- Le statut doit passer de "analyzing" à "analyzed"
+- Le texte doit être extrait et disponible
+- Le bouton de suppression doit fonctionner
+
+4. Conclusion
+Si vous pouvez lire ce texte dans le contexte de votre question, l'upload fonctionne !
