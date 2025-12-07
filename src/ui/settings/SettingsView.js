@@ -349,20 +349,44 @@ export class SettingsView extends LitElement {
 
         .loading-state {
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
-            padding: 20px;
+            padding: 40px 20px;
             color: var(--color-white-70);
-            font-size: 11px;
+            font-size: 13px;
+            gap: 16px;
+        }
+
+        .loading-state .loading-icon {
+            font-size: 32px;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.6; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.1); }
+        }
+
+        .loading-state .loading-text {
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
         .loading-spinner {
+            width: 14px;
+            height: 14px;
+            border: 2px solid var(--color-white-20);
+            border-top: 2px solid rgba(255, 255, 255, 0.8);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        .loading-spinner.small {
             width: 12px;
             height: 12px;
-            border: 1px solid var(--color-white-20);
-            border-top: 1px solid rgba(255, 255, 255, 0.8);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
+            border-width: 1px;
             margin-right: 6px;
         }
 
@@ -1779,8 +1803,11 @@ export class SettingsView extends LitElement {
             return html`
                 <div class="settings-container">
                     <div class="loading-state">
-                        <div class="loading-spinner"></div>
-                        <span>Chargement...</span>
+                        <div class="loading-icon">⚙️</div>
+                        <div class="loading-text">
+                            <div class="loading-spinner"></div>
+                            <span>Chargement des paramètres...</span>
+                        </div>
                     </div>
                 </div>
             `;
@@ -1802,22 +1829,22 @@ export class SettingsView extends LitElement {
                                         <div style="padding: 8px; background: rgba(0,255,0,0.1); border-radius: 4px; font-size: 11px; color: rgba(0,255,0,0.8);">
                                             ✓ Ollama est actif
                                         </div>
-                                        <button class="settings-button full-width danger" @click=${this.handleOllamaShutdown}>
-                                            Arrêter le service Ollama
+                                        <button class="settings-button full-width danger" @click=${this.handleOllamaShutdown} ?disabled=${this.saving}>
+                                            ${this.saving ? 'Arrêt en cours...' : 'Arrêter le service Ollama'}
                                         </button>
                                     ` : this.ollamaStatus.installed ? html`
                                         <div style="padding: 8px; background: rgba(255,200,0,0.1); border-radius: 4px; font-size: 11px; color: rgba(255,200,0,0.8);">
                                             ⚠ Ollama installé mais non actif
                                         </div>
-                                        <button class="settings-button full-width" @click=${() => this.handleSaveKey(id)}>
-                                            Démarrer Ollama
+                                        <button class="settings-button full-width" @click=${() => this.handleSaveKey(id)} ?disabled=${this.saving}>
+                                            ${this.saving ? 'Démarrage en cours...' : 'Démarrer Ollama'}
                                         </button>
                                     ` : html`
                                         <div style="padding: 8px; background: rgba(255,100,100,0.1); border-radius: 4px; font-size: 11px; color: rgba(255,100,100,0.8);">
                                             ✗ Ollama non installé
                                         </div>
-                                        <button class="settings-button full-width" @click=${() => this.handleSaveKey(id)}>
-                                            Installer et configurer Ollama
+                                        <button class="settings-button full-width" @click=${() => this.handleSaveKey(id)} ?disabled=${this.saving}>
+                                            ${this.saving ? 'Installation en cours...' : 'Installer et configurer Ollama'}
                                         </button>
                                     `}
                                 </div>
@@ -1833,12 +1860,12 @@ export class SettingsView extends LitElement {
                                         <div style="padding: 8px; background: rgba(0,255,0,0.1); border-radius: 4px; font-size: 11px; color: rgba(0,255,0,0.8); margin-bottom: 8px;">
                                             ✓ Whisper est activé
                                         </div>
-                                        <button class="settings-button full-width danger" @click=${() => this.handleClearKey(id)}>
-                                            Désactiver Whisper
+                                        <button class="settings-button full-width danger" @click=${() => this.handleClearKey(id)} ?disabled=${this.saving}>
+                                            ${this.saving ? 'Désactivation...' : 'Désactiver Whisper'}
                                         </button>
                                     ` : html`
-                                        <button class="settings-button full-width" @click=${() => this.handleSaveKey(id)}>
-                                            Activer Whisper STT
+                                        <button class="settings-button full-width" @click=${() => this.handleSaveKey(id)} ?disabled=${this.saving}>
+                                            ${this.saving ? 'Activation...' : 'Activer Whisper STT'}
                                         </button>
                                     `}
                                 </div>
@@ -1854,8 +1881,12 @@ export class SettingsView extends LitElement {
                                 .value=${this.apiKeys[id] || ''}
                             >
                             <div class="key-buttons">
-                               <button class="settings-button" @click=${() => this.handleSaveKey(id)} >Enregistrer</button>
-                               <button class="settings-button danger" @click=${() => this.handleClearKey(id)} }>Effacer</button>
+                               <button class="settings-button" @click=${() => this.handleSaveKey(id)} ?disabled=${this.saving}>
+                                   ${this.saving ? '...' : 'Enregistrer'}
+                               </button>
+                               <button class="settings-button danger" @click=${() => this.handleClearKey(id)} ?disabled=${this.saving}>
+                                   ${this.saving ? '...' : 'Effacer'}
+                               </button>
                             </div>
                         </div>
                         `;
