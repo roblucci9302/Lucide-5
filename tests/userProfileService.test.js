@@ -46,24 +46,50 @@ describe('User Profile Service', () => {
     // Section 1: needsOnboarding() Logic
     // ==========================================
     describe('needsOnboarding()', () => {
-        test('should return true when currentProfile is null', () => {
+        // Fix: Service must be initialized (currentUid set) for needsOnboarding to work
+        test('should return false when service is not initialized (currentUid is null)', () => {
+            userProfileService.currentUid = null;
+            userProfileService.currentProfile = null;
+            expect(userProfileService.needsOnboarding()).toBe(false);
+        });
+
+        test('should return true when currentProfile is null but service is initialized', () => {
+            userProfileService.currentUid = 'test_user';
             userProfileService.currentProfile = null;
             expect(userProfileService.needsOnboarding()).toBe(true);
         });
 
         test('should return true when onboarding_completed is 0', () => {
+            userProfileService.currentUid = 'test_user';
             userProfileService.currentProfile = { onboarding_completed: 0 };
             expect(userProfileService.needsOnboarding()).toBe(true);
         });
 
         test('should return true when onboarding_completed is undefined', () => {
+            userProfileService.currentUid = 'test_user';
             userProfileService.currentProfile = {};
             expect(userProfileService.needsOnboarding()).toBe(true);
         });
 
         test('should return false when onboarding_completed is 1', () => {
+            userProfileService.currentUid = 'test_user';
             userProfileService.currentProfile = { onboarding_completed: 1 };
             expect(userProfileService.needsOnboarding()).toBe(false);
+        });
+    });
+
+    // ==========================================
+    // Section 1b: isInitialized() Logic (new)
+    // ==========================================
+    describe('isInitialized()', () => {
+        test('should return false when currentUid is null', () => {
+            userProfileService.currentUid = null;
+            expect(userProfileService.isInitialized()).toBe(false);
+        });
+
+        test('should return true when currentUid is set', () => {
+            userProfileService.currentUid = 'test_user';
+            expect(userProfileService.isInitialized()).toBe(true);
         });
     });
 
@@ -191,6 +217,64 @@ describe('User Profile Service', () => {
             });
         });
 
+        // Phase 3: Added tests for student_assistant
+        describe('student_assistant profile', () => {
+            test('should include education_level question', () => {
+                const questions = userProfileService.getOnboardingQuestions('student_assistant');
+                const eduQ = questions.find(q => q.id === 'education_level');
+                expect(eduQ).toBeDefined();
+                expect(eduQ.options).toContain('Licence (L1-L3)');
+            });
+
+            test('should include study_field question', () => {
+                const questions = userProfileService.getOnboardingQuestions('student_assistant');
+                const fieldQ = questions.find(q => q.id === 'study_field');
+                expect(fieldQ).toBeDefined();
+                expect(fieldQ.type).toBe('text');
+            });
+
+            test('should include study_goals multiselect question', () => {
+                const questions = userProfileService.getOnboardingQuestions('student_assistant');
+                const goalsQ = questions.find(q => q.id === 'study_goals');
+                expect(goalsQ).toBeDefined();
+                expect(goalsQ.type).toBe('multiselect');
+            });
+
+            test('should have 5 questions total', () => {
+                const questions = userProfileService.getOnboardingQuestions('student_assistant');
+                expect(questions.length).toBe(5);
+            });
+        });
+
+        // Phase 3: Added tests for researcher_assistant
+        describe('researcher_assistant profile', () => {
+            test('should include research_field question', () => {
+                const questions = userProfileService.getOnboardingQuestions('researcher_assistant');
+                const fieldQ = questions.find(q => q.id === 'research_field');
+                expect(fieldQ).toBeDefined();
+                expect(fieldQ.type).toBe('text');
+            });
+
+            test('should include research_stage question', () => {
+                const questions = userProfileService.getOnboardingQuestions('researcher_assistant');
+                const stageQ = questions.find(q => q.id === 'research_stage');
+                expect(stageQ).toBeDefined();
+                expect(stageQ.options).toContain('Rédaction/Publication');
+            });
+
+            test('should include publication_goals multiselect question', () => {
+                const questions = userProfileService.getOnboardingQuestions('researcher_assistant');
+                const pubQ = questions.find(q => q.id === 'publication_goals');
+                expect(pubQ).toBeDefined();
+                expect(pubQ.type).toBe('multiselect');
+            });
+
+            test('should have 5 questions total', () => {
+                const questions = userProfileService.getOnboardingQuestions('researcher_assistant');
+                expect(questions.length).toBe(5);
+            });
+        });
+
         describe('fallback behavior', () => {
             test('should return lucide_assistant questions for unknown profile', () => {
                 const questions = userProfileService.getOnboardingQuestions('unknown_profile');
@@ -206,7 +290,8 @@ describe('User Profile Service', () => {
     describe('Question Structure Validation', () => {
         const allProfiles = [
             'lucide_assistant', 'hr_specialist', 'it_expert',
-            'marketing_expert', 'ceo_advisor', 'sales_expert', 'manager_coach'
+            'marketing_expert', 'ceo_advisor', 'sales_expert', 'manager_coach',
+            'student_assistant', 'researcher_assistant'  // Phase 3: Added new profiles
         ];
 
         allProfiles.forEach(profileId => {
@@ -240,13 +325,15 @@ describe('User Profile Service', () => {
     describe('Questions Count Summary', () => {
         test('should have correct total questions per profile after Phase 3', () => {
             const expectedCounts = {
-                lucide_assistant: 4,  // +2 from Phase 3
-                hr_specialist: 5,     // +2 from Phase 3
-                it_expert: 4,         // +1 from Phase 3
-                marketing_expert: 5,  // +2 from Phase 3
-                ceo_advisor: 5,       // +1 from Phase 3
-                sales_expert: 6,      // +2 from Phase 3
-                manager_coach: 5      // +1 from Phase 3
+                lucide_assistant: 4,       // +2 from Phase 3
+                hr_specialist: 5,          // +2 from Phase 3
+                it_expert: 4,              // +1 from Phase 3
+                marketing_expert: 5,       // +2 from Phase 3
+                ceo_advisor: 5,            // +1 from Phase 3
+                sales_expert: 6,           // +2 from Phase 3
+                manager_coach: 5,          // +1 from Phase 3
+                student_assistant: 5,      // New in Phase 3
+                researcher_assistant: 5    // New in Phase 3
             };
 
             Object.entries(expectedCounts).forEach(([profileId, expectedCount]) => {

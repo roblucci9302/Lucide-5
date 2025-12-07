@@ -220,21 +220,19 @@ app.whenReady().then(async () => {
     console.log('[index.js] Initializing Phase WOW 1: User Profiles & Onboarding...');
     try {
         const currentUser = authService.getCurrentUser();
-        if (currentUser && currentUser.uid) {
-            await userProfileService.initialize(currentUser.uid);
-            console.log('[index.js] ✓ User Profile service initialized for uid:', currentUser.uid);
+        // Fix: Always initialize userProfileService, even for non-authenticated users
+        // This ensures onboarding works in local/offline mode
+        const userIdForProfile = (currentUser && currentUser.uid) ? currentUser.uid : 'default_user';
 
-            // Initialize theme service with current profile
-            const currentProfile = userProfileService.getCurrentProfile();
-            const activeProfile = currentProfile?.active_profile || 'lucide_assistant';
-            profileThemeService.initialize(activeProfile);
-            console.log('[index.js] ✓ Theme service initialized with profile:', activeProfile);
-        } else {
-            console.log('[index.js] No user logged in, skipping user profile initialization');
-            // Still initialize theme service with default profile
-            profileThemeService.initialize('lucide_assistant');
-            console.log('[index.js] ✓ Theme service initialized with default profile');
-        }
+        await userProfileService.initialize(userIdForProfile);
+        console.log('[index.js] ✓ User Profile service initialized for uid:', userIdForProfile);
+
+        // Initialize theme service with current profile
+        const currentProfile = userProfileService.getCurrentProfile();
+        const activeProfile = currentProfile?.active_profile || 'lucide_assistant';
+        profileThemeService.initialize(activeProfile);
+        console.log('[index.js] ✓ Theme service initialized with profile:', activeProfile);
+
         initStatus.userProfile = true;
     } catch (profileError) {
         console.error('[index.js] ✗ User profile service error:', profileError.message);

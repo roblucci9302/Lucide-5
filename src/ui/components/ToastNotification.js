@@ -287,18 +287,44 @@ export class ToastNotification extends LitElement {
             margin-top: 6px;
             text-align: right;
         }
+
+        /* Input dialog */
+        .input-field {
+            width: 100%;
+            padding: 12px 14px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            color: white;
+            font-size: 14px;
+            margin-bottom: 20px;
+            box-sizing: border-box;
+            outline: none;
+            transition: border-color 0.15s ease;
+        }
+
+        .input-field:focus {
+            border-color: rgba(0, 122, 255, 0.6);
+        }
+
+        .input-field::placeholder {
+            color: rgba(255, 255, 255, 0.4);
+        }
     `;
 
     static properties = {
         toasts: { type: Array, state: true },
-        confirmData: { type: Object, state: true }
+        confirmData: { type: Object, state: true },
+        inputData: { type: Object, state: true }
     };
 
     constructor() {
         super();
         this.toasts = [];
         this.confirmData = null;
+        this.inputData = null;
         this._confirmResolve = null;
+        this._inputResolve = null;
         this._toastId = 0;
     }
 
@@ -395,6 +421,56 @@ export class ToastNotification extends LitElement {
         this.confirmData = null;
     }
 
+    /**
+     * Show an input dialog
+     * @param {string} title - Dialog title
+     * @param {string} message - Dialog message
+     * @param {object} options - { placeholder, confirmText, cancelText, type: 'text' | 'password', defaultValue }
+     * @returns {Promise<string | null>} - Resolves to input value or null if cancelled
+     */
+    input(title, message = '', options = {}) {
+        return new Promise(resolve => {
+            this._inputResolve = resolve;
+            this.inputData = {
+                title,
+                message,
+                placeholder: options.placeholder || '',
+                confirmText: options.confirmText || 'Confirmer',
+                cancelText: options.cancelText || 'Annuler',
+                type: options.type || 'text',
+                value: options.defaultValue || ''
+            };
+            // Focus the input after render
+            this.updateComplete.then(() => {
+                const input = this.shadowRoot?.querySelector('.input-field');
+                if (input) input.focus();
+            });
+        });
+    }
+
+    _handleInput(confirmed) {
+        if (this._inputResolve) {
+            if (confirmed) {
+                const input = this.shadowRoot?.querySelector('.input-field');
+                this._inputResolve(input?.value || '');
+            } else {
+                this._inputResolve(null);
+            }
+            this._inputResolve = null;
+        }
+        this.inputData = null;
+    }
+
+    _handleInputKeydown(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            this._handleInput(true);
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            this._handleInput(false);
+        }
+    }
+
     _getIcon(type) {
         const icons = {
             success: '✓',
@@ -451,6 +527,39 @@ export class ToastNotification extends LitElement {
                     </div>
                 </div>
             ` : ''}
+
+            ${this.inputData ? html`
+                <div class="confirm-overlay" @click=${(e) => e.target === e.currentTarget && this._handleInput(false)}>
+                    <div class="confirm-dialog">
+                        <div class="confirm-icon">📝</div>
+                        <h3 class="confirm-title">${this.inputData.title}</h3>
+                        ${this.inputData.message ? html`
+                            <p class="confirm-message">${this.inputData.message}</p>
+                        ` : ''}
+                        <input
+                            class="input-field"
+                            type="${this.inputData.type}"
+                            placeholder="${this.inputData.placeholder}"
+                            .value="${this.inputData.value}"
+                            @keydown=${(e) => this._handleInputKeydown(e)}
+                        />
+                        <div class="confirm-actions">
+                            <button
+                                class="confirm-btn cancel"
+                                @click=${() => this._handleInput(false)}
+                            >
+                                ${this.inputData.cancelText}
+                            </button>
+                            <button
+                                class="confirm-btn primary"
+                                @click=${() => this._handleInput(true)}
+                            >
+                                ${this.inputData.confirmText}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            ` : ''}
         `;
     }
 }
@@ -497,4 +606,13 @@ window.dismissToast = (id) => {
     if (toast) {
         toast.dismiss(id);
     }
+};
+
+window.showInput = async (title, message = '', options = {}) => {
+    let toast = document.querySelector('toast-notification');
+    if (!toast) {
+        toast = document.createElement('toast-notification');
+        document.body.appendChild(toast);
+    }
+    return toast.input(title, message, options);
 };

@@ -40,6 +40,58 @@ export class LucideApp extends LitElement {
             height: 100%;
             min-height: 500px;
         }
+
+        /* Phase 4: Improved loading screen styles */
+        .loading-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(139, 92, 246, 0.05) 100%);
+            gap: 24px;
+        }
+
+        .loading-logo {
+            font-size: 64px;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        .loading-title {
+            font-size: 28px;
+            font-weight: 600;
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin: 0;
+        }
+
+        .loading-spinner-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 14px;
+        }
+
+        .loading-spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(99, 102, 241, 0.2);
+            border-top-color: #6366f1;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.05); opacity: 0.8; }
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
     `;
 
     static properties = {
@@ -208,11 +260,18 @@ export class LucideApp extends LitElement {
 
 
     render() {
-        // Phase WOW 1: Show loading while checking onboarding status
+        // Phase 4: Improved loading screen while checking onboarding status
         if (!this.onboardingChecked) {
-            return html`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#888;">
-                Chargement...
-            </div>`;
+            return html`
+                <div class="loading-screen">
+                    <div class="loading-logo">✨</div>
+                    <h1 class="loading-title">Lucide</h1>
+                    <div class="loading-spinner-container">
+                        <div class="loading-spinner"></div>
+                        <span>Préparation de votre assistant...</span>
+                    </div>
+                </div>
+            `;
         }
 
         // Phase WOW 1: Show onboarding wizard if needed
