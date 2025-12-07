@@ -691,6 +691,7 @@ async function startCapture(screenshotIntervalSeconds = 5, imageQuality = 'mediu
             }
 
             // Start microphone capture (always needed for "Me" transcription)
+            console.log('[macOS] Requesting microphone access...');
             try {
                 micMediaStream = await navigator.mediaDevices.getUserMedia({
                     audio: {
@@ -703,12 +704,17 @@ async function startCapture(screenshotIntervalSeconds = 5, imageQuality = 'mediu
                     video: false,
                 });
 
-                console.log('macOS microphone capture started');
+                console.log('[macOS] ✅ Microphone access granted');
+                console.log('[macOS] Microphone stream tracks:', micMediaStream.getAudioTracks().map(t => t.label));
+                console.log('[macOS] Setting up mic audio processing...');
                 const { context, processor } = await setupMicProcessing(micMediaStream);
                 audioContext = context;
                 audioProcessor = processor;
+                console.log('[macOS] ✅ Microphone capture started successfully');
             } catch (micErr) {
-                console.warn('Failed to get microphone on macOS:', micErr);
+                console.error('[macOS] ❌ Failed to get microphone access:', micErr.name, micErr.message);
+                console.error('[macOS] Error details:', micErr);
+                throw new Error(`Microphone access denied: ${micErr.message}`);
             }
             ////////// for index & subjects //////////
 

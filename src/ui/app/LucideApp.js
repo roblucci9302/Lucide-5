@@ -219,6 +219,9 @@ export class LucideApp extends LitElement {
             this.selectedProfile = event.detail.active_profile;
             localStorage.setItem('selectedProfile', this.selectedProfile);
         }
+
+        // Force UI update to close onboarding and show main app
+        this.requestUpdate();
     }
 
     updated(changedProperties) {

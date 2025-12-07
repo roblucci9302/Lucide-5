@@ -630,6 +630,7 @@ class ListenService {
             // Fix HIGH BUG-H2: Send "start" status in finally to ensure it's sent on success
             this.isInitializingSession = false;
             this.sendToRenderer('session-initializing', false);
+            console.log('[ListenService] 🎙️ SENDING change-listen-capture-state with status: "start"');
             this.sendToRenderer('change-listen-capture-state', { status: "start" });
 
             return true;

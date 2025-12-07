@@ -15,6 +15,8 @@ window.lucide = {
 
 
 window.api.renderer.onChangeListenCaptureState((_event, { status }) => {
+    console.log(`[Renderer] 🎯 RECEIVED change-listen-capture-state with status: "${status}"`);
+    
     if (!isListenView) {
         console.log('[Renderer] Non-listen view: ignoring capture-state change');
         return;
