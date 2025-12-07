@@ -816,7 +816,7 @@ export class SettingsView extends LitElement {
             // First ensure Ollama is installed and running
             const ensureResult = await window.api.settingsView.ensureOllamaReady();
             if (!ensureResult.success) {
-                alert(`Failed to setup Ollama: ${ensureResult.error}`);
+                window.showToast?.(`Échec de configuration Ollama : ${ensureResult.error}`, 'error');
                 this.saving = false;
                 return;
             }
@@ -827,35 +827,38 @@ export class SettingsView extends LitElement {
             if (result.success) {
                 await this.refreshModelData();
                 await this.refreshOllamaStatus();
+                window.showToast?.('Ollama connecté avec succès', 'success');
             } else {
-                alert(`Failed to connect to Ollama: ${result.error}`);
+                window.showToast?.(`Échec de connexion à Ollama : ${result.error}`, 'error');
             }
             this.saving = false;
             return;
         }
-        
+
         // For Whisper, just enable it
         if (provider === 'whisper') {
             this.saving = true;
             const result = await window.api.settingsView.validateKey({ provider, key: 'local' });
-            
+
             if (result.success) {
                 await this.refreshModelData();
+                window.showToast?.('Whisper activé avec succès', 'success');
             } else {
-                alert(`Failed to enable Whisper: ${result.error}`);
+                window.showToast?.(`Échec d'activation de Whisper : ${result.error}`, 'error');
             }
             this.saving = false;
             return;
         }
-        
+
         // For other providers, use the normal flow
         this.saving = true;
         const result = await window.api.settingsView.validateKey({ provider, key });
-        
+
         if (result.success) {
             await this.refreshModelData();
+            window.showToast?.(`Clé API ${provider} enregistrée avec succès`, 'success');
         } else {
-            alert(`Failed to save ${provider} key: ${result.error}`);
+            window.showToast?.(`Échec de l'enregistrement de la clé ${provider} : ${result.error}`, 'error');
             input.value = this.apiKeys[provider] || '';
         }
         this.saving = false;
@@ -1026,9 +1029,9 @@ export class SettingsView extends LitElement {
                 // Remove from installing models on failure too
                 delete this.installingModels[modelId];
                 this.requestUpdate();
-                alert(`Failed to download Whisper model: ${result.error}`);
+                window.showToast?.(`Échec du téléchargement du modèle Whisper : ${result.error}`, 'error');
             }
-            
+
             // Cleanup
             window.api.settingsView.removeOnLocalAIInstallProgress(progressHandler);
         } catch (error) {
@@ -1036,7 +1039,7 @@ export class SettingsView extends LitElement {
             // Remove from installing models on error
             delete this.installingModels[modelId];
             this.requestUpdate();
-            alert(`Error downloading ${modelId}: ${error.message}`);
+            window.showToast?.(`Erreur lors du téléchargement de ${modelId} : ${error.message}`, 'error');
         }
     }
     
@@ -1073,11 +1076,11 @@ export class SettingsView extends LitElement {
                 await window.api.listenView.openPostMeetingWindow(result.sessionId);
             } else {
                 console.warn('[SettingsView] No listen session found for post-meeting');
-                alert('Aucune session d\'écoute trouvée. Veuillez d\'abord créer une session avec le mode écoute.');
+                window.showToast?.('Aucune session d\'écoute trouvée. Veuillez d\'abord créer une session avec le mode écoute.', 'warning');
             }
         } catch (error) {
             console.error('[SettingsView] Error opening post-meeting window:', error);
-            alert(`Erreur lors de l'ouverture du compte-rendu: ${error.message}`);
+            window.showToast?.(`Erreur lors de l'ouverture du compte-rendu : ${error.message}`, 'error');
         }
     }
 
@@ -1393,16 +1396,16 @@ export class SettingsView extends LitElement {
                 this.knowledgeBaseStatus = 'active';
                 this.knowledgeBaseName = result.name || (isLocalMode ? 'Base Locale' : 'Base Personnelle');
                 this.documentCount = result.documentCount || 0;
-                alert(isLocalMode
+                window.showToast?.(isLocalMode
                     ? 'Base de données locale créée avec succès !'
-                    : 'Base de données personnelle créée avec succès !');
+                    : 'Base de données personnelle créée avec succès !', 'success');
             } else {
                 console.error('[SettingsView] Failed to create knowledge base:', result.error);
-                alert(`Échec de la création : ${result.error}`);
+                window.showToast?.(`Échec de la création : ${result.error}`, 'error');
             }
         } catch (error) {
             console.error('[SettingsView] Error creating knowledge base:', error);
-            alert(`Erreur : ${error.message}`);
+            window.showToast?.(`Erreur : ${error.message}`, 'error');
         } finally {
             this.knowledgeBaseLoading = false;
             this.requestUpdate();
@@ -1425,14 +1428,14 @@ export class SettingsView extends LitElement {
                 this.knowledgeBaseStatus = 'active';
                 this.knowledgeBaseName = result.name || 'Base Externe';
                 this.documentCount = result.documentCount || 0;
-                alert('Connexion à la base externe réussie !');
+                window.showToast?.('Connexion à la base externe réussie !', 'success');
             } else if (!result.cancelled) {
                 console.error('[SettingsView] Failed to connect to external database:', result.error);
-                alert(`Échec de la connexion : ${result.error}`);
+                window.showToast?.(`Échec de la connexion : ${result.error}`, 'error');
             }
         } catch (error) {
             console.error('[SettingsView] Error connecting to external database:', error);
-            alert(`Erreur : ${error.message}`);
+            window.showToast?.(`Erreur : ${error.message}`, 'error');
         } finally {
             this.knowledgeBaseLoading = false;
             this.requestUpdate();
@@ -1488,14 +1491,14 @@ export class SettingsView extends LitElement {
         const licenseKey = this.licenseKeyInput.trim();
 
         if (!licenseKey) {
-            alert('Veuillez entrer une clé de licence.');
+            window.showToast?.('Veuillez entrer une clé de licence.', 'warning');
             return;
         }
 
         // Validate license key format (alphanumeric with dashes, 16-64 chars)
         const licenseRegex = /^[A-Za-z0-9-]{16,64}$/;
         if (!licenseRegex.test(licenseKey)) {
-            alert('Format de clé de licence invalide. La clé doit contenir 16-64 caractères alphanumériques ou tirets.');
+            window.showToast?.('Format de clé de licence invalide. La clé doit contenir 16-64 caractères alphanumériques ou tirets.', 'error');
             return;
         }
 
@@ -1508,13 +1511,13 @@ export class SettingsView extends LitElement {
             if (result.success) {
                 this.licenseInfo = result.license;
                 this.licenseKeyInput = '';
-                alert(`Licence activée avec succès ! Tier: ${result.license?.tier || 'Unknown'}`);
+                window.showToast?.(`Licence activée avec succès ! Tier: ${result.license?.tier || 'Unknown'}`, 'success');
             } else {
-                alert(`Échec de l'activation: ${result.error}`);
+                window.showToast?.(`Échec de l'activation : ${result.error}`, 'error');
             }
         } catch (error) {
             console.error('[SettingsView] License activation error:', error);
-            alert(`Erreur: ${error.message}`);
+            window.showToast?.(`Erreur : ${error.message}`, 'error');
         } finally {
             this.licenseLoading = false;
             this.requestUpdate();
@@ -1522,7 +1525,12 @@ export class SettingsView extends LitElement {
     }
 
     async handleDeactivateLicense() {
-        if (!confirm('Voulez-vous vraiment désactiver votre licence ?')) return;
+        const confirmed = await window.showConfirm?.(
+            'Désactiver la licence ?',
+            'Voulez-vous vraiment désactiver votre licence ? Vous passerez en mode STARTER.',
+            { confirmText: 'Désactiver', cancelText: 'Annuler', type: 'danger' }
+        );
+        if (!confirmed) return;
 
         this.licenseLoading = true;
         this.requestUpdate();
@@ -1532,12 +1540,13 @@ export class SettingsView extends LitElement {
 
             if (result.success) {
                 this.licenseInfo = { tier: 'STARTER', isValid: false, features: {} };
-                alert('Licence désactivée. Mode STARTER activé.');
+                window.showToast?.('Licence désactivée. Mode STARTER activé.', 'info');
             } else {
-                alert(`Échec: ${result.error}`);
+                window.showToast?.(`Échec : ${result.error}`, 'error');
             }
         } catch (error) {
             console.error('[SettingsView] License deactivation error:', error);
+            window.showToast?.(`Erreur : ${error.message}`, 'error');
         } finally {
             this.licenseLoading = false;
             this.requestUpdate();
@@ -1571,13 +1580,15 @@ export class SettingsView extends LitElement {
 
             if (result.success) {
                 this.syncStatus = { ...this.syncStatus, isEnabled: true };
+                window.showToast?.('Synchronisation cloud activée', 'success');
             } else if (result.requiresUpgrade) {
-                alert('La synchronisation cloud nécessite une licence Professional ou supérieure.');
+                window.showToast?.('La synchronisation cloud nécessite une licence Professional ou supérieure.', 'warning');
             } else {
-                alert(`Échec: ${result.error}`);
+                window.showToast?.(`Échec : ${result.error}`, 'error');
             }
         } catch (error) {
             console.error('[SettingsView] Sync start error:', error);
+            window.showToast?.(`Erreur : ${error.message}`, 'error');
         } finally {
             this.syncLoading = false;
             this.requestUpdate();
@@ -1591,8 +1602,10 @@ export class SettingsView extends LitElement {
         try {
             await window.api.sync.stop();
             this.syncStatus = { ...this.syncStatus, isEnabled: false };
+            window.showToast?.('Synchronisation cloud désactivée', 'info');
         } catch (error) {
             console.error('[SettingsView] Sync stop error:', error);
+            window.showToast?.(`Erreur : ${error.message}`, 'error');
         } finally {
             this.syncLoading = false;
             this.requestUpdate();
@@ -1607,12 +1620,13 @@ export class SettingsView extends LitElement {
             const result = await window.api.sync.force();
 
             if (result.success) {
-                alert('Synchronisation terminée avec succès !');
+                window.showToast?.('Synchronisation terminée avec succès !', 'success');
             } else {
-                alert(`Échec: ${result.error}`);
+                window.showToast?.(`Échec : ${result.error}`, 'error');
             }
         } catch (error) {
             console.error('[SettingsView] Force sync error:', error);
+            window.showToast?.(`Erreur : ${error.message}`, 'error');
         } finally {
             this.syncLoading = false;
             this.requestUpdate();
@@ -1621,7 +1635,11 @@ export class SettingsView extends LitElement {
 
     // Enterprise Handlers
     async handleConnectEnterprise() {
-        const connectionString = prompt('Entrez la chaîne de connexion Enterprise Gateway:');
+        const connectionString = await window.showInput?.(
+            'Connexion Enterprise Gateway',
+            'Entrez la chaîne de connexion fournie par votre administrateur.',
+            { placeholder: 'https://gateway.entreprise.com/api/...', confirmText: 'Connecter', type: 'text' }
+        );
         if (!connectionString) return;
 
         this.enterpriseLoading = true;
@@ -1633,14 +1651,15 @@ export class SettingsView extends LitElement {
             if (result.success) {
                 this.enterpriseStatus = { connected: true, ...result.gateway };
                 this.enterpriseDatabases = result.databases || [];
-                alert('Connecté à Enterprise Gateway !');
+                window.showToast?.('Connecté à Enterprise Gateway !', 'success');
             } else if (result.requiresUpgrade) {
-                alert('Enterprise Gateway nécessite une licence Enterprise ou supérieure.');
+                window.showToast?.('Enterprise Gateway nécessite une licence Enterprise ou supérieure.', 'warning');
             } else {
-                alert(`Échec: ${result.error}`);
+                window.showToast?.(`Échec : ${result.error}`, 'error');
             }
         } catch (error) {
             console.error('[SettingsView] Enterprise connect error:', error);
+            window.showToast?.(`Erreur : ${error.message}`, 'error');
         } finally {
             this.enterpriseLoading = false;
             this.requestUpdate();
@@ -1648,7 +1667,12 @@ export class SettingsView extends LitElement {
     }
 
     async handleDisconnectEnterprise() {
-        if (!confirm('Voulez-vous vraiment vous déconnecter du gateway Enterprise ?')) return;
+        const confirmed = await window.showConfirm?.(
+            'Déconnexion Enterprise',
+            'Voulez-vous vraiment vous déconnecter du gateway Enterprise ?',
+            { confirmText: 'Déconnecter', cancelText: 'Annuler', type: 'danger' }
+        );
+        if (!confirmed) return;
 
         this.enterpriseLoading = true;
         this.requestUpdate();
@@ -1657,8 +1681,10 @@ export class SettingsView extends LitElement {
             await window.api.enterprise.disconnect();
             this.enterpriseStatus = { connected: false };
             this.enterpriseDatabases = [];
+            window.showToast?.('Déconnecté du gateway Enterprise', 'info');
         } catch (error) {
             console.error('[SettingsView] Enterprise disconnect error:', error);
+            window.showToast?.(`Erreur : ${error.message}`, 'error');
         } finally {
             this.enterpriseLoading = false;
             this.requestUpdate();
@@ -1679,16 +1705,16 @@ export class SettingsView extends LitElement {
             if (result.success) {
                 console.log('[SettingsView] Knowledge base synced successfully');
                 this.documentCount = result.documentCount || this.documentCount;
-                alert(`Synchronisation réussie ! ${result.syncedCount || 0} documents synchronisés.`);
+                window.showToast?.(`Synchronisation réussie ! ${result.syncedCount || 0} documents synchronisés.`, 'success');
             } else {
                 console.error('[SettingsView] Sync failed:', result.error);
-                alert(`Échec de la synchronisation : ${result.error}`);
+                window.showToast?.(`Échec de la synchronisation : ${result.error}`, 'error');
             }
 
             this.knowledgeBaseStatus = 'active';
         } catch (error) {
             console.error('[SettingsView] Error syncing knowledge base:', error);
-            alert(`Erreur de synchronisation : ${error.message}`);
+            window.showToast?.(`Erreur de synchronisation : ${error.message}`, 'error');
             this.knowledgeBaseStatus = 'active';
         } finally {
             this.requestUpdate();
