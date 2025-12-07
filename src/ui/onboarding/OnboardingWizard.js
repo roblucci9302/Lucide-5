@@ -452,16 +452,32 @@ export class OnboardingWizard extends LitElement {
 
     selectProfile(profileId) {
         this.selectedProfile = profileId;
+        // Phase 2: Get profile name for feedback
+        const profile = this.profiles.find(p => p.id === profileId);
+        if (profile && window.showToast) {
+            window.showToast(`Profil "${profile.name}" sélectionné`, 'info', 2000);
+        }
         this.loadQuestions(profileId);
     }
 
     async loadQuestions(profileId) {
         try {
+            // Check if API is available
+            if (!window.api || !window.api.profile) {
+                console.warn('[OnboardingWizard] API not available for questions');
+                this.questions = [];
+                return;
+            }
             const result = await window.api.profile.getOnboardingQuestions(profileId);
             this.questions = result.questions || [];
             this.answers = {};
         } catch (error) {
             console.error('[OnboardingWizard] Error loading questions:', error);
+            // Phase 2: Show warning toast but don't block user
+            if (window.showToast) {
+                window.showToast('Questions de personnalisation non disponibles', 'warning', 3000);
+            }
+            this.questions = [];
         }
     }
 
@@ -549,6 +565,11 @@ export class OnboardingWizard extends LitElement {
                 throw new Error(result.error || 'Failed to complete onboarding');
             }
 
+            // Phase 2 Fix: Show success toast notification
+            if (window.showToast) {
+                window.showToast('Configuration terminée ! Bienvenue dans Lucide', 'success', 3000);
+            }
+
             // Dispatch event to notify app
             this.dispatchEvent(new CustomEvent('onboarding-completed', {
                 detail: result.profile,
@@ -557,9 +578,14 @@ export class OnboardingWizard extends LitElement {
             }));
         } catch (error) {
             console.error('[OnboardingWizard] Error completing onboarding:', error);
-            // Fix: More informative error message
+            // Phase 2 Fix: Replace alert() with toast notification for better UX
             const errorMessage = error.message || 'Une erreur inattendue s\'est produite';
-            alert(`Erreur lors de la finalisation:\n\n${errorMessage}\n\nVeuillez réessayer.`);
+            if (window.showToast) {
+                window.showToast(`Erreur: ${errorMessage}`, 'error', 6000);
+            } else {
+                // Fallback to alert if toast not available
+                alert(`Erreur lors de la finalisation:\n\n${errorMessage}\n\nVeuillez réessayer.`);
+            }
         } finally {
             this.isCompleting = false;
         }
