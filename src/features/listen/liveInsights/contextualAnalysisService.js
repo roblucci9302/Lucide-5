@@ -127,12 +127,12 @@ class ContextualAnalysisService {
     }
 
     /**
-     * Generate factual insights based on conversation context and Knowledge Base
-     * Returns short, expert-level facts instead of suggestions
+     * Generate multi-angle factual response suggestions based on conversation context and Knowledge Base
+     * Returns 2-4 different perspectives (Technical, Business, Risk, Innovation) in 15-30 words each
      * @param {Array} insights - Current insights
-     * @returns {Promise<Array>} Factual insights
+     * @returns {Promise<Array>} Multi-angle factual responses
      */
-    async generateFactualInsights(insights) {
+    async generateMultiAngleResponses(insights) {
         if (this.conversationContext.length < 3) {
             return []; // Need some context first
         }
@@ -150,25 +150,25 @@ class ContextualAnalysisService {
             // Try to get KB context for enrichment
             const kbContext = await this._getKBContext(mainTopic);
 
-            const prompt = this._buildFactualInsightsPrompt(insights, kbContext);
+            const prompt = this._buildMultiAngleResponsesPrompt(insights, kbContext);
 
             const response = await aiService.generateResponse(prompt, {
                 model: 'gpt-4o',
-                maxTokens: 600,
-                temperature: 0.4 // Lower temperature for more factual responses
+                maxTokens: 800,
+                temperature: 0.5 // Balanced for diverse perspectives
             });
 
-            const facts = this._parseFactualInsights(response);
+            const responses = this._parseMultiAngleResponses(response);
 
             this.lastAnalysis = {
-                facts,
+                responses,
                 timestamp: Date.now(),
                 hasKBContext: !!kbContext
             };
 
-            console.log(`[ContextualAnalysis] Generated ${facts.length} factual insights${kbContext ? ' (with KB)' : ''}`);
+            console.log(`[ContextualAnalysis] Generated ${responses.length} multi-angle responses${kbContext ? ' (with KB)' : ''}`);
 
-            return facts;
+            return responses;
         } catch (error) {
             console.error('[ContextualAnalysis] Factual insights error:', error);
             return [];
@@ -213,7 +213,7 @@ class ContextualAnalysisService {
 
             const ragContext = await ragService.retrieveContext(topic, {
                 maxChunks: 3,
-                minScore: 0.4
+                minScore: 0.3 // Lowered to 0.3 for better recall in Live Insights
             });
 
             if (ragContext && ragContext.hasContext && ragContext.sources.length > 0) {
@@ -373,12 +373,12 @@ Respond in JSON format:
     }
 
     /**
-     * Build factual insights prompt - generates expert-level facts instead of suggestions
+     * Build multi-angle responses prompt - generates factual responses from different perspectives
      * @private
      * @param {Array} insights - Current insights
      * @param {string|null} kbContext - Knowledge Base context if available
      */
-    _buildFactualInsightsPrompt(insights, kbContext) {
+    _buildMultiAngleResponsesPrompt(insights, kbContext) {
         const recentContext = this.conversationContext.slice(-8)
             .map(turn => `${turn.speaker}: ${turn.text}`)
             .join('\n');
@@ -389,10 +389,10 @@ Respond in JSON format:
             .join('\n');
 
         const kbSection = kbContext
-            ? `\n📚 KNOWLEDGE BASE CONTEXT (use these facts if relevant):\n${kbContext}\n`
+            ? `\n📚 KNOWLEDGE BASE CONTEXT (SEULEMENT si pertinent - ne pas forcer):\n${kbContext}\n`
             : '';
 
-        return `Tu es un expert qui fournit des FAITS COURTS et PERTINENTS pendant une réunion.
+        return `Tu es un expert qui suggère des RÉPONSES FACTUELLES sous DIFFÉRENTS ANGLES pendant une réunion.
 
 CONVERSATION RÉCENTE:
 ${recentContext}
@@ -400,59 +400,66 @@ ${recentContext}
 INSIGHTS DÉTECTÉS:
 ${insightsSummary}
 ${kbSection}
-INSTRUCTION: Génère 2-3 FAITS COURTS qui démontrent une expertise sur le sujet discuté.
+INSTRUCTION: Génère 2-4 suggestions de RÉPONSES FACTUELLES sous différents angles.
 
 RÈGLES STRICTES:
-- Chaque fait doit faire 15-25 mots MAXIMUM
-- Ce sont des AFFIRMATIONS FACTUELLES, pas des questions ni des suggestions
-- Utilise des chiffres/statistiques quand possible
-- Si la KB contient des infos pertinentes, cite-les
-- Sois DIRECT et INFORMATIF (style "Le saviez-vous")
+- Chaque réponse doit faire 15-30 mots (PAS MOINS, PAS PLUS)
+- Ce sont des RÉPONSES FACTUELLES, PAS des questions ni "vous devriez" ni "je suggère"
+- Utilise des chiffres/données quand possible
+- KB uniquement si score > 0.6 (si pas de KB context ci-dessus, N'INVENTE PAS)
+- Sois DIRECT, INFORMATIF, style affirmation d'expert
 
-EXEMPLES DE BONS FAITS:
-- "Le marché du SaaS B2B croît de 18% par an selon Gartner 2024"
-- "Cette architecture microservices réduit les coûts d'infrastructure de 30%"
-- "3 entreprises du CAC40 utilisent déjà cette approche avec succès"
+ANGLES POSSIBLES (2-4 différents par réponse):
+🔧 **Technique**: Aspects techniques, architecture, implémentation
+💰 **Business**: Impact financier, ROI, marché, compétitivité
+⚠️ **Risque**: Risques, limitations, contraintes, précautions
+💡 **Innovation**: Opportunités, nouvelles approches, tendances
+
+EXEMPLES DE BONNES RÉPONSES:
+- "🔧 Cette architecture microservices permet de scaler horizontalement avec 40% moins de serveurs selon les benchmarks AWS 2024"
+- "💰 Le marché SaaS B2B affiche une croissance de 18% annuelle, dépassant les prévisions Gartner pour le Q4 2024"
+- "⚠️ L'adoption d'IA générative comporte des risques RGPD significatifs, 67% des entreprises européennes reportent des audits nécessaires"
 
 EXEMPLES À ÉVITER:
 - "Avez-vous pensé à..." (question)
-- "Je suggère de..." (suggestion)
-- "Il serait intéressant de..." (vague)
+- "Je suggère de..." (suggestion d'action)
+- "Il serait intéressant de..." (vague, pas factuel)
+- "Vous devriez considérer..." (conseil non factuel)
 
 Réponds en JSON:
 {
-  "facts": [
+  "responses": [
     {
-      "title": "Fait court et percutant (15-25 mots max)",
-      "source": "kb|ai|industry",
-      "confidence": 0.0-1.0,
-      "relevance": "Pourquoi ce fait est pertinent ici (10 mots max)"
+      "angle": "technical|business|risk|innovation",
+      "text": "Réponse factuelle EXACTEMENT 15-30 mots avec badge angle au début",
+      "hasKB": true|false,
+      "confidence": 0.0-1.0
     }
   ]
 }`;
     }
 
     /**
-     * Parse factual insights response
+     * Parse multi-angle responses
      * @private
      */
-    _parseFactualInsights(response) {
+    _parseMultiAngleResponses(response) {
         try {
             const cleaned = response.replace(/```json\n?|\n?```/g, '').trim();
             const parsed = JSON.parse(cleaned);
 
-            if (parsed.facts && Array.isArray(parsed.facts)) {
-                return parsed.facts.map(fact => ({
-                    title: fact.title || '',
-                    source: fact.source || 'ai',
-                    confidence: fact.confidence || 0.7,
-                    relevance: fact.relevance || ''
-                })).filter(f => f.title.length > 0);
+            if (parsed.responses && Array.isArray(parsed.responses)) {
+                return parsed.responses.map(resp => ({
+                    angle: resp.angle || 'technical',
+                    text: resp.text || '',
+                    hasKB: resp.hasKB || false,
+                    confidence: resp.confidence || 0.7
+                })).filter(r => r.text.length >= 15 && r.text.length <= 200); // Filter by word count range
             }
 
             return [];
         } catch (error) {
-            console.error('[ContextualAnalysis] Failed to parse factual insights:', error);
+            console.error('[ContextualAnalysis] Failed to parse multi-angle responses:', error);
             return [];
         }
     }

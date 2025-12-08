@@ -70,7 +70,7 @@ class DocumentService {
             order = 'DESC'
         } = options;
 
-        console.log(`[DocumentService] Getting documents for user: ${uid}`);
+        // console.log(`[DocumentService] Getting documents for user: ${uid}`);
 
         try {
             // Validate sortBy to prevent SQL injection
@@ -113,7 +113,7 @@ class DocumentService {
      * @returns {Promise<Object|null>} Document object or null
      */
     async getDocument(documentId, includeContent = false) {
-        console.log(`[DocumentService] Getting document: ${documentId}`);
+        // console.log(`[DocumentService] Getting document: ${documentId}`);
 
         try {
             const columns = includeContent
@@ -143,7 +143,7 @@ class DocumentService {
      * @returns {Promise<Array>} Matching documents
      */
     async searchDocuments(uid, query, filters = {}) {
-        console.log(`[DocumentService] Searching documents for "${query}"`);
+        // console.log(`[DocumentService] Searching documents for "${query}"`);
 
         try {
             let sql = `
@@ -324,6 +324,8 @@ class DocumentService {
             if (metadata.title) updates.title = metadata.title;
             if (metadata.tags) updates.tags = JSON.stringify(metadata.tags);
             if (metadata.description !== undefined) updates.description = metadata.description;
+            if (metadata.chunk_count !== undefined) updates.chunk_count = metadata.chunk_count;
+            if (metadata.indexed !== undefined) updates.indexed = metadata.indexed;
 
             updates.updated_at = Date.now();
 
@@ -378,7 +380,7 @@ class DocumentService {
      * @returns {Promise<Object>} Statistics
      */
     async getDocumentStats(uid) {
-        console.log(`[DocumentService] Getting document stats for user: ${uid}`);
+        // console.log(`[DocumentService] Getting document stats for user: ${uid}`);
 
         try {
             const query = `

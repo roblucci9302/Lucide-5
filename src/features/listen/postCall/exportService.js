@@ -186,37 +186,41 @@ class ExportService {
     _generateMarkdownContent(meetingNotes, tasks, transcripts) {
         const data = this._parseNoteData(meetingNotes);
 
-        let md = `# 📋 Compte-rendu de réunion\n\n`;
+        let md = `# COMPTE-RENDU DE RÉUNION\n\n`;
 
         // Metadata
-        md += `**Date**: ${new Date(meetingNotes.created_at * 1000).toLocaleString('fr-FR')}\n`;
+        md += `Date: ${new Date(meetingNotes.created_at * 1000).toLocaleString('fr-FR')}\n`;
         if (data.meetingMetadata?.duration) {
-            md += `**Durée**: ${data.meetingMetadata.duration}\n`;
+            md += `Durée: ${data.meetingMetadata.duration}\n`;
         }
         md += `\n---\n\n`;
 
         // Executive Summary
         if (data.executiveSummary) {
-            md += `## 📝 Résumé exécutif\n\n${data.executiveSummary}\n\n`;
+            md += `## RÉSUMÉ EXÉCUTIF\n\n${data.executiveSummary}\n\n`;
         }
 
         // Participants
         if (data.participants && data.participants.length > 0) {
-            md += `## 👥 Participants\n\n`;
-            data.participants.forEach(p => md += `- ${p}\n`);
+            md += `## PARTICIPANTS\n\n`;
+            data.participants.forEach(p => {
+                const name = typeof p === 'string' ? p : (p.name || p.participant_name || 'Participant');
+                const role = (typeof p === 'object' && p.role) ? ` (${p.role})` : '';
+                md += `- ${name}${role}\n`;
+            });
             md += `\n`;
         }
 
         // Key Points
         if (data.keyPoints && data.keyPoints.length > 0) {
-            md += `## 🎯 Points clés\n\n`;
+            md += `## POINTS CLÉS\n\n`;
             data.keyPoints.forEach(point => md += `- ${point}\n`);
             md += `\n`;
         }
 
         // Decisions
         if (data.decisions && data.decisions.length > 0) {
-            md += `## 🔍 Décisions prises\n\n`;
+            md += `## DÉCISIONS PRISES\n\n`;
             data.decisions.forEach((decision, i) => {
                 md += `### Décision ${i + 1}: ${decision.decision || decision.title || 'Décision'}\n`;
                 md += `${decision.description || decision.rationale || ''}\n\n`;
@@ -225,14 +229,14 @@ class ExportService {
 
         // Action Items / Tasks
         if (tasks && tasks.length > 0) {
-            md += `## ✅ Actions à suivre\n\n`;
+            md += `## ACTIONS À SUIVRE\n\n`;
             tasks.forEach((task, i) => {
-                md += `${i + 1}. **${task.task_description}**\n`;
-                md += `   - Assigné à: ${task.assigned_to}\n`;
-                md += `   - Deadline: ${task.deadline}\n`;
-                md += `   - Priorité: ${task.priority}\n`;
+                md += `${i + 1}. ${task.task_description}\n`;
+                md += `   Assigné à: ${task.assigned_to}\n`;
+                md += `   Deadline: ${task.deadline}\n`;
+                md += `   Priorité: ${task.priority}\n`;
                 if (task.context) {
-                    md += `   - Contexte: ${task.context}\n`;
+                    md += `   Contexte: ${task.context}\n`;
                 }
                 md += `\n`;
             });
@@ -240,9 +244,9 @@ class ExportService {
 
         // Timeline
         if (data.timeline && data.timeline.length > 0) {
-            md += `## ⏱️ Timeline de la réunion\n\n`;
+            md += `## TIMELINE DE LA RÉUNION\n\n`;
             data.timeline.forEach(segment => {
-                md += `- **${segment.time}**: ${segment.topic}`;
+                md += `- ${segment.time}: ${segment.topic}`;
                 if (segment.duration) {
                     md += ` (${segment.duration})`;
                 }
@@ -253,25 +257,25 @@ class ExportService {
 
         // Unresolved Items
         if (data.unresolvedItems && data.unresolvedItems.length > 0) {
-            md += `## ❗ Points en suspens\n\n`;
+            md += `## POINTS EN SUSPENS\n\n`;
             data.unresolvedItems.forEach(item => md += `- ${item}\n`);
             md += `\n`;
         }
 
         // Next Steps
         if (data.nextSteps && data.nextSteps.length > 0) {
-            md += `## 🔮 Prochaines étapes\n\n`;
+            md += `## PROCHAINES ÉTAPES\n\n`;
             data.nextSteps.forEach(step => md += `- ${step}\n`);
             md += `\n`;
         }
 
         // Important Quotes
         if (data.importantQuotes && data.importantQuotes.length > 0) {
-            md += `## 💬 Citations importantes\n\n`;
+            md += `## CITATIONS IMPORTANTES\n\n`;
             data.importantQuotes.forEach(quote => {
-                md += `> "${quote.quote}" — **${quote.speaker}**\n`;
+                md += `"${quote.quote}"\n— ${quote.speaker}\n`;
                 if (quote.context) {
-                    md += `>\n> *${quote.context}*\n`;
+                    md += `Contexte: ${quote.context}\n`;
                 }
                 md += `\n`;
             });
@@ -279,14 +283,14 @@ class ExportService {
 
         // Transcript
         if (transcripts && transcripts.length > 0) {
-            md += `\n---\n\n## 📄 Transcription complète\n\n`;
+            md += `\n---\n\n## TRANSCRIPTION COMPLÈTE\n\n`;
             transcripts.forEach(t => {
                 const time = t.created_at ? new Date(t.created_at * 1000).toLocaleTimeString('fr-FR') : '';
-                md += `**[${time}] ${t.speaker}**: ${t.text}\n\n`;
+                md += `[${time}] ${t.speaker}: ${t.text}\n\n`;
             });
         }
 
-        md += `\n---\n\n*Généré par Lucide Meeting Assistant*\n`;
+        md += `\n---\n\nGénéré par Lucide Meeting Assistant\n`;
 
         return md;
     }
@@ -317,7 +321,11 @@ class ExportService {
         // Participants
         if (data.participants && data.participants.length > 0) {
             text += `PARTICIPANTS\n\n`;
-            data.participants.forEach(p => text += `  • ${p}\n`);
+            data.participants.forEach(p => {
+                const name = typeof p === 'string' ? p : (p.name || p.participant_name || 'Participant');
+                const role = (typeof p === 'object' && p.role) ? ` (${p.role})` : '';
+                text += `  • ${name}${role}\n`;
+            });
             text += `\n`;
         }
 
@@ -384,7 +392,7 @@ class ExportService {
     </style>
 </head>
 <body>
-    <h1>📋 Compte-rendu de réunion</h1>
+    <h1>COMPTE-RENDU DE RÉUNION</h1>
 
     <div class="metadata">
         <strong>Date:</strong> ${new Date(meetingNotes.created_at * 1000).toLocaleString('fr-FR')}<br>
@@ -393,27 +401,31 @@ class ExportService {
 
         if (data.executiveSummary) {
             html += `\n    <div class="summary">
-        <h2>📝 Résumé exécutif</h2>
+        <h2>RÉSUMÉ EXÉCUTIF</h2>
         <p>${data.executiveSummary}</p>
     </div>`;
         }
 
         if (data.participants && data.participants.length > 0) {
-            html += `\n    <h2>👥 Participants</h2>
+            html += `\n    <h2>PARTICIPANTS</h2>
     <ul>`;
-            data.participants.forEach(p => html += `\n        <li>${p}</li>`);
+            data.participants.forEach(p => {
+                const name = typeof p === 'string' ? p : (p.name || p.participant_name || 'Participant');
+                const role = (typeof p === 'object' && p.role) ? ` <em>(${p.role})</em>` : '';
+                html += `\n        <li>${name}${role}</li>`;
+            });
             html += `\n    </ul>`;
         }
 
         if (data.keyPoints && data.keyPoints.length > 0) {
-            html += `\n    <h2>🎯 Points clés</h2>
+            html += `\n    <h2>POINTS CLÉS</h2>
     <ul>`;
             data.keyPoints.forEach(point => html += `\n        <li>${point}</li>`);
             html += `\n    </ul>`;
         }
 
         if (data.decisions && data.decisions.length > 0) {
-            html += `\n    <h2>🔍 Décisions prises</h2>`;
+            html += `\n    <h2>DÉCISIONS PRISES</h2>`;
             data.decisions.forEach((decision, i) => {
                 html += `\n    <div class="decision">
         <strong>${decision.decision || decision.title || `Décision ${i + 1}`}</strong><br>
@@ -423,7 +435,7 @@ class ExportService {
         }
 
         if (tasks && tasks.length > 0) {
-            html += `\n    <h2>✅ Actions à suivre</h2>`;
+            html += `\n    <h2>ACTIONS À SUIVRE</h2>`;
             tasks.forEach((task, i) => {
                 html += `\n    <div class="task">
         <strong>${i + 1}. ${task.task_description}</strong><br>
@@ -594,7 +606,7 @@ class ExportService {
                 doc.pipe(stream);
 
                 // Title
-                doc.fontSize(20).font('Helvetica-Bold').text('📋 Compte-rendu de réunion', { align: 'center' });
+                doc.fontSize(20).font('Helvetica-Bold').text('COMPTE-RENDU DE RÉUNION', { align: 'center' });
                 doc.moveDown();
 
                 // Metadata
@@ -607,7 +619,7 @@ class ExportService {
 
                 // Executive Summary
                 if (data.executiveSummary) {
-                    doc.fontSize(14).font('Helvetica-Bold').text('Résumé exécutif');
+                    doc.fontSize(14).font('Helvetica-Bold').text('RÉSUMÉ EXÉCUTIF');
                     doc.moveDown(0.5);
                     doc.fontSize(11).font('Helvetica').text(data.executiveSummary);
                     doc.moveDown();
@@ -615,25 +627,29 @@ class ExportService {
 
                 // Participants
                 if (data.participants && data.participants.length > 0) {
-                    doc.fontSize(14).font('Helvetica-Bold').text('Participants');
+                    doc.fontSize(14).font('Helvetica-Bold').text('PARTICIPANTS');
                     doc.moveDown(0.5);
                     doc.fontSize(11).font('Helvetica');
-                    data.participants.forEach(p => doc.text(`• ${p}`));
+                    data.participants.forEach(p => {
+                        const name = typeof p === 'string' ? p : (p.name || p.participant_name || 'Participant');
+                        const role = (typeof p === 'object' && p.role) ? ` (${p.role})` : '';
+                        doc.text(`- ${name}${role}`);
+                    });
                     doc.moveDown();
                 }
 
                 // Key Points
                 if (data.keyPoints && data.keyPoints.length > 0) {
-                    doc.fontSize(14).font('Helvetica-Bold').text('Points clés');
+                    doc.fontSize(14).font('Helvetica-Bold').text('POINTS CLÉS');
                     doc.moveDown(0.5);
                     doc.fontSize(11).font('Helvetica');
-                    data.keyPoints.forEach(point => doc.text(`• ${point}`, { indent: 10 }));
+                    data.keyPoints.forEach(point => doc.text(`- ${point}`, { indent: 10 }));
                     doc.moveDown();
                 }
 
                 // Decisions
                 if (data.decisions && data.decisions.length > 0) {
-                    doc.fontSize(14).font('Helvetica-Bold').text('Décisions prises');
+                    doc.fontSize(14).font('Helvetica-Bold').text('DÉCISIONS PRISES');
                     doc.moveDown(0.5);
                     doc.fontSize(11).font('Helvetica');
                     data.decisions.forEach((decision, i) => {
@@ -645,7 +661,7 @@ class ExportService {
 
                 // Tasks
                 if (tasks && tasks.length > 0) {
-                    doc.fontSize(14).font('Helvetica-Bold').text('Actions à suivre');
+                    doc.fontSize(14).font('Helvetica-Bold').text('ACTIONS À SUIVRE');
                     doc.moveDown(0.5);
                     doc.fontSize(11).font('Helvetica');
                     tasks.forEach((task, i) => {
@@ -706,7 +722,7 @@ class ExportService {
             // Title
             children.push(
                 new Paragraph({
-                    text: '📋 Compte-rendu de réunion',
+                    text: 'COMPTE-RENDU DE RÉUNION',
                     heading: HeadingLevel.TITLE,
                     alignment: AlignmentType.CENTER,
                     spacing: { after: 200 }
@@ -733,32 +749,34 @@ class ExportService {
             // Executive Summary
             if (data.executiveSummary) {
                 children.push(
-                    new Paragraph({ text: 'Résumé exécutif', heading: HeadingLevel.HEADING_1, spacing: { before: 200 } }),
+                    new Paragraph({ text: 'RÉSUMÉ EXÉCUTIF', heading: HeadingLevel.HEADING_1, spacing: { before: 200 } }),
                     new Paragraph({ text: data.executiveSummary, spacing: { after: 200 } })
                 );
             }
 
             // Participants
             if (data.participants && data.participants.length > 0) {
-                children.push(new Paragraph({ text: 'Participants', heading: HeadingLevel.HEADING_1, spacing: { before: 200 } }));
+                children.push(new Paragraph({ text: 'PARTICIPANTS', heading: HeadingLevel.HEADING_1, spacing: { before: 200 } }));
                 data.participants.forEach(p => {
-                    children.push(new Paragraph({ text: `• ${p}`, indent: { left: 300 } }));
+                    const name = typeof p === 'string' ? p : (p.name || p.participant_name || 'Participant');
+                    const role = (typeof p === 'object' && p.role) ? ` (${p.role})` : '';
+                    children.push(new Paragraph({ text: `- ${name}${role}`, indent: { left: 300 } }));
                 });
                 children.push(new Paragraph({ text: '', spacing: { after: 200 } }));
             }
 
             // Key Points
             if (data.keyPoints && data.keyPoints.length > 0) {
-                children.push(new Paragraph({ text: 'Points clés', heading: HeadingLevel.HEADING_1, spacing: { before: 200 } }));
+                children.push(new Paragraph({ text: 'POINTS CLÉS', heading: HeadingLevel.HEADING_1, spacing: { before: 200 } }));
                 data.keyPoints.forEach(point => {
-                    children.push(new Paragraph({ text: `• ${point}`, indent: { left: 300 } }));
+                    children.push(new Paragraph({ text: `- ${point}`, indent: { left: 300 } }));
                 });
                 children.push(new Paragraph({ text: '', spacing: { after: 200 } }));
             }
 
             // Decisions
             if (data.decisions && data.decisions.length > 0) {
-                children.push(new Paragraph({ text: 'Décisions prises', heading: HeadingLevel.HEADING_1, spacing: { before: 200 } }));
+                children.push(new Paragraph({ text: 'DÉCISIONS PRISES', heading: HeadingLevel.HEADING_1, spacing: { before: 200 } }));
                 data.decisions.forEach((decision, i) => {
                     children.push(
                         new Paragraph({
@@ -775,7 +793,7 @@ class ExportService {
 
             // Tasks
             if (tasks && tasks.length > 0) {
-                children.push(new Paragraph({ text: 'Actions à suivre', heading: HeadingLevel.HEADING_1, spacing: { before: 200 } }));
+                children.push(new Paragraph({ text: 'ACTIONS À SUIVRE', heading: HeadingLevel.HEADING_1, spacing: { before: 200 } }));
                 tasks.forEach((task, i) => {
                     children.push(
                         new Paragraph({

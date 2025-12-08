@@ -519,7 +519,7 @@ class ResponseService {
             // Retrieve relevant context
             const ragContext = await ragService.retrieveContext(topic, {
                 maxChunks: 5,  // Keep it small for real-time performance
-                minScore: 0.5 // Lower threshold for more results
+                minScore: 0.3 // Lowered to 0.3 for better recall
             });
 
             if (ragContext && ragContext.hasContext) {

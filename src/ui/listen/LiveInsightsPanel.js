@@ -75,7 +75,7 @@ export class LiveInsightsPanel extends LitElement {
         }
 
         .panel-content.expanded {
-            max-height: 500px;
+            max-height: none;
             overflow-y: auto;
         }
 
@@ -243,6 +243,23 @@ export class LiveInsightsPanel extends LitElement {
         .sentiment-badge {
             font-size: 14px;
             padding: 2px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .angle-badge {
+            font-size: 14px;
+            margin-right: 4px;
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .kb-badge {
+            font-size: 12px;
+            padding: 2px 4px;
+            background: var(--color-primary-dark);
+            border-radius: var(--radius-sm);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -466,18 +483,26 @@ export class LiveInsightsPanel extends LitElement {
 
     getInsightIcon(type) {
         const icons = {
-            decision: '✅',
-            action: '📋',
-            deadline: '⏰',
             question: '❓',
-            key_point: '💡',
-            blocker: '⛔',
             topic_change: '🔄',
-            recurring: '🔁',
-            suggestion: '🤖',
-            fact: '📊' // Factual insights from AI/KB
+            recurring_topic: '🔁',
+            factual_response: '💬', // Multi-angle factual responses
+            kb_insight: '📚'  // Knowledge Base insights
         };
         return icons[type] || '📌';
+    }
+
+    /**
+     * Get angle badge for multi-angle responses
+     */
+    getAngleBadge(angle) {
+        const badges = {
+            technical: '🔧',
+            business: '💰',
+            risk: '⚠️',
+            innovation: '💡'
+        };
+        return badges[angle] || '';
     }
 
     getSentimentEmoji(sentiment) {
@@ -535,24 +560,24 @@ export class LiveInsightsPanel extends LitElement {
                             All
                         </button>
                         <button
-                            class="filter-btn ${this.filterType === 'decision' ? 'active' : ''}"
-                            @click="${() => this.setFilterType('decision')}">
-                            Decisions
+                            class="filter-btn ${this.filterType === 'question' ? 'active' : ''}"
+                            @click="${() => this.setFilterType('question')}">
+                            ❓ Questions
                         </button>
                         <button
-                            class="filter-btn ${this.filterType === 'action' ? 'active' : ''}"
-                            @click="${() => this.setFilterType('action')}">
-                            Actions
+                            class="filter-btn ${this.filterType === 'factual_response' ? 'active' : ''}"
+                            @click="${() => this.setFilterType('factual_response')}">
+                            💬 Responses
                         </button>
                         <button
-                            class="filter-btn ${this.filterType === 'deadline' ? 'active' : ''}"
-                            @click="${() => this.setFilterType('deadline')}">
-                            Deadlines
+                            class="filter-btn ${this.filterType === 'kb_insight' ? 'active' : ''}"
+                            @click="${() => this.setFilterType('kb_insight')}">
+                            📚 KB Insights
                         </button>
                         <button
-                            class="filter-btn ${this.filterType === 'fact' ? 'active' : ''}"
-                            @click="${() => this.setFilterType('fact')}">
-                            📊 Facts
+                            class="filter-btn ${this.filterType === 'topic_change' ? 'active' : ''}"
+                            @click="${() => this.setFilterType('topic_change')}">
+                            🔄 Topics
                         </button>
                     </div>
 
@@ -589,12 +614,14 @@ export class LiveInsightsPanel extends LitElement {
 
     renderInsight(insight) {
         const isNew = this.newInsightIds.has(insight.id);
+        const angleBadge = insight.metadata?.angle ? this.getAngleBadge(insight.metadata.angle) : '';
 
         return html`
             <div class="insight-item priority-${insight.priority} ${isNew ? 'new' : ''}">
                 <div class="insight-header">
                     <div class="insight-type">
                         <span class="insight-icon">${this.getInsightIcon(insight.type)}</span>
+                        ${angleBadge ? html`<span class="angle-badge" title="${insight.metadata.angle}">${angleBadge}</span>` : ''}
                         <div class="insight-title">${insight.title}</div>
                     </div>
                     <div class="insight-actions">
@@ -602,6 +629,9 @@ export class LiveInsightsPanel extends LitElement {
                             <span class="sentiment-badge" title="${insight.sentiment}">
                                 ${this.getSentimentEmoji(insight.sentiment)}
                             </span>
+                        ` : ''}
+                        ${insight.metadata?.hasKB ? html`
+                            <span class="kb-badge" title="From Knowledge Base">📚</span>
                         ` : ''}
                         <button
                             class="dismiss-btn"

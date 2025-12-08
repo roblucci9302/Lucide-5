@@ -412,7 +412,7 @@ class AskService {
 
             // PHASE 1: AGENT ROUTER - Intelligent routing to specialized agents
             // Auto-detect and switch to the most appropriate agent based on question
-            const userId = sessionRepository.getCurrentUserId ? await sessionRepository.getCurrentUserId() : null;
+            const userId = authService.getCurrentUserId(); // Fix: Use authService directly for consistent userId
 
             if (userId && userPrompt && userPrompt.trim().length > 0) {
                 try {
@@ -490,7 +490,7 @@ class AskService {
                         // Retrieve relevant context (lowered minScore for MockEmbedding compatibility)
                         ragContext = await ragService.retrieveContext(userPrompt, {
                             maxChunks: 10,
-                            minScore: 0.5  // Lowered from 0.7 to work better with mock embeddings
+                            minScore: 0.3  // Lowered to 0.3 for better recall with real embeddings
                         });
 
                         if (ragContext && ragContext.hasContext) {

@@ -13,18 +13,15 @@ const authService = require('../../common/services/authService'); // For user ID
 const LRUCache = require('../../common/utils/lruCache'); // Solution cache
 
 /**
- * Insight Types
+ * Insight Types - Phase 1: Réponses Factuelles Multi-Angles
+ * Focus sur suggestions de réponses factuelles, pas d'actions concrètes
  */
 const InsightType = {
-    DECISION: 'decision',           // Decision made during meeting
-    ACTION: 'action',               // Action item assigned verbally
-    DEADLINE: 'deadline',           // Deadline mentioned
-    QUESTION: 'question',           // Open question asked
-    KEY_POINT: 'key_point',        // Important point to remember
-    BLOCKER: 'blocker',            // Obstacle or blocker mentioned
-    TOPIC_CHANGE: 'topic_change',  // Change in discussion topic
-    RECURRING_TOPIC: 'recurring',   // Topic mentioned multiple times
-    FACT: 'fact'                    // Factual insight from AI/KB expertise
+    QUESTION: 'question',           // Question posée (contexte pour réponses)
+    TOPIC_CHANGE: 'topic_change',  // Changement de sujet
+    RECURRING_TOPIC: 'recurring',   // Sujet récurrent (importance)
+    FACTUAL_RESPONSE: 'factual_response', // NOUVEAU: Réponse factuelle multi-angle
+    KB_INSIGHT: 'kb_insight'        // NOUVEAU: Insight basé sur KB (conditionnel)
 };
 
 /**
@@ -142,59 +139,11 @@ class LiveInsightsService extends EventEmitter {
      */
     _initializePatterns() {
         return {
-            // Decision patterns
-            decision: [
-                /\b(decided|agree[sd]?|concluded|determined|resolved)\b/i,
-                /\b(let'?s (go with|use|choose|pick))\b/i,
-                /\b(final decision|we'?ll|we will)\b/i,
-                /\b(approved|accepted|confirmed)\b/i
-            ],
-
-            // Action patterns (EN + FR)
-            action: [
-                /\b(will|gonna|going to|need to|should|must|have to)\s+\w+/i,
-                /\b(I'?ll|he'?ll|she'?ll|they'?ll|we'?ll)\s+\w+/i,
-                /\b(responsible for|assigned to|in charge of)\b/i,
-                /\b(action item|task|todo|to-?do)\b/i,
-                // French action patterns
-                /\b(il faut|doit|devra|dois|devons|devez)\b/i,
-                /\b(tu peux|peux-tu|pouvez-vous|pourriez-vous)\s+\w+/i,
-                /\b(n'oublie[zs]? pas|pensez à|pense à)/i,
-                /\b(finis|termine|prépare|regarde|vérifie|envoie|contacte)\b/i
-            ],
-
-            // Deadline patterns (EN + FR)
-            deadline: [
-                /\b(by|before|until|deadline|due)\s+(tomorrow|today|tonight|this week|next week|monday|tuesday|wednesday|thursday|friday|saturday|sunday)/i,
-                /\b(by|before|until|deadline|due)\s+\w+\s+\d{1,2}/i, // "by March 15"
-                /\b(asap|urgent|immediately|right away)\b/i,
-                /\b(\d{1,2}:\d{2}\s*[ap]m)\b/i, // Time mentions
-                /\b(in\s+\d+\s+(hours?|days?|weeks?|months?))/i,
-                // French deadline patterns
-                /\b(pour|avant|d'ici)\s+(demain|aujourd'hui|ce soir|lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)/i,
-                /\b(pour|avant|d'ici)\s+(cette semaine|la semaine prochaine|le mois prochain)/i,
-                /\b(pour|avant|d'ici)\s+le\s+\d{1,2}/i, // "pour le 15"
-                /\b(dans\s+\d+\s+(heures?|jours?|semaines?|mois))/i
-            ],
-
-            // Question patterns
+            // Question patterns (EN + FR)
             question: [
                 /\b(what|when|where|who|why|how|which|can|could|would|should|do|does|did|is|are|was|were)\b.*\?/i,
+                /\b(qu'|quoi|quand|où|qui|pourquoi|comment|quel|quelle|est-ce que)\b/i,
                 /\b(question|wondering|curious|need to know|clarify)\b/i
-            ],
-
-            // Key point patterns
-            keyPoint: [
-                /\b(important|critical|crucial|key|essential|vital|significant)\b/i,
-                /\b(note that|keep in mind|remember|don'?t forget)\b/i,
-                /\b(the main|the primary|the core|the key)\b/i
-            ],
-
-            // Blocker patterns
-            blocker: [
-                /\b(blocked|blocker|stuck|can'?t|cannot|unable to|issue|problem)\b/i,
-                /\b(waiting for|dependency|depends on|blocked by)\b/i,
-                /\b(obstacle|impediment|bottleneck)\b/i
             ]
         };
     }
@@ -357,29 +306,7 @@ class LiveInsightsService extends EventEmitter {
             ));
         }
 
-        // Detect actions
-        if (this._matchesPattern(text, this.patterns.action)) {
-            insights.push(this._createInsight(
-                InsightType.ACTION,
-                `Action: ${this._extractKeyPhrase(text, this.KEY_PHRASE_MAX_LENGTH)}`,
-                text,
-                speaker,
-                this._calculatePriority(text, InsightType.ACTION)
-            ));
-        }
-
-        // Detect deadlines
-        if (this._matchesPattern(text, this.patterns.deadline)) {
-            insights.push(this._createInsight(
-                InsightType.DEADLINE,
-                `Deadline mentioned: ${this._extractDeadline(text)}`,
-                text,
-                speaker,
-                Priority.HIGH // Deadlines are always high priority
-            ));
-        }
-
-        // Detect questions
+        // Detect questions (SEUL pattern gardé)
         if (this._matchesPattern(text, this.patterns.question)) {
             const question = this._extractKeyPhrase(text, this.QUESTION_MAX_LENGTH);
 
@@ -404,69 +331,19 @@ class LiveInsightsService extends EventEmitter {
             ));
         }
 
-        // Detect key points
-        if (this._matchesPattern(text, this.patterns.keyPoint)) {
-            insights.push(this._createInsight(
-                InsightType.KEY_POINT,
-                `Key Point: ${this._extractKeyPhrase(text, this.KEY_PHRASE_MAX_LENGTH)}`,
-                text,
-                speaker,
-                Priority.MEDIUM
-            ));
-        }
-
-        // Detect blockers
-        if (this._matchesPattern(text, this.patterns.blocker)) {
-            insights.push(this._createInsight(
-                InsightType.BLOCKER,
-                `Blocker: ${this._extractKeyPhrase(text, this.KEY_PHRASE_MAX_LENGTH)}`,
-                text,
-                speaker,
-                Priority.HIGH // Blockers are high priority
-            ));
-        }
-
         // Fix MEDIUM BUG-M2: Topic change detection moved to pre-filter section (above)
 
-        // Store and emit insights (with AI enrichment for high-priority ones)
+        // Store and emit insights (simplified - plus d'enrichissement AI pour patterns supprimés)
         // Use for...of instead of forEach to properly handle async/await and prevent race conditions
         for (const insight of insights) {
-            let finalInsight = insight;
-
-            // Enrich high-priority insights with AI analysis
-            if (insight.priority === Priority.HIGH) {
-                try {
-                    finalInsight = await contextualAnalysisService.enrichInsight(insight);
-                    console.log(`[LiveInsights] ${finalInsight.type}: ${finalInsight.title} [${finalInsight.sentiment}]`);
-                } catch (error) {
-                    console.error('[LiveInsights] Failed to enrich insight:', error);
-                    // Fallback: use original insight (finalInsight already set to insight)
-                }
-            } else {
-                console.log(`[LiveInsights] ${insight.type}: ${insight.title}`);
-            }
-
-            // NEW: For blockers, search KB for potential solutions
-            if (finalInsight.type === InsightType.BLOCKER) {
-                try {
-                    const kbSolutions = await this._searchKBForSolutions(finalInsight.context);
-                    if (kbSolutions.hasSolutions) {
-                        finalInsight.suggestedSolutions = kbSolutions.suggestions;
-                        finalInsight.hasKBSolutions = true;
-                        console.log(`[LiveInsights] 📚 Blocker enriched with ${kbSolutions.suggestions.length} KB solutions`);
-                    }
-                } catch (kbError) {
-                    console.warn('[LiveInsights] KB solution search failed:', kbError.message);
-                    // Continue without KB solutions
-                }
-            }
+            console.log(`[LiveInsights] ${insight.type}: ${insight.title}`);
 
             // Fix MEDIUM BUG #10: Consolidate duplicate notification calls
             // Previously notifyInsight was called 2-3 times per insight (lines 288, 298, 305)
             // Now it's called exactly once per insight
-            this._addInsightWithLimit(finalInsight); // Fix HIGH BUG-H3
-            this.emit('insight-detected', finalInsight);
-            notificationService.notifyInsight(finalInsight);
+            this._addInsightWithLimit(insight); // Fix HIGH BUG-H3
+            this.emit('insight-detected', insight);
+            notificationService.notifyInsight(insight);
         }
 
         // Check for recurring topics
@@ -602,32 +479,34 @@ class LiveInsightsService extends EventEmitter {
     }
 
     /**
-     * Generate factual AI insights based on conversation context and Knowledge Base
-     * Now generates expert-level facts instead of generic suggestions
+     * Generate multi-angle factual responses based on conversation context and Knowledge Base
+     * Now generates 2-4 different perspectives (Technical, Business, Risk, Innovation)
      * @private
      */
     async _generateProactiveSuggestions() {
         try {
             const activeInsights = this.getActiveInsights();
 
-            // Generate factual insights instead of suggestions
-            const facts = await contextualAnalysisService.generateFactualInsights(activeInsights);
+            // Generate multi-angle factual responses
+            const responses = await contextualAnalysisService.generateMultiAngleResponses(activeInsights);
 
-            if (facts && facts.length > 0) {
-                facts.forEach(fact => {
-                    // Determine source icon for display
-                    const sourceIcon = fact.source === 'kb' ? '📚' :
-                                       fact.source === 'industry' ? '📊' : '🧠';
+            if (responses && responses.length > 0) {
+                responses.forEach(response => {
+                    // Determine angle badge (already in text from AI)
+                    const angleIcon = response.angle === 'technical' ? '🔧' :
+                                     response.angle === 'business' ? '💰' :
+                                     response.angle === 'risk' ? '⚠️' : '💡';
 
                     const insight = this._createInsight(
-                        InsightType.FACT, // New type for factual insights
-                        `${sourceIcon} ${fact.title}`,
-                        fact.relevance,
+                        InsightType.FACTUAL_RESPONSE,
+                        response.text, // Text already contains angle badge from AI
+                        `Perspective ${response.angle}`,
                         'AI Expert',
                         Priority.MEDIUM,
                         {
-                            source: fact.source,
-                            confidence: fact.confidence,
+                            angle: response.angle,
+                            hasKB: response.hasKB,
+                            confidence: response.confidence,
                             aiGenerated: true,
                             isFactual: true
                         }

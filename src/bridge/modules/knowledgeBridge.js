@@ -99,7 +99,7 @@ module.exports = {
             }
         });
 
-        ipcMain.handle('documents:upload', async () => {
+        ipcMain.handle('documents:upload', async (event) => {
             try {
                 const userId = authService.getCurrentUserId();
                 if (!userId) {
