@@ -1,0 +1,9 @@
+{
+  "name": "lucide-web",
+  "version": "1.0.0",
+  "description": "Interface web de Lucide",
+  "scripts": {
+    "build": "echo 'Test build successful' && mkdir -p out && echo 'Test content' > out/index.html"
+  }
+}
+

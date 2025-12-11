@@ -1,0 +1,53 @@
+[
+  {
+    "user_id": "test_user_1",
+    "source_type": "postgres",
+    "source_name": "Test PostgreSQL Database",
+    "connection_config": {
+      "host": "localhost",
+      "port": 5432,
+      "database": "test_db",
+      "user": "test_user",
+      "ssl": false
+    },
+    "status": "active"
+  },
+  {
+    "user_id": "test_user_1",
+    "source_type": "mysql",
+    "source_name": "Test MySQL Database",
+    "connection_config": {
+      "host": "localhost",
+      "port": 3306,
+      "database": "test_db",
+      "user": "test_user"
+    },
+    "status": "active"
+  },
+  {
+    "user_id": "test_user_2",
+    "source_type": "rest_api",
+    "source_name": "Sample REST API",
+    "connection_config": {
+      "url": "https://api.example.com/v1",
+      "method": "GET",
+      "headers": {
+        "Content-Type": "application/json"
+      }
+    },
+    "status": "active"
+  },
+  {
+    "user_id": "test_user_2",
+    "source_type": "postgres",
+    "source_name": "Production Database",
+    "connection_config": {
+      "host": "prod-db.example.com",
+      "port": 5432,
+      "database": "production",
+      "user": "readonly",
+      "ssl": true
+    },
+    "status": "inactive"
+  }
+]

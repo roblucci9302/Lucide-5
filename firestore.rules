@@ -1,0 +1,84 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ══════════════════════════════════════════════════════════
+    // HELPER FUNCTIONS
+    // ══════════════════════════════════════════════════════════
+
+    // Vérifie si l'utilisateur est authentifié
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Vérifie si l'utilisateur est le propriétaire de la ressource
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Vérifie si l'utilisateur est le propriétaire du document
+    function isDocumentOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.uid;
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // RÈGLES DE SÉCURITÉ PAR COLLECTION
+    // ══════════════════════════════════════════════════════════
+
+    // Collection users : Chaque utilisateur ne peut accéder qu'à SES données
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // Collection sessions : Isolation par uid
+    match /sessions/{sessionId} {
+      allow read, write: if isDocumentOwner();
+      allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid;
+    }
+
+    // Collection messages : Isolation par uid
+    match /messages/{messageId} {
+      allow read, write: if isDocumentOwner();
+      allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid;
+    }
+
+    // Collection documents : Isolation par uid
+    match /documents/{documentId} {
+      allow read, write: if isDocumentOwner();
+      allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid;
+    }
+
+    // Collection workflows : Isolation par uid
+    match /workflows/{workflowId} {
+      allow read, write: if isDocumentOwner();
+      allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid;
+    }
+
+    // Collection agent_profiles : Isolation par uid
+    match /agent_profiles/{profileId} {
+      allow read, write: if isDocumentOwner();
+      allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid;
+    }
+
+    // Collection presets : Isolation par uid
+    match /presets/{presetId} {
+      allow read, write: if isDocumentOwner();
+      allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid;
+    }
+
+    // Collection settings : Isolation par uid
+    match /settings/{settingId} {
+      allow read, write: if isDocumentOwner();
+      allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid;
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // RÈGLES PAR DÉFAUT : TOUT REFUSER
+    // ══════════════════════════════════════════════════════════
+
+    // Refuse tout accès non explicitement autorisé ci-dessus
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

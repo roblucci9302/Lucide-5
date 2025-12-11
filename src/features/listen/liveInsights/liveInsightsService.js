@@ -1,0 +1,698 @@
+/**
+ * Live Insights Service - Phase 3.1 + 3.4 + 3.3
+ * Real-time analysis of conversation to detect patterns, decisions, actions, and key moments
+ * Enhanced with AI-powered contextual analysis and intelligent notifications
+ * Now integrated with Knowledge Base for blocker resolution suggestions
+ */
+
+const EventEmitter = require('events');
+const contextualAnalysisService = require('./contextualAnalysisService');
+const notificationService = require('./notificationService');
+const ragService = require('../../common/services/ragService'); // KB integration
+const authService = require('../../common/services/authService'); // For user ID
+const LRUCache = require('../../common/utils/lruCache'); // Solution cache
+
+/**
+ * Insight Types - Phase 1: Réponses Factuelles Multi-Angles
+ * Focus sur suggestions de réponses factuelles, pas d'actions concrètes
+ */
+const InsightType = {
+    QUESTION: 'question',           // Question posée (contexte pour réponses)
+    TOPIC_CHANGE: 'topic_change',  // Changement de sujet
+    RECURRING_TOPIC: 'recurring',   // Sujet récurrent (importance)
+    FACTUAL_RESPONSE: 'factual_response', // NOUVEAU: Réponse factuelle multi-angle
+    KB_INSIGHT: 'kb_insight'        // NOUVEAU: Insight basé sur KB (conditionnel)
+};
+
+/**
+ * Priority Levels
+ */
+const Priority = {
+    HIGH: 'high',       // Critical insights requiring immediate attention
+    MEDIUM: 'medium',   // Important but not urgent
+    LOW: 'low'         // Nice to know
+};
+
+class LiveInsightsService extends EventEmitter {
+    constructor() {
+        super();
+        this.sessionId = null;
+        this.insights = [];
+        // Fix MEDIUM BUG-M1: Add Map for O(1) insight lookup instead of O(n) Array.find()
+        this.insightsById = new Map(); // Fast lookup by insight ID
+        this.recurringTopicsMap = new Map(); // Fast lookup for recurring topics by topic name
+        this.conversationBuffer = [];
+        this.topicHistory = new Map(); // Track topic frequency
+        // Fix MEDIUM BUG-M6: Use Array for FIFO behavior
+        // Fix HIGH MEDIUM BUG-M11: Add Set for O(1) duplicate checking to avoid O(n²) complexity
+        this.questionTracker = []; // Track open questions with FIFO limit (order)
+        this.questionSet = new Set(); // Fast O(1) duplicate lookup
+        this.turnCounter = 0; // Track conversation turns for AI analysis
+
+        // Configuration constants
+        this.MAX_TRACKED_QUESTIONS = 100; // Limit questions to prevent memory overflow
+
+        // Fix HIGH BUG-H3: Add limit for insights array to prevent unbounded memory growth
+        // Limit insights to 500 for long meetings while maintaining useful history
+        this.MAX_INSIGHTS = 500;
+
+        // Fix NORMAL MEDIUM BUG-M19: Extract proactive suggestions trigger threshold
+        // Generate AI suggestions every 5 conversation turns to avoid overwhelming the user
+        // Balance between helpfulness and not being too intrusive
+        this.PROACTIVE_SUGGESTIONS_INTERVAL = 5; // Every 5 conversation turns
+
+        // Fix NORMAL MEDIUM BUG-M23: Extract recurring topic threshold
+        // Mark a topic as recurring when mentioned 3+ times - indicates importance
+        this.RECURRING_TOPIC_THRESHOLD = 3;
+
+        // Fix LOW BUG-L2: Extract magic numbers as named constants
+        this.CONVERSATION_BUFFER_SIZE = 10; // Keep last 10 turns for context
+        this.KEY_PHRASE_MAX_LENGTH = 60; // Standard max length for insight summaries
+        this.QUESTION_MAX_LENGTH = 80; // Questions can be slightly longer
+        this.TOPIC_NAME_MAX_LENGTH = 40; // Topic names should be concise
+
+        // Pattern detection configuration
+        this.patterns = this._initializePatterns();
+
+        // KB Integration: Cache for blocker solutions (5 min TTL)
+        this.solutionCache = new LRUCache({
+            max: 30,
+            ttl: 5 * 60 * 1000 // 5 minutes
+        });
+
+        console.log('[LiveInsightsService] Initialized with KB integration');
+    }
+
+    /**
+     * Search Knowledge Base for potential solutions to a blocker
+     * @private
+     * @param {string} blockerText - The blocker description
+     * @returns {Promise<Object>} Suggested solutions from KB
+     */
+    async _searchKBForSolutions(blockerText) {
+        // Check cache first
+        const cacheKey = blockerText.substring(0, 50).toLowerCase();
+        if (this.solutionCache.has(cacheKey)) {
+            console.log('[LiveInsights] KB solution cache hit');
+            return this.solutionCache.get(cacheKey);
+        }
+
+        try {
+            const userId = authService.getCurrentUserId();
+            if (!userId) {
+                return { hasSolutions: false, suggestions: [] };
+            }
+
+            // Search KB for related content
+            const ragContext = await ragService.retrieveContext(blockerText, {
+                maxChunks: 3,
+                minScore: 0.4 // Lower threshold for blockers
+            });
+
+            if (ragContext && ragContext.hasContext && ragContext.sources.length > 0) {
+                const solutions = {
+                    hasSolutions: true,
+                    suggestions: ragContext.sources.slice(0, 2).map(s => ({
+                        source: s.document_title,
+                        excerpt: s.content.substring(0, 200) + '...',
+                        relevance: s.relevance_score
+                    }))
+                };
+
+                // Cache the result
+                this.solutionCache.set(cacheKey, solutions);
+                console.log(`[LiveInsights] 📚 Found ${solutions.suggestions.length} KB solutions for blocker`);
+
+                return solutions;
+            }
+
+            return { hasSolutions: false, suggestions: [] };
+        } catch (error) {
+            console.warn('[LiveInsights] KB solution search failed:', error.message);
+            return { hasSolutions: false, suggestions: [], error: error.message };
+        }
+    }
+
+    /**
+     * Initialize regex patterns for insight detection
+     * @private
+     */
+    _initializePatterns() {
+        return {
+            // Decision patterns (EN + FR)
+            decision: [
+                /\b(decide|decided|decision|agree|agreed|will|going to|let's|we should|conclusion)\b/i,
+                /\b(décid|décision|d'accord|accord|allons|on va|conclus)/i
+            ],
+            
+            // Question patterns (EN + FR)
+            question: [
+                /\b(what|when|where|who|why|how|which|can|could|would|should|do|does|did|is|are|was|were)\b.*\?/i,
+                /\b(qu'|quoi|quand|où|qui|pourquoi|comment|quel|quelle|est-ce que)\b/i,
+                /\b(question|wondering|curious|need to know|clarify)\b/i
+            ]
+        };
+    }
+
+    /**
+     * Set the current session ID
+     */
+    setSessionId(sessionId) {
+        this.sessionId = sessionId;
+        this.reset();
+        console.log(`[LiveInsightsService] Session set: ${sessionId}`);
+    }
+
+    /**
+     * Reset service state
+     */
+    reset() {
+        this.insights = [];
+        this.conversationBuffer = [];
+        this.topicHistory.clear();
+        this.questionTracker = []; // Fix MEDIUM BUG-M6: Clear array
+        this.questionSet.clear(); // Fix HIGH MEDIUM BUG-M11: Clear set
+        this.turnCounter = 0;
+        contextualAnalysisService.reset(); // Reset AI analysis context
+        notificationService.reset(); // Reset notifications (Phase 3.3)
+        console.log('[LiveInsightsService] State reset');
+    }
+
+    /**
+     * Fix HIGH BUG-H3: Add insight with FIFO limit to prevent unbounded growth
+     * Fix MEDIUM BUG-M1: Update Maps when adding/removing insights
+     * @param {Object} insight - Insight object to add
+     * @private
+     */
+    _addInsightWithLimit(insight) {
+        // Check if insights array has reached limit
+        if (this.insights.length >= this.MAX_INSIGHTS) {
+            // Remove oldest insight (FIFO)
+            const removed = this.insights.shift();
+            // Fix MEDIUM BUG-M1: Remove from Maps too
+            this.insightsById.delete(removed.id);
+            if (removed.type === InsightType.RECURRING_TOPIC && removed.metadata?.topic) {
+                this.recurringTopicsMap.delete(removed.metadata.topic);
+            }
+            console.log(`[LiveInsights] Evicted oldest insight (ID: ${removed.id}) to maintain memory limit`);
+        }
+        this.insights.push(insight);
+        // Fix MEDIUM BUG-M1: Add to Maps for O(1) lookup
+        this.insightsById.set(insight.id, insight);
+        if (insight.type === InsightType.RECURRING_TOPIC && insight.metadata?.topic) {
+            this.recurringTopicsMap.set(insight.metadata.topic, insight);
+        }
+    }
+
+    /**
+     * Process new conversation turn
+     * @param {string} speaker - Speaker identifier
+     * @param {string} text - Transcribed text
+     */
+    async processConversationTurn(speaker, text) {
+        console.log(`[LiveInsightsService] 🔍 DEBUG: processConversationTurn called with speaker="${speaker}", text="${text.substring(0, 50)}..."`);
+        
+        // Validate inputs
+        if (!text || typeof text !== 'string') {
+            console.warn('[LiveInsightsService] Invalid text parameter, skipping');
+            return;
+        }
+
+        const normalizedSpeaker = speaker.toLowerCase();
+        console.log(`[LiveInsightsService] 🔍 DEBUG: Normalized speaker="${normalizedSpeaker}"`);
+        
+        if (!['me', 'them'].includes(normalizedSpeaker)) {
+            console.warn(`[LiveInsightsService] Invalid speaker "${speaker}", skipping`);
+            return;
+        }
+
+        if (!this.sessionId) {
+            console.warn('[LiveInsightsService] No session ID set, skipping processing');
+            return;
+        }
+        
+        console.log(`[LiveInsightsService] ✅ DEBUG: All validations passed! sessionId="${this.sessionId}"`);
+
+
+        // Add to buffer
+        this.conversationBuffer.push({ speaker: normalizedSpeaker, text, timestamp: Date.now() });
+
+        // Fix LOW BUG-L2: Use constant instead of magic number
+        if (this.conversationBuffer.length > this.CONVERSATION_BUFFER_SIZE) {
+            this.conversationBuffer.shift();
+        }
+
+        // Fix MEDIUM BUG-M6: Removed inefficient Set → Array → Set conversion
+        // Question limiting now handled when adding questions (see _analyzeConversationTurn)
+
+        // Add to contextual analysis service for AI-powered insights
+        try {
+            contextualAnalysisService.addConversationTurn(normalizedSpeaker, text);
+        } catch (error) {
+            console.error('[LiveInsights] Failed to add conversation turn to contextual analysis:', error);
+        }
+
+        this.turnCounter++;
+
+        // Analyze the turn (await for proper error handling)
+        try {
+            await this._analyzeConversationTurn(normalizedSpeaker, text);
+        } catch (error) {
+            console.error('[LiveInsights] Failed to analyze conversation turn:', error);
+        }
+
+        // Fix NORMAL MEDIUM BUG-M19: Use constant for proactive suggestions interval
+        if (this.turnCounter % this.PROACTIVE_SUGGESTIONS_INTERVAL === 0) {
+            this._generateProactiveSuggestions().catch(error => {
+                console.error('[LiveInsights] Failed to generate proactive suggestions:', error);
+            });
+        }
+    }
+
+    /**
+     * Analyze a conversation turn for insights
+     * @private
+     */
+    async _analyzeConversationTurn(speaker, text) {
+        console.log(`[LiveInsightsService] 🔍 DEBUG: _analyzeConversationTurn called for speaker="${speaker}"`);
+        const insights = [];
+
+        // Fix MEDIUM BUG-M2: Quick pre-filter to skip pattern matching for casual conversation
+        // Only run expensive pattern checks if message contains insight-worthy keywords
+        // Pre-filter keywords (EN + FR) - Élargi pour détecter plus de phrases en français
+        const insightKeywords = /\b(decide|decision|agree|will|going to|need to|should|must|have to|deadline|by|before|until|due|asap|urgent|question|what|when|where|who|why|how|important|critical|crucial|key|blocked|blocker|stuck|can't|cannot|issue|problem|let's talk|moving on|next topic|il faut|doit|devra|dois|devons|devez|tu peux|peux-tu|pouvez-vous|n'oublie|pensez à|pense à|finis|termine|prépare|regarde|vérifie|pour|avant|d'ici|demain|aujourd'hui|cette semaine|la semaine prochaine|urgent|critique|absolument|réunion|client|grave|important|rapidement|situation|problème|discuter|parler|décision|changer|modifier|améliorer|résoudre|trouver|chercher|comprendre|expliquer|savoir|connaître|découvrir|apprendre)\b/i;
+
+        const hasInsightKeywords = insightKeywords.test(text);
+        console.log(`[LiveInsightsService] 🔍 DEBUG: hasInsightKeywords=${hasInsightKeywords} for text="${text.substring(0, 50)}..."`);
+        
+        // DEBUG: Si pas de keywords, log les premiers mots pour comprendre
+        if (!hasInsightKeywords) {
+            console.log(`[LiveInsightsService] ⚠️ No insight keywords found in: "${text}"`);
+        }
+
+        // Always check for topic changes (lightweight check)
+        const topicChanged = this._detectTopicChange(text);
+        if (topicChanged) {
+            insights.push(this._createInsight(
+                InsightType.TOPIC_CHANGE,
+                `Topic shift: ${topicChanged}`,
+                text,
+                speaker,
+                Priority.LOW
+            ));
+        }
+
+        // Skip expensive pattern matching if no insight keywords found
+        if (!hasInsightKeywords) {
+            // Still emit topic change insights if found
+            if (insights.length > 0) {
+                for (const insight of insights) {
+                    this._addInsightWithLimit(insight); // Fix HIGH BUG-H3
+                    this.emit('insight-detected', insight);
+                    notificationService.notifyInsight(insight);
+                }
+            }
+            return;
+        }
+
+        // Detect decisions
+        if (this._matchesPattern(text, this.patterns.decision)) {
+            insights.push(this._createInsight(
+                InsightType.DECISION,
+                `Decision: ${this._extractKeyPhrase(text, this.KEY_PHRASE_MAX_LENGTH)}`,
+                text,
+                speaker,
+                this._calculatePriority(text, InsightType.DECISION)
+            ));
+        }
+
+        // Detect questions (SEUL pattern gardé)
+        if (this._matchesPattern(text, this.patterns.question)) {
+            const question = this._extractKeyPhrase(text, this.QUESTION_MAX_LENGTH);
+
+            // Fix MEDIUM BUG-M6 + HIGH MEDIUM BUG-M11: Efficient FIFO with O(1) duplicate check
+            // Use Set for O(1) duplicate check instead of Array.includes() which is O(n)
+            if (!this.questionSet.has(question)) {
+                // If at max capacity, remove oldest question (FIFO)
+                if (this.questionTracker.length >= this.MAX_TRACKED_QUESTIONS) {
+                    const removed = this.questionTracker.shift();
+                    this.questionSet.delete(removed); // Keep set in sync
+                }
+                this.questionTracker.push(question);
+                this.questionSet.add(question); // O(1) add to set
+            }
+
+            insights.push(this._createInsight(
+                InsightType.QUESTION,
+                `Question: ${question}`,
+                text,
+                speaker,
+                Priority.MEDIUM
+            ));
+        }
+
+        // Fix MEDIUM BUG-M2: Topic change detection moved to pre-filter section (above)
+
+        // Store and emit insights (simplified - plus d'enrichissement AI pour patterns supprimés)
+        // Use for...of instead of forEach to properly handle async/await and prevent race conditions
+        console.log(`[LiveInsightsService] 🔍 DEBUG: Found ${insights.length} insights to emit`);
+        for (const insight of insights) {
+            console.log(`[LiveInsights] ${insight.type}: ${insight.title}`);
+            console.log(`[LiveInsightsService] 🔥 DEBUG: About to emit 'insight-detected' event with insight:`, JSON.stringify(insight, null, 2));
+
+            // Fix MEDIUM BUG #10: Consolidate duplicate notification calls
+            // Previously notifyInsight was called 2-3 times per insight (lines 288, 298, 305)
+            // Now it's called exactly once per insight
+            this._addInsightWithLimit(insight); // Fix HIGH BUG-H3
+            this.emit('insight-detected', insight);
+            notificationService.notifyInsight(insight);
+        }
+
+        // Check for recurring topics
+        this._checkRecurringTopics();
+    }
+
+    /**
+     * Check if text matches any pattern
+     * @private
+     */
+    _matchesPattern(text, patterns) {
+        return patterns.some(pattern => pattern.test(text));
+    }
+
+    /**
+     * Extract key phrase from text
+     * @private
+     */
+    _extractKeyPhrase(text, maxLength = this.KEY_PHRASE_MAX_LENGTH) {
+        // Remove extra whitespace
+        const cleaned = text.replace(/\s+/g, ' ').trim();
+
+        // If text is short enough, return it
+        if (cleaned.length <= maxLength) {
+            return cleaned;
+        }
+
+        // Try to cut at sentence boundary
+        const sentences = cleaned.match(/[^.!?]+[.!?]+/g);
+        if (sentences && sentences[0] && sentences[0].length <= maxLength) {
+            return sentences[0].trim();
+        }
+
+        // Cut at word boundary
+        const truncated = cleaned.substring(0, maxLength);
+        const lastSpace = truncated.lastIndexOf(' ');
+        return truncated.substring(0, lastSpace) + '...';
+    }
+
+    /**
+     * Extract deadline from text
+     * @private
+     */
+    _extractDeadline(text) {
+        // Try to find specific date/time patterns
+        const timeMatch = text.match(/\b(by|before|until|deadline)\s+([^.!?,]+)/i);
+        if (timeMatch) {
+            return timeMatch[2].trim();
+        }
+
+        const urgentMatch = text.match(/\b(asap|urgent|immediately|right away)\b/i);
+        if (urgentMatch) {
+            return urgentMatch[1];
+        }
+
+        return this._extractKeyPhrase(text, this.TOPIC_NAME_MAX_LENGTH);
+    }
+
+    /**
+     * Calculate priority based on content
+     * @private
+     */
+    _calculatePriority(text, type) {
+        const urgentWords = /\b(urgent|critical|asap|immediately|important|crucial)\b/i;
+
+        if (urgentWords.test(text)) {
+            return Priority.HIGH;
+        }
+
+        // Type-based defaults
+        if (type === InsightType.DEADLINE || type === InsightType.BLOCKER) {
+            return Priority.HIGH;
+        }
+
+        if (type === InsightType.DECISION || type === InsightType.ACTION) {
+            return Priority.MEDIUM;
+        }
+
+        return Priority.LOW;
+    }
+
+    /**
+     * Detect topic changes in conversation
+     * @private
+     */
+    _detectTopicChange(text) {
+        const topicChangeIndicators = [
+            /\b(let'?s talk about|moving on to|next topic|switching to|regarding)\s+([^.!?,]+)/i,
+            /\b(now,|so,|anyway,|by the way,)\s+([^.!?,]+)/i
+        ];
+
+        for (const pattern of topicChangeIndicators) {
+            const match = text.match(pattern);
+            if (match) {
+                const topic = match[2] ? match[2].trim() : this._extractKeyPhrase(text, this.TOPIC_NAME_MAX_LENGTH);
+
+                // Track topic frequency
+                const count = (this.topicHistory.get(topic) || 0) + 1;
+                this.topicHistory.set(topic, count);
+
+                return topic;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Check for recurring topics
+     * @private
+     */
+    _checkRecurringTopics() {
+        for (const [topic, count] of this.topicHistory.entries()) {
+            if (count >= this.RECURRING_TOPIC_THRESHOLD) { // Topic mentioned threshold+ times
+                // Fix MEDIUM BUG-M1: Use Map for O(1) lookup instead of O(n) Array.find()
+                const existingRecurring = this.recurringTopicsMap.get(topic);
+
+                if (!existingRecurring) {
+                    const insight = this._createInsight(
+                        InsightType.RECURRING_TOPIC,
+                        `Recurring topic: ${topic}`,
+                        `This topic has been mentioned ${count} times`,
+                        'System',
+                        Priority.MEDIUM,
+                        { topic, count }
+                    );
+
+                    this._addInsightWithLimit(insight); // Fix HIGH BUG-H3
+                    this.emit('insight-detected', insight);
+                }
+            }
+        }
+    }
+
+    /**
+     * Generate multi-angle factual responses based on conversation context and Knowledge Base
+     * Now generates 2-4 different perspectives (Technical, Business, Risk, Innovation)
+     * @private
+     */
+    async _generateProactiveSuggestions() {
+        try {
+            const activeInsights = this.getActiveInsights();
+
+            // Generate multi-angle factual responses
+            const responses = await contextualAnalysisService.generateMultiAngleResponses(activeInsights);
+
+            if (responses && responses.length > 0) {
+                responses.forEach(response => {
+                    // Determine angle badge (already in text from AI)
+                    const angleIcon = response.angle === 'technical' ? '🔧' :
+                                     response.angle === 'business' ? '💰' :
+                                     response.angle === 'risk' ? '⚠️' : '💡';
+
+                    const insight = this._createInsight(
+                        InsightType.FACTUAL_RESPONSE,
+                        response.text, // Text already contains angle badge from AI
+                        `Perspective ${response.angle}`,
+                        'AI Expert',
+                        Priority.MEDIUM,
+                        {
+                            angle: response.angle,
+                            hasKB: response.hasKB,
+                            confidence: response.confidence,
+                            aiGenerated: true,
+                            isFactual: true
+                        }
+                    );
+
+                    this._addInsightWithLimit(insight);
+                    this.emit('insight-detected', insight);
+
+                    // Notify factual insight
+                    notificationService.notifyInsight(insight);
+
+                    console.log(`[LiveInsights] 📊 Fact: ${fact.title.substring(0, 50)}... [${fact.source}]`);
+                });
+            }
+        } catch (error) {
+            console.error('[LiveInsights] Failed to generate factual insights:', error);
+        }
+    }
+
+    /**
+     * Create insight object
+     * @private
+     */
+    _createInsight(type, title, content, speaker, priority, metadata = {}) {
+        return {
+            id: this._generateId(),
+            session_id: this.sessionId,
+            type,
+            title,
+            content,
+            speaker,
+            priority,
+            timestamp: Date.now(),
+            metadata,
+            dismissed: false
+        };
+    }
+
+    /**
+     * Generate unique ID
+     * @private
+     */
+    _generateId() {
+        return `insight_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    }
+
+    /**
+     * Get all insights for current session
+     */
+    getAllInsights() {
+        return this.insights;
+    }
+
+    /**
+     * Get insights by type
+     */
+    getInsightsByType(type) {
+        return this.insights.filter(i => i.type === type);
+    }
+
+    /**
+     * Get insights by priority
+     */
+    getInsightsByPriority(priority) {
+        return this.insights.filter(i => i.priority === priority);
+    }
+
+    /**
+     * Get active (non-dismissed) insights
+     */
+    getActiveInsights() {
+        return this.insights.filter(i => !i.dismissed);
+    }
+
+    /**
+     * Dismiss an insight
+     * Fix MEDIUM BUG-M1: Use Map for O(1) lookup
+     */
+    dismissInsight(insightId) {
+        // Fix MEDIUM BUG-M1: Use Map for O(1) lookup instead of O(n) Array.find()
+        const insight = this.insightsById.get(insightId);
+        if (insight) {
+            insight.dismissed = true;
+            this.emit('insight-dismissed', insight);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Get meeting statistics
+     */
+    getSessionStatistics() {
+        const active = this.getActiveInsights();
+
+        return {
+            total: this.insights.length,
+            active: active.length,
+            byType: {
+                decisions: this.getInsightsByType(InsightType.DECISION).length,
+                actions: this.getInsightsByType(InsightType.ACTION).length,
+                deadlines: this.getInsightsByType(InsightType.DEADLINE).length,
+                questions: this.getInsightsByType(InsightType.QUESTION).length,
+                keyPoints: this.getInsightsByType(InsightType.KEY_POINT).length,
+                blockers: this.getInsightsByType(InsightType.BLOCKER).length,
+                topicChanges: this.getInsightsByType(InsightType.TOPIC_CHANGE).length,
+                recurring: this.getInsightsByType(InsightType.RECURRING_TOPIC).length,
+                facts: this.getInsightsByType(InsightType.FACT).length
+            },
+            byPriority: {
+                high: this.getInsightsByPriority(Priority.HIGH).length,
+                medium: this.getInsightsByPriority(Priority.MEDIUM).length,
+                low: this.getInsightsByPriority(Priority.LOW).length
+            },
+            openQuestions: this.questionTracker.length, // Fix MEDIUM BUG-M6: Use .length for array
+            conversationTurns: this.conversationBuffer.length
+        };
+    }
+
+    /**
+     * Get recent insights (last N)
+     */
+    getRecentInsights(count = 5) {
+        const active = this.getActiveInsights();
+        return active.slice(-count).reverse();
+    }
+
+    /**
+     * Get high priority insights that need attention
+     */
+    getHighPriorityInsights() {
+        return this.insights.filter(
+            i => i.priority === Priority.HIGH && !i.dismissed
+        );
+    }
+
+    /**
+     * Generate intelligent summary of conversation (Phase 3.4)
+     * @returns {Promise<Object>} Summary with themes, mood, and progress
+     */
+    async generateIntelligentSummary() {
+        try {
+            const summary = await contextualAnalysisService.generateIntelligentSummary();
+            return summary;
+        } catch (error) {
+            console.error('[LiveInsights] Failed to generate intelligent summary:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Get context summary from AI analysis (Phase 3.4)
+     * @returns {Object} Context summary
+     */
+    getContextSummary() {
+        return contextualAnalysisService.getContextSummary();
+    }
+}
+
+// Export singleton instance
+const liveInsightsService = new LiveInsightsService();
+
+// Export types and priorities for use in other modules
+liveInsightsService.InsightType = InsightType;
+liveInsightsService.Priority = Priority;
+
+module.exports = liveInsightsService;

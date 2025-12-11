@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Compte-rendu de réunion - 08/12/2025</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #2c3e50;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            padding: 40px 20px;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.2em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        
+        .header .meta {
+            font-size: 1.1em;
+            opacity: 0.95;
+        }
+        
+        .content {
+            padding: 40px;
+        }
+        
+        .section {
+            margin-bottom: 35px;
+            padding-bottom: 25px;
+            border-bottom: 2px solid #e8ecf1;
+        }
+        
+        .section:last-child {
+            border-bottom: none;
+        }
+        
+        .section h2 {
+            color: #667eea;
+            font-size: 1.6em;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .section h2::before {
+            content: '';
+            display: inline-block;
+            width: 4px;
+            height: 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 2px;
+        }
+        
+        .summary {
+            background: #f8f9fa;
+            padding: 20px;
+            border-left: 4px solid #667eea;
+            border-radius: 4px;
+            font-size: 1.05em;
+            line-height: 1.8;
+        }
+        
+        .participants {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        
+        .participant {
+            background: #f8f9fa;
+            padding: 12px 16px;
+            border-radius: 8px;
+            border-left: 3px solid #667eea;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .participant:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+        }
+        
+        .participant-name {
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        
+        .participant-role {
+            font-size: 0.9em;
+            color: #7f8c8d;
+            font-style: italic;
+        }
+        
+        .keypoints ul {
+            list-style: none;
+        }
+        
+        .keypoints li {
+            padding: 12px 0;
+            padding-left: 30px;
+            position: relative;
+        }
+        
+        .keypoints li::before {
+            content: '●';
+            position: absolute;
+            left: 10px;
+            color: #667eea;
+            font-size: 1.2em;
+        }
+        
+        .decision, .action {
+            background: #fff;
+            border: 1px solid #e8ecf1;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+            transition: box-shadow 0.2s;
+        }
+        
+        .decision:hover, .action:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
+        
+        .decision h3, .action h3 {
+            color: #2c3e50;
+            margin-bottom: 12px;
+            font-size: 1.2em;
+        }
+        
+        .decision-content, .action-content {
+            color: #555;
+            line-height: 1.7;
+            margin-bottom: 12px;
+        }
+        
+        .decision-meta, .action-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            font-size: 0.95em;
+        }
+        
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .meta-label {
+            font-weight: 600;
+            color: #667eea;
+        }
+        
+        .priority-high {
+            color: #e74c3c;
+            font-weight: 700;
+        }
+        
+        .priority-medium {
+            color: #f39c12;
+            font-weight: 600;
+        }
+        
+        .priority-low {
+            color: #3498db;
+            font-weight: 500;
+        }
+        
+        .timeline {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+        }
+        
+        .timeline-item {
+            padding: 10px 0;
+            border-bottom: 1px dashed #ddd;
+        }
+        
+        .timeline-item:last-child {
+            border-bottom: none;
+        }
+        
+        .timeline-time {
+            font-weight: 600;
+            color: #667eea;
+            display: inline-block;
+            min-width: 120px;
+        }
+        
+        .unresolved {
+            background: #fff3cd;
+            border-left: 4px solid #f39c12;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+        }
+        
+        .unresolved h4 {
+            color: #856404;
+            margin-bottom: 8px;
+        }
+        
+        .quote {
+            border-left: 4px solid #667eea;
+            padding: 15px 20px;
+            background: #f8f9fa;
+            margin: 15px 0;
+            font-style: italic;
+        }
+        
+        .quote-text {
+            font-size: 1.05em;
+            color: #2c3e50;
+            margin-bottom: 8px;
+        }
+        
+        .quote-author {
+            text-align: right;
+            color: #667eea;
+            font-weight: 600;
+            font-style: normal;
+        }
+        
+        .footer {
+            background: #f8f9fa;
+            padding: 30px;
+            text-align: center;
+            color: #7f8c8d;
+            font-size: 0.95em;
+        }
+        
+        .metadata-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .metadata-item {
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #e8ecf1;
+            text-align: center;
+        }
+        
+        .metadata-label {
+            font-size: 0.85em;
+            color: #7f8c8d;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+        
+        .metadata-value {
+            font-size: 1.3em;
+            font-weight: 700;
+            color: #667eea;
+        }
+        
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+            .container {
+                box-shadow: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📋 Compte-rendu de réunion</h1>
+            <div class="meta">
+                <div>📅 Date: 08/12/2025 14:30:00</div>
+                <div>⏱️ Durée: 1h 15min</div>
+            </div>
+        </div>
+        
+        <div class="content">
+            <!-- RÉSUMÉ EXÉCUTIF -->
+            <div class="section">
+                <h2>📝 Résumé exécutif</h2>
+                <div class="summary">
+                    Réunion stratégique pour définir la roadmap produit du Q1 2026. L'équipe a validé le budget de 500K€ et décidé de prioriser le développement de la fonctionnalité d'analyse prédictive par IA. Trois recrutements clés ont été approuvés (2 développeurs senior, 1 data scientist). Le lancement du projet Alpha est confirmé pour janvier 2026 avec une phase pilote de 6 semaines auprès de 10 clients stratégiques.
+                </div>
+            </div>
+            
+            <!-- PARTICIPANTS -->
+            <div class="section">
+                <h2>👥 Participants</h2>
+                <div class="participants">
+                    <div class="participant">
+                        <div class="participant-name">Jean Dupont</div>
+                        <div class="participant-role">CEO</div>
+                    </div>
+                    <div class="participant">
+                        <div class="participant-name">Marie Martin</div>
+                        <div class="participant-role">CTO</div>
+                    </div>
+                    <div class="participant">
+                        <div class="participant-name">Pierre Durand</div>
+                        <div class="participant-role">CFO</div>
+                    </div>
+                    <div class="participant">
+                        <div class="participant-name">Sophie Bernard</div>
+                        <div class="participant-role">Head of Product</div>
+                    </div>
+                    <div class="participant">
+                        <div class="participant-name">Thomas Lefebvre</div>
+                        <div class="participant-role">Lead Developer</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- POINTS CLÉS -->
+            <div class="section keypoints">
+                <h2>🎯 Points clés</h2>
+                <ul>
+                    <li>Budget Q1 2026 validé à 500K€ avec répartition : 60% R&D, 25% Marketing, 15% Infrastructure</li>
+                    <li>Roadmap produit alignée sur les retours clients du Q4 2025</li>
+                    <li>Priorité #1 : Analyse prédictive par IA pour anticiper les besoins clients</li>
+                    <li>Recrutements approuvés : 2 développeurs senior (React/Node.js), 1 data scientist (ML/Python)</li>
+                    <li>Phase pilote projet Alpha : 10 clients stratégiques identifiés</li>
+                    <li>Intégration API partenaires prévue pour février 2026</li>
+                    <li>Migration infrastructure cloud programmée pour mars 2026</li>
+                </ul>
+            </div>
+            
+            <!-- DÉCISIONS -->
+            <div class="section">
+                <h2>🔍 Décisions prises</h2>
+                
+                <div class="decision">
+                    <h3>Décision 1: Validation du budget Q1 2026</h3>
+                    <div class="decision-content">
+                        Budget de 500K€ approuvé à l'unanimité avec répartition détaillée par département. Une révision trimestrielle est prévue pour ajuster si nécessaire selon les performances.
+                    </div>
+                    <div class="decision-meta">
+                        <div class="meta-item">
+                            <span class="meta-label">Responsable:</span>
+                            <span>Pierre Durand (CFO)</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Échéance:</span>
+                            <span>Immédiat</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="decision">
+                    <h3>Décision 2: Lancement du projet Alpha en janvier 2026</h3>
+                    <div class="decision-content">
+                        Démarrage du projet Alpha confirmé pour le 15 janvier 2026 avec une équipe dédiée de 6 personnes. Phase pilote de 6 semaines avec monitoring quotidien des KPIs.
+                    </div>
+                    <div class="decision-meta">
+                        <div class="meta-item">
+                            <span class="meta-label">Responsable:</span>
+                            <span>Marie Martin (CTO)</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Échéance:</span>
+                            <span>15/01/2026</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="decision">
+                    <h3>Décision 3: Recrutements prioritaires</h3>
+                    <div class="decision-content">
+                        Approbation de 3 postes clés : 2 développeurs senior pour renforcer l'équipe frontend/backend et 1 data scientist pour le module d'IA prédictive. Processus de recrutement à lancer cette semaine.
+                    </div>
+                    <div class="decision-meta">
+                        <div class="meta-item">
+                            <span class="meta-label">Responsable:</span>
+                            <span>Jean Dupont (CEO) & Marie Martin (CTO)</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Échéance:</span>
+                            <span>31/01/2026</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- ACTIONS -->
+            <div class="section">
+                <h2>✅ Actions à suivre</h2>
+                
+                <div class="action">
+                    <h3>1. Finaliser le cahier des charges du projet Alpha</h3>
+                    <div class="action-content">
+                        Document de 30 pages incluant spécifications techniques, user stories, et critères d'acceptation
+                    </div>
+                    <div class="action-meta">
+                        <div class="meta-item">
+                            <span class="meta-label">Assigné à:</span>
+                            <span>Sophie Bernard</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Deadline:</span>
+                            <span>15/12/2025</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Priorité:</span>
+                            <span class="priority-high">HIGH</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="action">
+                    <h3>2. Lancer le processus de recrutement (2 dev + 1 DS)</h3>
+                    <div class="action-content">
+                        Publier offres sur LinkedIn, Indeed, et réseau interne. Target : 5 entretiens par poste avant fin décembre
+                    </div>
+                    <div class="action-meta">
+                        <div class="meta-item">
+                            <span class="meta-label">Assigné à:</span>
+                            <span>Marie Martin</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Deadline:</span>
+                            <span>10/12/2025</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Priorité:</span>
+                            <span class="priority-high">HIGH</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="action">
+                    <h3>3. Préparer la présentation client pour la phase pilote</h3>
+                    <div class="action-content">
+                        Deck de 15 slides présentant la valeur ajoutée, le planning, et les bénéfices attendus
+                    </div>
+                    <div class="action-meta">
+                        <div class="meta-item">
+                            <span class="meta-label">Assigné à:</span>
+                            <span>Jean Dupont</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Deadline:</span>
+                            <span>20/12/2025</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Priorité:</span>
+                            <span class="priority-medium">MEDIUM</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- TIMELINE -->
+            <div class="section">
+                <h2>⏱️ Timeline de la réunion</h2>
+                <div class="timeline">
+                    <div class="timeline-item">
+                        <span class="timeline-time">14:30 - 14:40</span>
+                        Introduction et revue des objectifs (10 min)
+                    </div>
+                    <div class="timeline-item">
+                        <span class="timeline-time">14:40 - 15:00</span>
+                        Présentation budget Q1 par Pierre Durand (20 min)
+                    </div>
+                    <div class="timeline-item">
+                        <span class="timeline-time">15:00 - 15:25</span>
+                        Discussion roadmap produit et priorités (25 min)
+                    </div>
+                    <div class="timeline-item">
+                        <span class="timeline-time">15:25 - 15:35</span>
+                        Pause (10 min)
+                    </div>
+                    <div class="timeline-item">
+                        <span class="timeline-time">15:35 - 15:50</span>
+                        Validation projet Alpha et phase pilote (15 min)
+                    </div>
+                    <div class="timeline-item">
+                        <span class="timeline-time">15:50 - 16:05</span>
+                        Recrutements et organisation équipe (15 min)
+                    </div>
+                    <div class="timeline-item">
+                        <span class="timeline-time">16:05 - 16:15</span>
+                        Actions à suivre et prochaines étapes (10 min)
+                    </div>
+                </div>
+            </div>
+            
+            <!-- POINTS NON RÉSOLUS -->
+            <div class="section">
+                <h2>🚧 Points non résolus</h2>
+                
+                <div class="unresolved">
+                    <h4>Budget marketing digital</h4>
+                    <div>Arbitrage nécessaire entre campagnes Google Ads vs LinkedIn Ads</div>
+                    <div style="margin-top: 8px;">
+                        <strong>Responsable:</strong> Pierre Durand + Sophie Bernard<br>
+                        <strong>Deadline:</strong> 12/12/2025
+                    </div>
+                </div>
+                
+                <div class="unresolved">
+                    <h4>Choix du provider cloud</h4>
+                    <div>Hésitation entre AWS et Azure pour la migration</div>
+                    <div style="margin-top: 8px;">
+                        <strong>Responsable:</strong> Thomas Lefebvre<br>
+                        <strong>Deadline:</strong> 18/12/2025
+                    </div>
+                </div>
+            </div>
+            
+            <!-- CITATIONS -->
+            <div class="section">
+                <h2>💬 Citations importantes</h2>
+                
+                <div class="quote">
+                    <div class="quote-text">
+                        "Cette roadmap est la plus ambitieuse que nous ayons jamais eue, mais c'est exactement ce dont nous avons besoin pour doubler notre croissance en 2026."
+                    </div>
+                    <div class="quote-author">— Jean Dupont (CEO)</div>
+                </div>
+                
+                <div class="quote">
+                    <div class="quote-text">
+                        "L'analyse prédictive par IA va transformer notre façon de servir nos clients. C'est un game changer."
+                    </div>
+                    <div class="quote-author">— Marie Martin (CTO)</div>
+                </div>
+                
+                <div class="quote">
+                    <div class="quote-text">
+                        "Le budget est serré mais réaliste. Nous devrons être disciplinés sur les dépenses."
+                    </div>
+                    <div class="quote-author">— Pierre Durand (CFO)</div>
+                </div>
+            </div>
+            
+            <!-- MÉTADONNÉES -->
+            <div class="section">
+                <h2>📊 Métadonnées</h2>
+                <div class="metadata-grid">
+                    <div class="metadata-item">
+                        <div class="metadata-label">Participants</div>
+                        <div class="metadata-value">5</div>
+                    </div>
+                    <div class="metadata-item">
+                        <div class="metadata-label">Décisions</div>
+                        <div class="metadata-value">3</div>
+                    </div>
+                    <div class="metadata-item">
+                        <div class="metadata-label">Actions</div>
+                        <div class="metadata-value">6</div>
+                    </div>
+                    <div class="metadata-item">
+                        <div class="metadata-label">Points non résolus</div>
+                        <div class="metadata-value">2</div>
+                    </div>
+                    <div class="metadata-item">
+                        <div class="metadata-label">Productivité</div>
+                        <div class="metadata-value">92%</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <div>Type de réunion: <strong>Stratégique - Planification Q1</strong></div>
+            <div style="margin-top: 10px;">Généré par Lucide Meeting Assistant le 8 décembre 2025</div>
+        </div>
+    </div>
+</body>
+</html>
